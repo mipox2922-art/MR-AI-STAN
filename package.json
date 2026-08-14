@@ -1,0 +1,29 @@
+{
+  "name": "mr-ai-stan",
+  "version": "1.0.0",
+  "description": "MR AI - Chief of Staff desktop voice assistant",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron .",
+    "build": "electron-builder"
+  },
+  "keywords": ["ai", "assistant", "voice", "electron"],
+  "author": "mipox2922-art",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^30.0.0",
+    "electron-builder": "^24.13.3"
+  },
+  "dependencies": {
+    "say": "^0.16.0",
+    "node-record-lpcm16": "^1.0.1",
+    "@google-cloud/speech": "^6.0.0"
+  },
+  "build": {
+    "appId": "com.mrai.chiefofstaff",
+    "productName": "MR AI",
+    "files": ["src/**/*", "package.json", "README.md"],
+    "win": { "target": "nsis" }
+  }
+}
