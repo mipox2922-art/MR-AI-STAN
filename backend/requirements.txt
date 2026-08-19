@@ -8,3 +8,4 @@ passlib[bcrypt]
 httpx
 python-multipart
 email-validator
+pwdlib[argon2]
