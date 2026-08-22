@@ -29,7 +29,7 @@ from ..dependencies import get_current_user
 from ..database import get_db
 from ..models import ActivityLog, Conversation, Message, User
 from ..providers.factory import get_provider
-from ..providers.base import AIProviderError, AIProviderTimeout
+from ..providers.base import AIProviderError
 from ..realtime import manager
 from ..schemas import ChatRequest, ChatResponse
 
@@ -41,6 +41,12 @@ logger = logging.getLogger("mr_ai.chat")
 
 # Timeouts (seconds)
 AI_PROVIDER_TIMEOUT = 30
+
+MR_AI_SYSTEM_PROMPT = (
+    "You are MR AI, the Digital Chief of Staff for Boss Ferisi. "
+    "Reply naturally in Swahili. Be short, useful, confident and friendly. "
+    "Never claim an action happened unless verified."
+)
 REALTIME_TIMEOUT = 5
 
 # Limits
@@ -219,12 +225,12 @@ async def generate_with_timeout(
             
             # Call with timeout
             answer = await asyncio.wait_for(
-                provider.generate(message),
+                provider.generate(message, system_instruction=MR_AI_SYSTEM_PROMPT),
                 timeout=timeout
             )
             
             if not answer or not str(answer).strip():
-                raise AIProviderError(PROVIDER_ERROR_MSG)
+                raise AIProviderError(provider.__class__.__name__, PROVIDER_ERROR_MSG)
             
             logger.info(
                 "✅ AI provider returned response",
@@ -265,7 +271,7 @@ async def generate_with_timeout(
     # All retries exhausted
     error_detail = f"{PROVIDER_ERROR_MSG}: {type(last_error).__name__}"
     logger.error(f"🚫 All retries exhausted: {error_detail}")
-    raise AIProviderError(error_detail)
+    raise AIProviderError(provider.__class__.__name__, error_detail)
 
 # ==============================================================================
 # REALTIME NOTIFICATION (Non-blocking)

@@ -1,21 +1,19 @@
 from abc import ABC, abstractmethod
+from typing import Optional
 
 
 class AIProviderError(Exception):
-    """Base exception for all AI provider failures (API errors, bad responses, etc.)."""
-    def __init__(self, message: str, provider: str = "unknown"):
+    """Raised when an AI provider fails to return a usable response."""
+    def __init__(self, provider: str, detail: str):
         self.provider = provider
-        super().__init__(f"[{provider}] {message}")
-
-
-class AIProviderTimeout(AIProviderError):
-    """Raised when a provider request exceeds the allowed time limit."""
-    pass
+        self.detail = detail
+        super().__init__(f"[{provider}] {detail}")
 
 
 class AIProvider(ABC):
-    name: str = "unknown"
+    name: str
 
     @abstractmethod
-    async def generate(self, prompt: str) -> str:
+    async def generate(self, prompt: str, system_instruction: Optional[str] = None) -> str:
+        """Return plain text reply. Must raise AIProviderError on failure — never return None/empty silently."""
         raise NotImplementedError

@@ -25,3 +25,5 @@ web/dist/
 Thumbs.db
 backend/.env
 backend/mr_ai.db
+*.bak
+*.backup-auth
