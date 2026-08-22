@@ -1,5 +1,12 @@
-const API_URL =
-  import.meta.env.VITE_API_URL || "http://localhost:8000";
+function detectApiUrl() {
+  if (import.meta.env.VITE_API_URL) return import.meta.env.VITE_API_URL;
+  const { hostname, protocol } = window.location;
+  if (hostname.endsWith(".app.github.dev")) {
+    return `${protocol}//${hostname.replace(/-\d+\.app\.github\.dev$/, "-8000.app.github.dev")}`;
+  }
+  return "http://localhost:8000";
+}
+const API_URL = detectApiUrl();
 
 export function getToken() {
   return localStorage.getItem("mr_ai_token");
@@ -7,6 +14,10 @@ export function getToken() {
 
 export function setToken(token) {
   localStorage.setItem("mr_ai_token", token);
+}
+
+export function clearToken() {
+  localStorage.removeItem("mr_ai_token");
 }
 
 async function request(path, options = {}) {
@@ -29,16 +40,20 @@ async function request(path, options = {}) {
   const data = await response.json();
 
   if (!response.ok) {
+    if (response.status === 401) {
+      clearToken();
+    }
+
     throw new Error(data.detail || "Request failed");
   }
 
   return data;
 }
 
-export async function register(username, password) {
+export async function register(username, password, email) {
   const data = await request("/auth/register", {
     method: "POST",
-    body: JSON.stringify({ username, password })
+    body: JSON.stringify({ username, password, email: email || username + "@mrai.local" })
   });
 
   setToken(data.access_token);
