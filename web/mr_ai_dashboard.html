@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>MR AI — Command Center</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#03080f;
+    --bg2:#050e18;
+    --panel:rgba(10,26,42,.55);
+    --panel-solid:#0a1826;
+    --border:rgba(120,220,255,.16);
+    --border-soft:rgba(120,220,255,.08);
+    --text:#d9f4ff;
+    --text-dim:#6f93a8;
+    --accent:#2be3ff;
+    --accent-soft:#2be3ff33;
+    --accent-glow:#2be3ff88;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{height:100%;}
+  body{
+    background:
+      radial-gradient(ellipse 900px 500px at 50% -10%, rgba(43,227,255,.08), transparent 60%),
+      radial-gradient(ellipse 700px 500px at 100% 100%, rgba(43,227,255,.05), transparent 60%),
+      var(--bg);
+    color:var(--text);
+    font-family:'Rajdhani',sans-serif;
+    overflow:hidden;
+    transition:background .8s ease;
+  }
+  .scanlines{position:fixed; inset:0; pointer-events:none; z-index:50; opacity:.035;
+    background:repeating-linear-gradient(0deg, #fff 0px, #fff 1px, transparent 1px, transparent 3px);}
+  .noise-vignette{position:fixed; inset:0; pointer-events:none; z-index:49; box-shadow:inset 0 0 220px rgba(0,0,0,.75);}
+  .app{display:grid; grid-template-columns:210px 1fr; grid-template-rows:56px 1fr 74px; height:100vh; gap:1px;}
+  .topbar{ grid-column:1/3; grid-row:1; }
+  .sidebar{ grid-column:1; grid-row:2/4; }
+  .main{ grid-column:2; grid-row:2; overflow:auto; }
+  .bottombar{ grid-column:2; grid-row:3; }
+  .topbar{display:flex; align-items:center; justify-content:space-between; padding:0 22px;
+    border-bottom:1px solid var(--border-soft); background:linear-gradient(180deg, rgba(8,18,28,.9), rgba(8,18,28,.6));}
+  .status-pill{display:flex; align-items:center; gap:8px; font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:.08em;
+    color:var(--accent); border:1px solid var(--border); padding:5px 12px; border-radius:20px; background:var(--accent-soft);
+    transition:color .6s, background .6s, border-color .6s;}
+  .status-pill .dot{width:6px;height:6px;border-radius:50%;background:var(--accent); box-shadow:0 0 8px var(--accent-glow); animation:blink 1.6s infinite;}
+  .clock-wrap{ text-align:center; }
+  .clock-wrap .date{ font-size:10px; letter-spacing:.14em; color:var(--text-dim); font-family:'JetBrains Mono',monospace;}
+  .clock-wrap .time{ font-family:'Orbitron',sans-serif; font-size:19px; color:var(--accent); letter-spacing:.05em; transition:color .6s;}
+  .top-right{ display:flex; align-items:center; gap:16px; }
+  .icon-btn{width:32px;height:32px; border-radius:8px; display:flex; align-items:center; justify-content:center;
+    border:1px solid var(--border-soft); color:var(--text-dim); font-size:13px; cursor:default;}
+  .operator{ display:flex; align-items:center; gap:9px; }
+  .operator .avatar{width:30px;height:30px;border-radius:50%; background:conic-gradient(from 0deg, var(--accent), transparent 70%);
+    display:flex;align-items:center;justify-content:center; box-shadow:0 0 10px var(--accent-glow);}
+  .operator .avatar span{width:22px;height:22px;border-radius:50%;background:#08131e;display:flex;align-items:center;justify-content:center;font-size:9px;color:var(--accent);}
+  .operator .meta .name{font-size:12px;font-weight:600;}
+  .operator .meta .role{font-size:9px;color:var(--text-dim); letter-spacing:.08em;}
+  .sidebar{border-right:1px solid var(--border-soft); background:linear-gradient(180deg, rgba(6,14,22,.9), rgba(4,10,17,.9)); display:flex; flex-direction:column;}
+  .brand{ padding:16px 18px 14px; display:flex; align-items:center; gap:10px; border-bottom:1px solid var(--border-soft);}
+  .brand-mark{width:34px;height:34px; border-radius:10px; position:relative;
+    border:1.5px solid var(--accent); box-shadow:0 0 14px var(--accent-glow), inset 0 0 8px var(--accent-glow);
+    display:flex;align-items:center;justify-content:center; transition:border-color .6s, box-shadow .6s;}
+  .brand-mark::before{ content:""; position:absolute; inset:5px; border-radius:50%; border:1px dashed var(--accent); opacity:.6; animation:spin 6s linear infinite;}
+  .brand-mark b{ font-family:'Orbitron'; font-size:11px; color:var(--accent); z-index:1; transition:color .6s;}
+  .brand-text b{ font-family:'Orbitron'; font-size:14px; letter-spacing:.06em; display:block; color:#eafcff;}
+  .brand-text span{ font-size:9px; color:var(--text-dim); letter-spacing:.18em;}
+  .nav{ padding:12px 10px; display:flex; flex-direction:column; gap:2px; flex:1; overflow:auto;}
+  .nav-item{display:flex; align-items:center; gap:11px; padding:9px 11px; border-radius:8px;
+    font-size:12.5px; color:var(--text-dim); letter-spacing:.02em; cursor:default; border:1px solid transparent;}
+  .nav-item .ic{width:15px; text-align:center; font-size:13px;}
+  .nav-item.active{color:var(--accent); background:var(--accent-soft); border-color:var(--border);
+    box-shadow:0 0 12px -4px var(--accent-glow) inset; transition:color .6s, background .6s, border-color .6s;}
+  .nav-item .badge{margin-left:auto; font-family:'JetBrains Mono'; font-size:9.5px; background:rgba(255,255,255,.06); padding:1px 6px; border-radius:8px; color:var(--text-dim);}
+  .sidebar-foot{ padding:14px 16px 18px; border-top:1px solid var(--border-soft);}
+  .sidebar-foot .lbl{font-size:9px; letter-spacing:.16em; color:var(--text-dim); margin-bottom:8px;}
+  .mini-wave{ display:flex; align-items:flex-end; gap:2px; height:24px;}
+  .mini-wave i{ width:3px; background:var(--accent); border-radius:2px; opacity:.7; animation:wave 1.1s ease-in-out infinite; transition:background .6s;}
+  .main{padding:16px; display:grid; grid-template-columns:1fr 1.15fr 1fr; grid-template-rows:auto auto; gap:14px;}
+  .panel{background:var(--panel); border:1px solid var(--border-soft); border-radius:14px; padding:14px 15px;
+    backdrop-filter:blur(6px); display:flex; flex-direction:column; min-height:0;}
+  .panel-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;}
+  .panel-head h3{ font-family:'Orbitron'; font-size:10.5px; letter-spacing:.14em; color:var(--text-dim); font-weight:600;}
+  .panel-head .more{ font-size:9.5px; color:var(--accent); letter-spacing:.05em; transition:color .6s;}
+  .stat-row{display:flex; align-items:center; gap:10px; padding:8px 9px; border-radius:9px;
+    border:1px solid var(--border-soft); margin-bottom:7px; background:rgba(255,255,255,.02);}
+  .stat-row .ic{width:26px;height:26px;border-radius:7px; display:flex;align-items:center;justify-content:center;
+    background:var(--accent-soft); color:var(--accent); font-size:12px; transition:color .6s, background .6s;}
+  .stat-row .txt b{ display:block; font-size:12px; font-weight:600;}
+  .stat-row .txt span{ font-size:10px; color:var(--text-dim);}
+  .stat-row .ok{ margin-left:auto; color:#39e28a; font-size:12px;}
+  .core-panel{ align-items:center; justify-content:center; position:relative; overflow:hidden;}
+  .orb-stage{ position:relative; width:100%; height:250px; display:flex; align-items:center; justify-content:center;}
+  .ring{position:absolute; border-radius:50%; border:1px solid var(--accent); opacity:.35; transition:border-color .6s;}
+  .r1{width:230px;height:230px; animation:spin 18s linear infinite; border-style:dashed;}
+  .r2{width:186px;height:186px; animation:spin 12s linear infinite reverse; opacity:.5;}
+  .r3{width:142px;height:142px; animation:spin 8s linear infinite;}
+  .sweep{position:absolute; width:230px;height:230px;border-radius:50%;
+    background:conic-gradient(from 0deg, var(--accent-glow), transparent 28%); animation:spin 4s linear infinite; opacity:.55; transition:background .6s;}
+  .core-orb{position:relative; width:96px;height:96px;border-radius:50%;
+    background:radial-gradient(circle at 35% 30%, #fff, var(--accent) 40%, #012b36 78%);
+    box-shadow:0 0 40px 6px var(--accent-glow), 0 0 90px 20px var(--accent-soft); animation:pulse 2.6s ease-in-out infinite; transition:box-shadow .6s;}
+  .orb-caption{ position:absolute; bottom:6px; text-align:center; width:100%;}
+  .orb-caption b{ font-family:'Orbitron'; font-size:15px; letter-spacing:.12em; color:#eafcff;}
+  .orb-caption span{ display:block; font-size:9.5px; color:var(--accent); letter-spacing:.2em; margin-top:2px; transition:color .6s;}
+  .mode-tag{margin-top:10px; font-family:'JetBrains Mono'; font-size:10px; letter-spacing:.14em;
+    color:var(--accent); border:1px solid var(--border); padding:4px 14px; border-radius:20px; background:var(--accent-soft); transition:all .6s;}
+  .thinking{display:none; align-items:center; gap:6px; margin-top:10px; font-family:'JetBrains Mono'; font-size:10px; letter-spacing:.1em; color:#ffb15e;}
+  .thinking.show{ display:flex; }
+  .thinking .td{ width:5px;height:5px;border-radius:50%; background:#ffb15e; animation:blink 1s infinite;}
+  .thinking .td:nth-child(2){animation-delay:.2s;} .thinking .td:nth-child(3){animation-delay:.4s;}
+  .feed-panel{ overflow:hidden; }
+  .feed-list{ flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:9px; padding-right:2px;}
+  .msg{ border:1px solid var(--border-soft); background:rgba(255,255,255,.025); border-radius:10px; padding:8px 10px;}
+  .msg.user{ border-color:var(--border); background:var(--accent-soft); transition:border-color .6s, background .6s;}
+  .msg .row1{ display:flex; justify-content:space-between; align-items:center; margin-bottom:3px;}
+  .msg .who{ font-size:9.5px; letter-spacing:.1em; color:var(--accent); font-family:'JetBrains Mono'; transition:color .6s;}
+  .msg.user .who{ color:#eafcff; }
+  .msg .time{ font-size:8.5px; color:var(--text-dim); font-family:'JetBrains Mono';}
+  .msg .body{ font-size:12.5px; line-height:1.4; color:var(--text);}
+  .msg .tier{ font-size:8.5px; padding:1px 6px; border-radius:6px; letter-spacing:.06em;}
+  .tier.info{ background:rgba(120,180,255,.15); color:#7db4ff;}
+  .tier.warn{ background:rgba(255,170,80,.15); color:#ffb15e;}
+  .tier.live{ background:rgba(57,226,138,.15); color:#39e28a;}
+  .chat-input-row{margin-top:10px; display:flex; align-items:center; gap:8px;
+    border:1px solid var(--border); border-radius:10px; padding:7px 10px; background:rgba(255,255,255,.03); transition:border-color .6s;}
+  .chat-input-row input{flex:1; background:transparent; border:none; outline:none; color:var(--text); font-family:'Rajdhani'; font-size:13px;}
+  .chat-input-row input::placeholder{ color:var(--text-dim); }
+  .send-btn{width:26px;height:26px;border-radius:7px; border:1px solid var(--border); background:var(--accent-soft);
+    color:var(--accent); font-size:12px; cursor:pointer; display:flex;align-items:center;justify-content:center; transition:all .6s;}
+  .agents-grid{ display:grid; grid-template-columns:1fr 1fr; gap:8px;}
+  .agent-card{ border:1px solid var(--border-soft); border-radius:9px; padding:8px 9px; background:rgba(255,255,255,.02);}
+  .agent-card .ic{ font-size:13px; margin-bottom:4px; color:var(--accent); transition:color .6s;}
+  .agent-card b{ display:block; font-size:11.5px; font-weight:600;}
+  .agent-card .status{ font-size:9.5px; color:var(--text-dim); display:flex; align-items:center; gap:5px; margin-top:2px;}
+  .agent-card .status .d{width:5px;height:5px;border-radius:50%;background:#39e28a;}
+  .agent-card .status.standby .d{ background:#5a7382;}
+  .wavebar{ display:flex; gap:1.5px; height:12px; align-items:flex-end; margin-top:5px;}
+  .wavebar i{ width:2px; background:var(--accent); opacity:.7; animation:wave 1.2s ease-in-out infinite; transition:background .6s;}
+  .timeline-item{ display:flex; gap:10px; padding:7px 0; border-bottom:1px solid var(--border-soft);}
+  .timeline-item:last-child{border-bottom:none;}
+  .timeline-item .t{ font-family:'JetBrains Mono'; font-size:9.5px; color:var(--text-dim); width:52px; flex-shrink:0; padding-top:1px;}
+  .timeline-item .dotline{ display:flex; flex-direction:column; align-items:center;}
+  .timeline-item .dotline .d{width:6px;height:6px;border-radius:50%;background:var(--accent); box-shadow:0 0 6px var(--accent-glow); transition:background .6s;}
+  .timeline-item b{ font-size:12px; display:block;}
+  .timeline-item span{ font-size:9.5px; color:var(--text-dim);}
+  .cmd-btn{display:flex; align-items:center; gap:9px; padding:9px 10px; border-radius:9px;
+    border:1px solid var(--border-soft); background:rgba(255,255,255,.02); margin-bottom:7px; font-size:12px;}
+  .cmd-btn .ic{ color:var(--accent); transition:color .6s;}
+  .gauge-row{ display:flex; justify-content:space-around; align-items:center; flex:1;}
+  .gauge{ position:relative; width:76px;height:76px; border-radius:50%; display:flex; align-items:center; justify-content:center;}
+  .gauge svg{ position:absolute; inset:0; transform:rotate(-90deg);}
+  .gauge .val{ font-family:'Orbitron'; font-size:14px; color:var(--accent); transition:color .6s;}
+  .gauge-lbl{ text-align:center; margin-top:6px; font-size:9.5px; color:var(--text-dim); letter-spacing:.08em;}
+  .gauge-wrap{ text-align:center; }
+  .llm-grid{ display:grid; grid-template-columns:1fr 1fr; gap:7px;}
+  .llm-chip{ display:flex; align-items:center; gap:7px; border:1px solid var(--border-soft); border-radius:8px; padding:6px 8px; font-size:10.5px;}
+  .llm-chip .d{width:6px;height:6px;border-radius:50%;background:#39e28a;}
+  .llm-chip.off .d{background:#5a7382;}
+  .llm-chip .n{font-weight:600;}
+  .llm-chip .s{margin-left:auto; font-size:8.5px; color:var(--text-dim);}
+  .bottombar{border-top:1px solid var(--border-soft); background:linear-gradient(0deg, rgba(8,18,28,.95), rgba(8,18,28,.6));
+    display:flex; align-items:center; justify-content:space-between; padding:0 22px;}
+  .env-info{ display:flex; gap:18px; font-size:10.5px; color:var(--text-dim);}
+  .env-info b{ color:var(--text);}
+  .talk-btn{display:flex; align-items:center; gap:12px; padding:9px 26px; border-radius:30px;
+    border:1px solid var(--border); background:var(--accent-soft); box-shadow:0 0 22px -4px var(--accent-glow); transition:all .6s; cursor:pointer;}
+  .talk-btn b{ font-family:'Orbitron'; font-size:12px; letter-spacing:.1em; color:var(--accent); transition:color .6s;}
+  .talk-btn span{ display:block; font-size:9px; color:var(--text-dim);}
+  .barwave{ display:flex; gap:2px; align-items:center;}
+  .barwave i{ width:2.5px; height:14px; background:var(--accent); border-radius:2px; animation:wave 1s ease-in-out infinite; transition:background .6s;}
+  .brief-btn{font-size:10.5px; border:1px solid var(--border-soft); padding:8px 16px; border-radius:20px; color:var(--text-dim); display:flex; align-items:center; gap:6px;}
+  ::-webkit-scrollbar{ width:5px; height:5px;}
+  ::-webkit-scrollbar-thumb{ background:var(--border); border-radius:4px;}
+  @keyframes spin{ to{ transform:rotate(360deg);} }
+  @keyframes blink{ 0%,100%{opacity:1;} 50%{opacity:.25;} }
+  @keyframes pulse{ 0%,100%{ transform:scale(1);} 50%{ transform:scale(1.06);} }
+  @keyframes wave{ 0%,100%{ height:4px;} 50%{ height:20px;} }
+  @media (prefers-reduced-motion:reduce){ *{ animation:none !important; transition:none !important; } }
+</style>
+</head>
+<body>
+<div class="scanlines"></div>
+<div class="noise-vignette"></div>
+<div class="app">
+  <div class="topbar">
+    <div class="status-pill"><span class="dot"></span><span id="modeStatusText">SYSTEM STATUS · OPTIMAL</span></div>
+    <div class="clock-wrap"><div class="date" id="dateStr">—</div><div class="time" id="timeStr">--:--:--</div></div>
+    <div class="top-right">
+      <div class="icon-btn">⌕</div><div class="icon-btn">🔔</div><div class="icon-btn">⚙</div>
+      <div class="operator"><div class="avatar"><span>OP</span></div><div class="meta"><div class="name">Operator</div><div class="role">COMMANDER</div></div></div>
+    </div>
+  </div>
+  <div class="sidebar">
+    <div class="brand"><div class="brand-mark"><b>AI</b></div><div class="brand-text"><b>MR AI</b><span>COMMAND CENTER</span></div></div>
+    <div class="nav">
+      <div class="nav-item active"><span class="ic">▣</span>Command Center</div>
+      <div class="nav-item"><span class="ic">◎</span>AI Core</div>
+      <div class="nav-item"><span class="ic">◈</span>Agents</div>
+      <div class="nav-item"><span class="ic">☰</span>Tasks<span class="badge">3</span></div>
+      <div class="nav-item"><span class="ic">▦</span>Calendar</div>
+      <div class="nav-item"><span class="ic">◐</span>Memory</div>
+      <div class="nav-item"><span class="ic">◇</span>Conversations<span class="badge">12</span></div>
+      <div class="nav-item"><span class="ic">▤</span>Knowledge Base</div>
+      <div class="nav-item"><span class="ic">✦</span>Tools &amp; Skills<span class="badge">18</span></div>
+      <div class="nav-item"><span class="ic">⇄</span>Workflows</div>
+    </div>
+    <div class="sidebar-foot"><div class="lbl">VOICE STATUS</div><div class="mini-wave" id="miniWave"></div><div style="font-size:9.5px;color:var(--text-dim);margin-top:6px;">Tap to speak</div></div>
+  </div>
+  <div class="main">
+    <div class="panel" style="grid-column:1; grid-row:1;">
+      <div class="panel-head"><h3>AI CORE OVERVIEW</h3></div>
+      <div class="stat-row"><div class="ic">◎</div><div class="txt"><b>AI Core</b><span id="coreStatusTxt">Active</span></div><div class="ok">●</div></div>
+      <div class="stat-row"><div class="ic">◐</div><div class="txt"><b>Memory</b><span>3,380 Stored</span></div></div>
+      <div class="stat-row"><div class="ic">◆</div><div class="txt"><b>Voice</b><span>Online</span></div><div class="ok">●</div></div>
+      <div class="stat-row"><div class="ic">◈</div><div class="txt"><b>Agents</b><span>2 Running</span></div></div>
+      <div class="stat-row"><div class="ic">✦</div><div class="txt"><b>Providers</b><span>4 Connected</span></div></div>
+      <div class="stat-row"><div class="ic">⌁</div><div class="txt"><b>System</b><span id="sysModeTxt">Optimal</span></div><div class="ok">●</div></div>
+    </div>
+    <div class="panel core-panel" style="grid-column:2; grid-row:1;">
+      <div class="orb-stage">
+        <div class="sweep"></div><div class="ring r1"></div><div class="ring r2"></div><div class="ring r3"></div>
+        <div class="core-orb"></div>
+        <div class="orb-caption"><b>MR AI</b><span>A I &nbsp;C O R E &nbsp;· &nbsp;v3.0.0</span></div>
+      </div>
+      <div style="display:flex; flex-direction:column; align-items:center;">
+        <div class="mode-tag" id="modeTag">🔵 NORMAL MODE</div>
+        <div class="thinking" id="thinkingRow"><span class="td"></span><span class="td"></span><span class="td"></span> MR AI IS THINKING…</div>
+      </div>
+    </div>
+    <div class="panel feed-panel" style="grid-column:3; grid-row:1/3;">
+      <div class="panel-head"><h3>LIVE INTELLIGENCE FEED</h3><span class="more">VIEW ALL ›</span></div>
+      <div class="feed-list" id="feedList"></div>
+      <div class="chat-input-row"><input id="chatInput" type="text" placeholder="Type a command… (virus / alert / done / normal)" /><div class="send-btn" id="sendBtn">➤</div></div>
+    </div>
+    <div class="panel" style="grid-column:1; grid-row:2;">
+      <div class="panel-head"><h3>ACTIVE AGENTS</h3><span class="more">VIEW ALL ›</span></div>
+      <div class="agents-grid">
+        <div class="agent-card"><div class="ic">⌘</div><b>Coding Agent</b><div class="status"><span class="d"></span>Active</div><div class="wavebar" data-wave="5"></div></div>
+        <div class="agent-card"><div class="ic">◈</div><b>Research Agent</b><div class="status"><span class="d"></span>Active</div><div class="wavebar" data-wave="5"></div></div>
+        <div class="agent-card"><div class="ic">◐</div><b>Memory Agent</b><div class="status standby"><span class="d"></span>Standby</div></div>
+        <div class="agent-card"><div class="ic">◎</div><b>Browser Agent</b><div class="status standby"><span class="d"></span>Standby</div></div>
+        <div class="agent-card"><div class="ic">☰</div><b>Task Agent</b><div class="status standby"><span class="d"></span>Standby</div></div>
+        <div class="agent-card"><div class="ic">✓</div><b>System Agent</b><div class="status"><span class="d"></span>Nominal</div></div>
+      </div>
+    </div>
+    <div class="panel" style="grid-column:2; grid-row:2;">
+      <div class="panel-head"><h3>MISSION TIMELINE</h3><span class="more">TODAY ›</span></div>
+      <div class="timeline-item"><span class="t">09:30 AM</span><div class="dotline"><span class="d"></span></div><div><b>Daily Standup</b><span>Done</span></div></div>
+      <div class="timeline-item"><span class="t">12:00 PM</span><div class="dotline"><span class="d"></span></div><div><b>Finalize HUD panel spacing</b><span>In 42 min</span></div></div>
+      <div class="timeline-item"><span class="t">02:00 PM</span><div class="dotline"><span class="d"></span></div><div><b>Deep-work block · Voice pipeline</b><span>In 2h 42m</span></div></div>
+      <div class="timeline-item"><span class="t">04:30 PM</span><div class="dotline"><span class="d"></span></div><div><b>Design Review — Command Center</b><span>In 5h 12m</span></div></div>
+    </div>
+    <div class="panel" style="grid-column:1; grid-row:3;">
+      <div class="panel-head"><h3>SYSTEM MONITOR</h3></div>
+      <div class="gauge-row">
+        <div class="gauge-wrap"><div class="gauge" id="gCpu"></div><div class="gauge-lbl">CPU</div></div>
+        <div class="gauge-wrap"><div class="gauge" id="gRam"></div><div class="gauge-lbl">RAM</div></div>
+        <div class="gauge-wrap"><div class="gauge" id="gDisk"></div><div class="gauge-lbl">DISK</div></div>
+      </div>
+    </div>
+    <div class="panel" style="grid-column:2; grid-row:3;">
+      <div class="panel-head"><h3>QUICK COMMANDS</h3></div>
+      <div class="cmd-btn"><span class="ic">▶</span>Start New Task</div>
+      <div class="cmd-btn"><span class="ic">▦</span>Open Calendar</div>
+      <div class="cmd-btn"><span class="ic">◉</span>Start Voice Chat</div>
+      <div class="cmd-btn"><span class="ic">⇄</span>Run Workflow</div>
+    </div>
+    <div class="panel" style="grid-column:3; grid-row:3;">
+      <div class="panel-head"><h3>MODE STATUS</h3><span class="more">MANAGE ›</span></div>
+      <div class="llm-grid">
+        <div class="llm-chip"><span class="d"></span><span class="n">Normal</span><span class="s" id="chipNormal">ON</span></div>
+        <div class="llm-chip off"><span class="d"></span><span class="n">Secret</span><span class="s" id="chipVirus">off</span></div>
+        <div class="llm-chip off"><span class="d"></span><span class="n">Danger</span><span class="s" id="chipAlert">off</span></div>
+        <div class="llm-chip off"><span class="d"></span><span class="n">Success</span><span class="s" id="chipDone">off</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="bottombar">
+    <div class="env-info"><span>📍 <b>Dar es Salaam</b></span><span>☁ <b>28°C</b> Overcast</span><span>⌁ Network <b>Excellent</b></span></div>
+    <div class="talk-btn" id="talkBtn"><div class="barwave" id="talkWave"></div><div><b>TALK TO MR AI</b><span id="talkSub">I am listening…</span></div><div class="barwave" id="talkWave2"></div></div>
+    <div class="brief-btn">▷ Executive Briefing</div>
+  </div>
+</div>
+<script>
+function tick(){
+  const d = new Date();
+  document.getElementById('dateStr').textContent = d.toLocaleDateString('en-GB',{weekday:'long', day:'2-digit', month:'long', year:'numeric'});
+  document.getElementById('timeStr').textContent = d.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+}
+tick(); setInterval(tick,1000);
+function fillWave(el, n){
+  el.innerHTML='';
+  for(let i=0;i<n;i++){ const i2=document.createElement('i'); i2.style.animationDelay=(Math.random()*0.8)+'s'; el.appendChild(i2); }
+}
+fillWave(document.getElementById('miniWave'), 14);
+fillWave(document.getElementById('talkWave'), 8);
+fillWave(document.getElementById('talkWave2'), 8);
+document.querySelectorAll('.wavebar').forEach(w=>fillWave(w, +w.dataset.wave || 6));
+function drawGauge(el, pct, colorVar){
+  const r=30, c=2*Math.PI*r;
+  el.innerHTML = `
+    <svg width="76" height="76" viewBox="0 0 76 76">
+      <circle cx="38" cy="38" r="${r}" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="6"/>
+      <circle cx="38" cy="38" r="${r}" fill="none" stroke="var(${colorVar})" stroke-width="6"
+        stroke-dasharray="${c}" stroke-dashoffset="${c*(1-pct/100)}" stroke-linecap="round"/>
+    </svg>
+    <div class="val">${pct}%</div>`;
+}
+drawGauge(document.getElementById('gCpu'), 15, '--accent');
+drawGauge(document.getElementById('gRam'), 54, '--accent');
+drawGauge(document.getElementById('gDisk'), 40, '--accent');
+const MODES = {
+  normal:{ hex:'#2be3ff', glow:'#2be3ff88', soft:'#2be3ff22', label:'🔵 NORMAL MODE', status:'SYSTEM STATUS · OPTIMAL', chip:'chipNormal'},
+  virus: { hex:'#39e28a', glow:'#39e28a88', soft:'#39e28a22', label:'🟢 SECRET MODE', status:'SYSTEM STATUS · PRIVATE',  chip:'chipVirus'},
+  alert: { hex:'#ff5c5c', glow:'#ff5c5c99', soft:'#ff5c5c22', label:'🔴 DANGER MODE', status:'SYSTEM STATUS · ALERT',   chip:'chipAlert'},
+  done:  { hex:'#ffcf4d', glow:'#ffcf4d99', soft:'#ffcf4d22', label:'💛 SUCCESS MODE',status:'SYSTEM STATUS · COMPLETE',chip:'chipDone'},
+};
+function setMode(key){
+  const m = MODES[key] || MODES.normal;
+  const root = document.documentElement.style;
+  root.setProperty('--accent', m.hex);
+  root.setProperty('--accent-glow', m.glow);
+  root.setProperty('--accent-soft', m.soft);
+  document.getElementById('modeTag').textContent = m.label;
+  document.getElementById('modeStatusText').textContent = m.status;
+  document.querySelectorAll('.llm-chip').forEach(c=>c.classList.add('off'));
+  document.querySelectorAll('.llm-chip .s').forEach(s=>s.textContent='off');
+  const chipEl = document.getElementById(m.chip);
+  chipEl.textContent='ON';
+  chipEl.closest('.llm-chip').classList.remove('off');
+}
+const feed = document.getElementById('feedList');
+function nowTime(){ return new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'}); }
+function addMsg(who, text, tier){
+  const div=document.createElement('div');
+  div.className='msg'+(who==='YOU'?' user':'');
+  div.innerHTML = `<div class="row1"><span class="who">${who}</span><span class="time">${nowTime()}</span></div>
+    <div class="body">${text}</div>${tier? `<div class="tier ${tier}" style="margin-top:5px;display:inline-block;">${tier.toUpperCase()}</div>`:''}`;
+  feed.appendChild(div);
+  feed.scrollTop = feed.scrollHeight;
+}
+addMsg('MR AI','Systems online. All cores nominal. Awaiting instructions.','live');
+addMsg('MR AI','Type "virus", "alert", "done" or "normal" to switch operating modes.','info');
+const RESPONSES = {
+  virus:'Secret protocol engaged. Visibility restricted, channel encrypted.',
+  alert:'Danger protocol engaged. Monitoring threat vectors closely.',
+  done:'Task marked complete. Good work — standing by for the next objective.',
+  normal:'Returning to normal operations. All systems nominal.',
+};
+function handleSend(){
+  const input = document.getElementById('chatInput');
+  const val = input.value.trim();
+  if(!val) return;
+  addMsg('YOU', val);
+  input.value='';
+  const key = val.toLowerCase();
+  const thinking = document.getElementById('thinkingRow');
+  thinking.classList.add('show');
+  setTimeout(()=>{
+    thinking.classList.remove('show');
+    if(RESPONSES[key]){
+      setMode(key);
+      addMsg('MR AI', RESPONSES[key], key==='alert'?'warn':'live');
+    } else {
+      addMsg('MR AI', 'Acknowledged: "'+val+'". Processing in current mode.', 'info');
+    }
+  }, 1100);
+}
+document.getElementById('sendBtn').addEventListener('click', handleSend);
+document.getElementById('chatInput').addEventListener('keydown', e=>{ if(e.key==='Enter') handleSend(); });
+setMode('normal');
+</script>
+</body>
+</html>

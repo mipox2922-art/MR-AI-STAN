@@ -521,3 +521,326 @@ button {
     grid-template-columns: 1fr;
   }
 }
+
+/* ===== MOD ON/OFF ANIMATION ===== */
+
+/* MOD ON/OFF Theme Variables */
+:root {
+  --accent-primary: #00f3ff;
+  --accent-secondary: #ff5555;
+  --transition-duration: 0.8s;
+}
+
+.app.app-mod-active {
+  --accent-primary: #ff5555;
+  --accent-secondary: #00f3ff;
+}
+
+/* Chunk animation (chenga chenga) */
+.chunk {
+  position: fixed;
+  bottom: 0;
+  width: 30px;
+  height: 30px;
+  background: linear-gradient(135deg, rgba(255, 85, 85, 0.8), rgba(255, 150, 100, 0.8));
+  border: 1px solid rgba(255, 85, 85, 0.6);
+  box-shadow: 0 0 15px rgba(255, 85, 85, 0.6);
+  pointer-events: none;
+  z-index: 9999;
+  animation: riseChunk 1.2s ease-out forwards;
+}
+
+@keyframes riseChunk {
+  0% {
+    bottom: -50px;
+    opacity: 1;
+    transform: translateY(0) rotate(0deg);
+  }
+  100% {
+    bottom: 100vh;
+    opacity: 0;
+    transform: translateY(-20px) rotate(360deg) scale(0.3);
+  }
+}
+
+/* MOD ON Label */
+.mod-label {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 72px;
+  font-weight: 900;
+  letter-spacing: 8px;
+  color: #ff5555;
+  text-shadow: 0 0 40px rgba(255, 85, 85, 0.8);
+  opacity: 0;
+  animation: modLabelPulse 0.6s ease-out forwards;
+  pointer-events: none;
+  z-index: 10000;
+}
+
+@keyframes modLabelPulse {
+  0% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(0.8);
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+.ai-core {
+  transition: all 0.8s ease-in-out;
+}
+
+.ai-core.mod-active {
+  filter: drop-shadow(0 0 20px rgba(255, 85, 85, 0.6));
+}
+
+.ai-core.mod-active .core-ring {
+  border-color: #ff5555;
+  box-shadow:
+    0 0 20px rgba(255, 85, 85, 0.4),
+    inset 0 0 20px rgba(255, 85, 85, 0.15);
+}
+
+.ai-core.mod-active .core-center {
+  border-color: #ff5555;
+  color: #ff5555;
+  box-shadow:
+    0 0 30px rgba(255, 85, 85, 0.5),
+    inset 0 0 30px rgba(255, 85, 85, 0.2);
+}
+
+.ai-core.mod-active .core-state {
+  color: #ff5555;
+}
+
+.app.app-mod-active {
+  --primary-accent: #ff5555;
+}
+
+.app.app-mod-active .sidebar {
+  border-right-color: rgba(255, 85, 85, 0.15);
+  background: rgba(100, 5, 5, 0.92);
+  transition: all 0.8s ease-in-out;
+}
+
+.app.app-mod-active .sidebar button {
+  color: #ff8080;
+}
+
+.app.app-mod-active .sidebar button:hover,
+.app.app-mod-active .sidebar button.active {
+  color: #ff5555;
+  border-color: rgba(255, 85, 85, 0.18);
+  background: rgba(255, 85, 85, 0.05);
+}
+
+.app.app-mod-active .brand strong {
+  color: #ff5555;
+}
+
+.app.app-mod-active .topbar {
+  border-bottom-color: rgba(255, 85, 85, 0.12);
+  transition: all 0.8s ease-in-out;
+}
+
+.app.app-mod-active .topbar h1 {
+  color: #ffcccc;
+}
+
+.app.app-mod-active .system-label {
+  color: #cc8888;
+}
+
+.app.app-mod-active .core-area {
+  border-color: rgba(255, 85, 85, 0.12);
+  background: rgba(255, 85, 85, 0.015);
+  transition: all 0.8s ease-in-out;
+}
+
+.app.app-mod-active .chat-panel {
+  border-color: rgba(255, 85, 85, 0.12);
+  background: rgba(255, 85, 85, 0.025);
+  transition: all 0.8s ease-in-out;
+}
+
+.app.app-mod-active .chat-header {
+  border-bottom-color: rgba(255, 85, 85, 0.1);
+}
+
+.app.app-mod-active .chat-header strong {
+  color: #ff5555;
+}
+
+.app.app-mod-active .chat-input input {
+  border-color: rgba(255, 85, 85, 0.2);
+  background: #150303;
+}
+
+.app.app-mod-active .chat-input button {
+  background: #ff5555;
+}
+
+.app.app-mod-active .status-panel,
+.app.app-mod-active .activity-panel {
+  border-color: rgba(255, 85, 85, 0.12);
+  background: rgba(255, 85, 85, 0.025);
+  transition: all 0.8s ease-in-out;
+}
+
+.app.app-mod-active .panel-title {
+  color: #ff5555;
+}
+
+.app.app-mod-active .activity-row strong {
+  color: #ffcccc;
+}
+
+/* ===== MOD ON/OFF ANIMATIONS ===== */
+
+.chunk {
+  position: fixed;
+  bottom: 0;
+  width: 30px;
+  height: 30px;
+  background: linear-gradient(135deg, rgba(255, 85, 85, 0.8), rgba(255, 150, 100, 0.8));
+  border: 1px solid rgba(255, 85, 85, 0.6);
+  box-shadow: 0 0 15px rgba(255, 85, 85, 0.6);
+  pointer-events: none;
+  z-index: 9999;
+  animation: riseChunk 1.2s ease-out forwards;
+}
+
+@keyframes riseChunk {
+  0% {
+    bottom: -50px;
+    opacity: 1;
+    transform: translateY(0) rotate(0deg);
+  }
+  100% {
+    bottom: 100vh;
+    opacity: 0;
+    transform: translateY(-20px) rotate(360deg) scale(0.3);
+  }
+}
+
+.mod-label {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 72px;
+  font-weight: 900;
+  letter-spacing: 8px;
+  color: #ff5555;
+  text-shadow: 0 0 40px rgba(255, 85, 85, 0.8);
+  opacity: 0;
+  animation: modLabelPulse 0.6s ease-out forwards;
+  pointer-events: none;
+  z-index: 10000;
+}
+
+@keyframes modLabelPulse {
+  0% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(0.8);
+  }
+  50% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+/* Sidebar MOD active */
+.app.app-mod-active .sidebar {
+  border-right-color: rgba(255, 85, 85, 0.15);
+  background: rgba(100, 5, 5, 0.92);
+  transition: all 0.8s ease-in-out;
+}
+
+.app.app-mod-active .sidebar button {
+  color: #ff8080;
+}
+
+.app.app-mod-active .sidebar button:hover,
+.app.app-mod-active .sidebar button.active {
+  color: #ff5555;
+  border-color: rgba(255, 85, 85, 0.18);
+  background: rgba(255, 85, 85, 0.05);
+}
+
+.app.app-mod-active .brand strong {
+  color: #ff5555;
+}
+
+/* Topbar MOD */
+.app.app-mod-active .topbar {
+  border-bottom-color: rgba(255, 85, 85, 0.12);
+  transition: all 0.8s ease-in-out;
+}
+
+.app.app-mod-active .topbar h1 {
+  color: #ffcccc;
+}
+
+.app.app-mod-active .system-label {
+  color: #cc8888;
+}
+
+/* Core area MOD */
+.app.app-mod-active .core-area {
+  border-color: rgba(255, 85, 85, 0.12);
+  background: rgba(255, 85, 85, 0.015);
+  transition: all 0.8s ease-in-out;
+}
+
+/* Chat panel MOD */
+.app.app-mod-active .chat-panel {
+  border-color: rgba(255, 85, 85, 0.12);
+  background: rgba(255, 85, 85, 0.025);
+  transition: all 0.8s ease-in-out;
+}
+
+.app.app-mod-active .chat-header {
+  border-bottom-color: rgba(255, 85, 85, 0.1);
+}
+
+.app.app-mod-active .chat-header strong {
+  color: #ff5555;
+}
+
+.app.app-mod-active .chat-input input {
+  border-color: rgba(255, 85, 85, 0.2);
+  background: #150303;
+}
+
+.app.app-mod-active .chat-input button {
+  background: #ff5555;
+}
+
+/* Status & Activity MOD */
+.app.app-mod-active .status-panel,
+.app.app-mod-active .activity-panel {
+  border-color: rgba(255, 85, 85, 0.12);
+  background: rgba(255, 85, 85, 0.025);
+  transition: all 0.8s ease-in-out;
+}
+
+.app.app-mod-active .panel-title {
+  color: #ff5555;
+}
+
+.app.app-mod-active .activity-row strong {
+  color: #ffcccc;
+}
