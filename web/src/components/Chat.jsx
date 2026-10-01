@@ -78,19 +78,21 @@ export default function Chat({ onState, onModToggle }) {
         }
       }
 
+      const greeting = isGreeting(text);
       const toolContext = dispatch
         ? {
             status: dispatch.status,
             route: dispatch.route,
-            result:
-              dispatch.result?.results
+            result: greeting
+              ? dispatch
+              : dispatch.result?.results
                 ? {
                     ...dispatch.result,
                     results: dispatch.result.results.slice(0, 5),
                   }
                 : dispatch.result,
             message: dispatch.message,
-            briefing: isGreeting(text),
+            briefing: greeting,
           }
         : null;
 
