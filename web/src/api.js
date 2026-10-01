@@ -198,3 +198,57 @@ export function flashFirmware({ serial, partition, image_path, sha256, confirm }
   });
 }
 
+
+
+export function browserAction(action, payload = {}) {
+  return new Promise((resolve, reject) => {
+    const requestId = `mr-ai-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+    const timeout = window.setTimeout(() => {
+      window.removeEventListener("message", handler);
+      reject(new Error("MR AI Browser Hands not responding. Is the extension installed on this page?"));
+    }, 10000);
+
+    function handler(event) {
+      if (event.source !== window) return;
+      const message = event.data;
+      if (!message || message.source !== "mr-ai-stan") return;
+      if (message.type !== "MR_AI_BROWSER_RESULT" || message.requestId !== requestId) return;
+
+      window.clearTimeout(timeout);
+      window.removeEventListener("message", handler);
+
+      if (message.ok) resolve(message.result);
+      else reject(new Error(message.error || "Browser action failed"));
+    }
+
+    window.addEventListener("message", handler);
+    window.postMessage({
+      source: "mr-ai-stan",
+      type: "MR_AI_BROWSER_ACTION",
+      requestId,
+      action,
+      ...payload
+    }, "*");
+  });
+}
+
+export function getCurrentPage() {
+  return browserAction("GET_PAGE_DATA");
+}
+
+export function browserClick(selector) {
+  return browserAction("CLICK", { selector });
+}
+
+export function browserType(selector, value) {
+  return browserAction("TYPE", { selector, value });
+}
+
+export function browserScroll(amount = 600) {
+  return browserAction("SCROLL", { amount });
+}
+
+export function browserNavigate(url) {
+  return browserAction("NAVIGATE", { url });
+}
