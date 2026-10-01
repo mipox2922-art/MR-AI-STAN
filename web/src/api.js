@@ -313,3 +313,8 @@ export function dispatchTool(command) {
     body: JSON.stringify({ command }),
   });
 }
+
+
+export function getExecutiveBriefing() {
+  return request("/agents/briefing");
+}
