@@ -72,7 +72,7 @@ async def execute_mission(
         route = route_command(request)
         tool_id = route.get("tool")
 
-        if agent_id == "browser" and "browser_hands" in step["tools"]:
+        if agent_id in {"browser", "research"} and "browser_hands" in step["tools"]:
             handoff = build_browser_handoff(request)
             if handoff:
                 steps.append({
