@@ -11,3 +11,4 @@ email-validator
 pwdlib[argon2]
 openai
 google-genai
+psutil
