@@ -16,6 +16,8 @@ import DeviceLab from "./components/DeviceLab";
 import CreativeStudio from "./components/CreativeStudio";
 import TrackingMap from "./components/TrackingMap";
 import SecurityHub from "./components/SecurityHub";
+import ToolBox from "./components/ToolBox";
+import CommandPalette from "./components/CommandPalette";
 
 const NAV = [
   ["dashboard", "⌂", "Dashboard"],
@@ -26,6 +28,7 @@ const NAV = [
   ["creative", "✦", "Creative Studio"],
   ["map", "⌖", "Tracking Map"],
   ["security", "🛡", "Google Protection"],
+  ["tools", "⚙", "Toolbox"],
   ["tasks", "✓", "Tasks"],
   ["memory", "◇", "Memory"],
   ["system", "⌘", "System"],
@@ -204,6 +207,7 @@ function App() {
   const [agents, setAgents] = useState([]);
   const [radarFindings, setRadarFindings] = useState([]);
   const [clock, setClock] = useState(new Date());
+  const [paletteOpen, setPaletteOpen] = useState(false);
 
   const authenticated = Boolean(token);
 
@@ -248,12 +252,21 @@ function App() {
       }
     };
 
+    const onCommandPalette = event => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setPaletteOpen(true);
+      }
+    };
+
     window.addEventListener("keydown", onShortcut);
+    window.addEventListener("keydown", onCommandPalette);
 
     return () => {
       clearInterval(timer);
       clearInterval(clockTimer);
       window.removeEventListener("keydown", onShortcut);
+      window.removeEventListener("keydown", onCommandPalette);
     };
   }, [authenticated, refresh]);
 
@@ -287,10 +300,13 @@ function App() {
   const working = mode === "working";
 
   function toggleMode(nextWorking) {
-    const next = nextWorking ? "working" : "normal";
-    localStorage.setItem("mr_ai_mode", next);
-    setMode(next);
-    setCoreState(nextWorking ? "WORKING" : "IDLE");
+    const next =
+      typeof nextWorking === "boolean"
+        ? nextWorking
+        : mode !== "working";
+    localStorage.setItem("mr_ai_mode", next ? "working" : "normal");
+    setMode(next ? "working" : "normal");
+    setCoreState(next ? "WORKING" : "IDLE");
   }
 
   return (
@@ -324,6 +340,13 @@ function App() {
           <button className="ghost-button" onClick={logout}>DISCONNECT SESSION</button>
         </div>
       </aside>
+
+      <CommandPalette
+        open={paletteOpen}
+        onClose={() => setPaletteOpen(false)}
+        onNavigate={setActive}
+        onToggleMode={() => toggleMode()}
+      />
 
       <main className="main-area">
         <header className="topbar">
