@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { chat } from "../api";
+import VoiceControl from "./VoiceControl";
 
 export default function Chat({ onState, onModToggle }) {
   const [message, setMessage] = useState("");
@@ -105,6 +106,7 @@ export default function Chat({ onState, onModToggle }) {
           }}
           placeholder="Mwambie MR AI kazi... (au sema 'mod on')"
         />
+        <VoiceControl onTranscript={(text) => setMessage(text)} />
         <button onClick={send}>
           SEND
         </button>
