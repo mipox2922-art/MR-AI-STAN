@@ -26,6 +26,8 @@ class ChatRequest(BaseModel):
 class ChatResponse(BaseModel):
     response: str
     provider: str
+    request_id: str | None = None
+    elapsed_ms: int | None = None
 
 
 class MemoryCreate(BaseModel):
