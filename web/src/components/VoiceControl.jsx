@@ -2,14 +2,19 @@ import { useEffect, useRef, useState } from "react";
 
 export default function VoiceControl({ onTranscript, disabled = false }) {
   const recognitionRef = useRef(null);
+  const callbackRef = useRef(onTranscript);
   const [state, setState] = useState("IDLE");
   const [supported, setSupported] = useState(true);
+
+  useEffect(() => {
+    callbackRef.current = onTranscript;
+  }, [onTranscript]);
 
   useEffect(() => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
       setSupported(false);
-      return;
+      return undefined;
     }
 
     const recognition = new SpeechRecognition();
@@ -20,14 +25,14 @@ export default function VoiceControl({ onTranscript, disabled = false }) {
     recognition.onstart = () => setState("LISTENING");
     recognition.onend = () => setState("IDLE");
     recognition.onerror = () => setState("ERROR");
-    recognition.onresult = (event) => {
+    recognition.onresult = event => {
       const transcript = event.results?.[0]?.[0]?.transcript?.trim();
-      if (transcript) onTranscript(transcript);
+      if (transcript) callbackRef.current?.(transcript);
     };
 
     recognitionRef.current = recognition;
     return () => recognition.abort();
-  }, [onTranscript]);
+  }, []);
 
   const toggle = () => {
     if (disabled || !supported) return;
