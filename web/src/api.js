@@ -267,6 +267,13 @@ export function planAgentWork(requestText) {
 }
 
 
+export function executeMission(requestText) {
+  return request("/agents/mission", {
+    method: "POST",
+    body: JSON.stringify({ request: requestText }),
+  });
+}
+
 export function executeAgentAction(action, payload = {}) {
   return request("/agents/execute", {
     method: "POST",
