@@ -1,0 +1,16 @@
+{
+  "name": "MR-AI-STAN",
+  "forwardPorts": [8000, 5173],
+  "portsAttributes": {
+    "8000": {
+      "label": "MR AI Backend",
+      "protocol": "http",
+      "onAutoForward": "notify"
+    },
+    "5173": {
+      "label": "MR AI Frontend",
+      "protocol": "http",
+      "onAutoForward": "openPreview"
+    }
+  }
+}
