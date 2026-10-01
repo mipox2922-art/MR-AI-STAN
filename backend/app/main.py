@@ -15,6 +15,7 @@ from .routers import (
     tasks,
     activity,
     system,
+    agents,
 )
 
 logger = logging.getLogger("mr_ai")
@@ -47,6 +48,7 @@ app.include_router(memory.router)
 app.include_router(tasks.router)
 app.include_router(activity.router)
 app.include_router(system.router)
+app.include_router(agents.router)
 
 
 @app.get("/")
