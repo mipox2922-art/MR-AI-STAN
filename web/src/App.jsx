@@ -8,6 +8,9 @@ import {
   register,
   planAgentWork,
   executeMission,
+  reportMissionHandoff,
+  getCurrentPage,
+  browserNavigate,
 } from "./api";
 import Chat from "./components/Chat";
 import Core from "./components/Core";
@@ -171,7 +174,62 @@ function AgentsPanel({ agents, onPlan }) {
     setMissionResult({ status: "STARTING" });
     try {
       const result = await executeMission(request.trim());
-      setMissionResult(result);
+      let finalResult = result;
+
+      const handoffStep = result?.steps?.find(
+        step => step?.status === "WAITING_FOR_HAND" && step?.handoff?.action
+      );
+
+      if (handoffStep) {
+        setMissionResult({
+          ...result,
+          status: "HAND_EXECUTING",
+          handoff: handoffStep.handoff,
+        });
+
+        let evidence;
+        if (handoffStep.handoff.action === "NAVIGATE") {
+          evidence = await browserNavigate(handoffStep.handoff.payload.url);
+        } else if (handoffStep.handoff.action === "GET_PAGE_DATA") {
+          evidence = await getCurrentPage();
+        } else {
+          throw new Error("Unsupported browser handoff action");
+        }
+
+        const verified = await reportMissionHandoff(
+          result.mission.id,
+          "COMPLETED",
+          {
+            agent: handoffStep.agent,
+            tool: "browser_hands",
+            action: handoffStep.handoff.action,
+            result: evidence,
+          }
+        );
+
+        finalResult = {
+          ...result,
+          status: verified.status,
+          mission: {
+            ...result.mission,
+            status: verified.mission.status,
+            progress: verified.mission.progress,
+            result: verified.mission.result,
+          },
+          steps: result.steps.map(step =>
+            step.step === handoffStep.step
+              ? {
+                  ...step,
+                  status: "COMPLETED",
+                  verified: true,
+                  evidence,
+                }
+              : step
+          ),
+        };
+      }
+
+      setMissionResult(finalResult);
     } catch (error) {
       setMissionResult({ status: "ERROR", reason: error.message });
     }
