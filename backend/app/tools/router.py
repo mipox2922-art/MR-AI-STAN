@@ -20,6 +20,23 @@ TOOL_RULES: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("openstreetmap", ("map", "ramani", "location", "locate me", "mahali nilipo")),
 )
 
+TOOL_AGENT: dict[str, str] = {
+    "system_telemetry": "orchestrator",
+    "searxng": "research",
+    "browser_hands": "browser",
+    "device_bridge": "device",
+    "creative_canvas": "creative",
+    "tesseract": "creative",
+    "ffmpeg": "creative",
+    "whisper_local": "research",
+    "gmail": "gmail",
+    "scheduler": "scheduler",
+    "memory": "memory",
+    "coding": "coding",
+    "security": "security",
+    "openstreetmap": "research",
+}
+
 TOOL_META: dict[str, dict[str, Any]] = {
     "system_telemetry": {"execution": "BACKEND", "risk": "LOW"},
     "searxng": {"execution": "BACKEND", "risk": "LOW"},
