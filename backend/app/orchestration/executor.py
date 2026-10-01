@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from ..models import ActivityLog, Task
 from ..routers.system import system_status
 from ..tools.registry import registry_summary
-from ..tools.router import route_command
+from ..tools.router import route_command\nfrom .handoffs import build_browser_handoff
 
 
 def _task_payload(task: Task) -> dict[str, Any]:
@@ -71,6 +71,22 @@ async def execute_mission(
 
         route = route_command(request)
         tool_id = route.get("tool")
+
+        if agent_id == "browser" and "browser_hands" in step["tools"]:
+            handoff = build_browser_handoff(request)
+            if handoff:
+                steps.append({
+                    "step": index,
+                    "agent": agent_id,
+                    "tool": "browser_hands",
+                    "status": "WAITING_FOR_HAND",
+                    "verified": False,
+                    "handoff": handoff,
+                    "evidence": {
+                        "message": "Browser Agent prepared an explicit browser handoff for the connected extension.",
+                    },
+                })
+                continue
         if tool_id == "searxng" and "searxng" in step["tools"]:
             if not registry_summary()["tools"]:
                 status = "NOT_CONNECTED"
