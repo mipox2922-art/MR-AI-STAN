@@ -1,28 +1,7 @@
 import { useEffect, useState } from "react";
 
 export default function Core({ state = "IDLE", modActive = true }) {
-  const [chunks, setChunks] = useState([]);
-
-  useEffect(() => {
-    if (!modActive) {
-      setChunks([]);
-      return;
-    }
-
-    // Spawn chunks
-    const spawnChunks = [];
-    for (let i = 0; i < 12; i++) {
-      spawnChunks.push({
-        id: i,
-        left: Math.random() * 100,
-        delay: i * 0.05
-      });
-    }
-    setChunks(spawnChunks);
-
-    // Clear after animation
-    const timer = setTimeout(() => setChunks([]), 1200);
-    return () => clearTimeout(timer);
+  return () => clearTimeout(timer);
   }, [modActive]);
 
   return (
@@ -91,9 +70,6 @@ export default function Core({ state = "IDLE", modActive = true }) {
         {state}
       </div>
 
-      {modActive && (
-        <div className="mod-label">MOD ON</div>
-      )}
     </div>
   );
 }
