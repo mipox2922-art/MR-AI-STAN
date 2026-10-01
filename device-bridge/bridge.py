@@ -30,6 +30,59 @@ app.add_middleware(
     allow_headers=["Authorization", "Content-Type"],
 )
 
+
+def _wifi_scan_windows() -> list[dict]:
+    result = run(["netsh", "wlan", "show", "networks", "mode=bssid"], timeout=15)
+    networks = []
+    current = None
+    for raw_line in result.splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        lower = line.casefold()
+        if lower.startswith("ssid ") and ":" in line and "BSSID" not in line:
+            ssid = line.split(":", 1)[1].strip()
+            current = {"ssid": ssid, "bssids": []}
+            networks.append(current)
+            continue
+        if current and lower.startswith("bssid ") and ":" in line:
+            bssid = line.split(":", 1)[1].strip()
+            current["bssids"].append({"bssid": bssid})
+            continue
+        if current and current["bssids"] and ":" in line:
+            key, value = [part.strip() for part in line.split(":", 1)]
+            item = current["bssids"][-1]
+            key_lower = key.casefold()
+            if key_lower == "signal":
+                item["signal"] = value
+            elif key_lower == "channel":
+                item["channel"] = value
+            elif key_lower == "radio type":
+                item["radio_type"] = value
+            elif key_lower == "authentication":
+                item["authentication"] = value
+    return networks
+
+
+def _wifi_scan_linux() -> list[dict]:
+    result = run([
+        "nmcli", "-t", "-f", "SSID,BSSID,SIGNAL,CHAN,SECURITY",
+        "dev", "wifi", "list", "--rescan", "yes"
+    ], timeout=20)
+    networks = []
+    for line in result.splitlines():
+        parts = line.split(":")
+        if len(parts) < 5:
+            continue
+        networks.append({
+            "ssid": parts[0],
+            "bssid": parts[1],
+            "signal_percent": parts[2],
+            "channel": parts[3],
+            "security": ":".join(parts[4:]),
+        })
+    return networks
+
 def require_token(authorization: str | None = Header(default=None)) -> None:
     if not TOKEN:
         raise HTTPException(503, "MR_AI_BRIDGE_TOKEN is not configured")
@@ -90,6 +143,36 @@ def fastboot_devices():
             devices.append({"serial": parts[0], "transport": parts[1] if len(parts) > 1 else ""})
     return {"devices": devices}
 
+
+@app.get("/devices/{serial}/boot-state", dependencies=[Depends(require_token)])
+def boot_state(serial: str):
+    props = {}
+    for key in (
+        "ro.boot.flash.locked",
+        "ro.boot.vbmeta.device_state",
+        "ro.boot.verifiedbootstate",
+        "ro.boot.veritymode",
+    ):
+        value = run(["adb", "-s", serial, "shell", "getprop", key]).strip()
+        props[key] = value
+    return {
+        "serial": serial,
+        "state": props,
+        "note": "These are boot/security state signals only; they do not bypass device protection.",
+    }
+
+@app.get("/radio/status", dependencies=[Depends(require_token)])
+def radio_status():
+    rtl_power = shutil.which("rtl_power")
+    rtl_test = shutil.which("rtl_test")
+    return {
+        "receive_only": True,
+        "rtl_power_available": bool(rtl_power),
+        "rtl_test_available": bool(rtl_test),
+        "status": "READY" if rtl_power or rtl_test else "NO_SDR_TOOL",
+        "note": "A software dashboard cannot detect arbitrary radio spectrum without compatible RF hardware.",
+    }
+
 @app.get("/devices/{serial}/info", dependencies=[Depends(require_token)])
 def android_info(serial: str):
     model = run(["adb", "-s", serial, "shell", "getprop", "ro.product.model"])
@@ -142,6 +225,15 @@ def flash(request: FlashRequest):
         "status": "completed",
         "output": result,
     }
+
+
+@app.get("/wifi/scan", dependencies=[Depends(require_token)])
+def wifi_scan():
+    if os.name == "nt" and shutil.which("netsh"):
+        return {"platform": "windows", "networks": _wifi_scan_windows(), "source": "netsh wlan"}
+    if shutil.which("nmcli"):
+        return {"platform": "linux", "networks": _wifi_scan_linux(), "source": "nmcli"}
+    raise HTTPException(503, "No supported local Wi-Fi scanner found")
 
 @app.get("/bluetooth/scan", dependencies=[Depends(require_token)])
 async def bluetooth_scan():
