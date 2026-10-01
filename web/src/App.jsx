@@ -421,7 +421,7 @@ function App() {
                 </div>
                 <div className="core-stage tall"><Core state={coreState} modActive={working} /></div>
               </div>
-              <Chat onState={setCoreState} onModToggle={value => setMode(value ? "working" : "normal")} />
+              <Chat onState={setCoreState} onModToggle={toggleMode} />
             </section>
           )}
 
