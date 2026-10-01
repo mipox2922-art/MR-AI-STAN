@@ -292,3 +292,15 @@ export function getRadioStatus() {
 export function getBootState(serial) {
   return bridgeRequest(`/devices/${encodeURIComponent(serial)}/boot-state`);
 }
+
+
+export function getTools() {
+  return request("/tools");
+}
+
+export function searchToolWeb(query) {
+  return request("/tools/search", {
+    method: "POST",
+    body: JSON.stringify({ query }),
+  });
+}
