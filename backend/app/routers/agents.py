@@ -6,7 +6,8 @@ from ..dependencies import get_current_user
 from ..models import ActivityLog, Task
 from ..routers.system import system_status
 from ..agents.registry import AGENTS
-from ..orchestration.planner import build_plan\nfrom ..orchestration.briefing import build_executive_briefing
+from ..orchestration.planner import build_plan
+from ..orchestration.briefing import build_executive_briefing
 
 router = APIRouter(prefix="/agents", tags=["Agents"])
 
@@ -19,6 +20,7 @@ def list_agents(current_user=Depends(get_current_user)):
             "name": agent.name,
             "description": agent.description,
             "capabilities": list(agent.capabilities),
+            "tools": list(agent.tools),
             "risk": agent.risk,
         }
         for agent in AGENTS
@@ -33,7 +35,15 @@ def plan_agent_work(payload: dict, current_user=Depends(get_current_user)):
     return build_plan(request)
 
 
-@router.get("/briefing")\ndef executive_briefing(\n    current_user=Depends(get_current_user),\n    db: Session = Depends(get_db),\n):\n    return build_executive_briefing(current_user, db)\n\n\n@router.post("/execute")
+@router.get("/briefing")
+def executive_briefing(
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    return build_executive_briefing(current_user, db)
+
+
+@router.post("/execute")
 def execute_agent_action(
     payload: dict,
     current_user=Depends(get_current_user),
