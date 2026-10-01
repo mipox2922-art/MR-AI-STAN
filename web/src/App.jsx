@@ -1,10 +1,12 @@
 import { useState, useEffect, useRef } from "react";
+import { chat, getStatus } from "./api";
 
 export default function MRAICommandCenter() {
   const [mode, setMode] = useState("normal");
   const [input, setInput] = useState("");
   const [clock, setClock] = useState(new Date());
-  const [cpu, setCpu] = useState(32);
+  const [cpu, setCpu] = useState(null);
+  const [system, setSystem] = useState(null);
   const chatEndRef = useRef(null);
 
   const [messages, setMessages] = useState([
@@ -19,9 +21,51 @@ export default function MRAICommandCenter() {
     ? { bg: "#140303", panel: "#1f0505", border: "#7a1414", accent: "#ff3b3b", accent2: "#c81e1e", glow: "rgba(255,59,59,0.45)", text: "#ffd0d0", dim: "#c47a7a" }
     : { bg: "#020c14", panel: "#04141f", border: "#0e5c7a", accent: "#22d3ee", accent2: "#0891b2", glow: "rgba(34,211,238,0.4)", text: "#bff3ff", dim: "#5fa9be" };
 
-  const normalStats = { cpu: 32, mem: 45, net: 68, sto: 72, gpu: 58, learn: "98.7%", resp: "0.03s", status: "OPERATIONAL", threat: "LOW", mission: "Execute, monitor and optimize all assigned operations with precision and efficiency.", focus: "Project Pegasus - Phase 2." };
-  const workingStats = { cpu: 78, mem: 82, net: 65, sto: 80, gpu: 72, learn: "98.9%", resp: "0.04s", status: "WORKING", threat: "HIGH", mission: "Executing system operations... Monitoring global network... Analyzing data streams...", focus: "Active Processing Mode." };
-  const stats = isWorking ? workingStats : normalStats;
+  useEffect(() => {
+    let alive = true;
+    const refreshSystem = async () => {
+      try {
+        const data = await getStatus();
+        if (!alive) return;
+        setSystem(data);
+        setCpu(data?.telemetry?.cpu_percent ?? null);
+      } catch {
+        if (alive) setSystem(null);
+      }
+    };
+    refreshSystem();
+    const timer = setInterval(refreshSystem, 5000);
+    return () => {
+      alive = false;
+      clearInterval(timer);
+    };
+  }, []);
+
+  const telemetry = system?.telemetry || {};
+  const services = system?.services || {};
+  const threats = system?.security?.threats_detected;
+  const uptimeSeconds = telemetry.uptime_seconds;
+  const formatUptime = (seconds) => {
+    if (!Number.isFinite(seconds)) return "N/A";
+    const d = Math.floor(seconds / 86400);
+    const h = Math.floor((seconds % 86400) / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    return d > 0 ? d + "d " + String(h).padStart(2, "0") + "h" : h + "h " + String(m).padStart(2, "0") + "m";
+  };
+  const stats = {
+    cpu: telemetry.cpu_percent ?? null,
+    mem: telemetry.memory_percent ?? null,
+    net: null,
+    sto: telemetry.storage_percent ?? null,
+    gpu: telemetry.gpu?.utilization_percent ?? null,
+    learn: "N/A",
+    resp: "N/A",
+    status: isWorking ? "WORKING" : (services.ai_core || "UNKNOWN"),
+    threat: threats === null || threats === undefined ? "NOT MONITORED" : String(threats),
+    mission: isWorking ? "Executing only verified operations and reporting real results." : "Monitoring real system health and waiting for your next command.",
+    focus: services.gemini === "ONLINE" ? "Gemini connected." : "AI provider connection required.",
+    uptime: formatUptime(uptimeSeconds),
+  };
 
   // clock
   useEffect(() => {
@@ -29,13 +73,6 @@ export default function MRAICommandCenter() {
     return () => clearInterval(t);
   }, []);
 
-  // cpu jitter
-  useEffect(() => {
-    const t = setInterval(() => {
-      setCpu(Math.max(5, Math.min(99, stats.cpu + Math.floor(Math.random() * 7 - 3))));
-    }, 2200);
-    return () => clearInterval(t);
-  }, [stats.cpu]);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -46,22 +83,25 @@ export default function MRAICommandCenter() {
     setMessages((m) => [...m, { sender, text, time }]);
   };
 
-  const send = () => {
+  const send = async () => {
     if (!input.trim()) return;
-    addMsg("You", input);
-    const val = input.toLowerCase();
-    if (val.includes("working")) setMode("working");
-    if (val.includes("normal")) setMode("normal");
+    const text = input.trim();
+    addMsg("You", text);
+    const val = text.toLowerCase();
+    if (val === "working" || val.includes("working mode")) setMode("working");
+    if (val === "normal" || val.includes("normal mode")) setMode("normal");
     setInput("");
-    setTimeout(() => {
-      const replies = isWorking
-        ? ["Bado ninachambua mtandao... vitisho 3 vimegunduliwa.", "Ninaendelea kufanya kazi kwenye mifumo yote.", "Uchambuzi wa data unaendelea, subiri kidogo."]
-        : ["Mifumo yote iko sawa na inafanya kazi vizuri.", "Nimepokea ombi lako, ninashughulikia sasa.", "Hakuna tatizo lolote kwa sasa."];
-      addMsg("MR AI", replies[Math.floor(Math.random() * replies.length)]);
-    }, 600);
+    addMsg("MR AI", "Ninafanya ombi lako kupitia AI core...");
+    try {
+      const result = await chat(text, "gemini");
+      addMsg("MR AI", result.response);
+    } catch (error) {
+      addMsg("MR AI", "Ombi halijakamilika: " + error.message);
+    }
   };
 
-  const quickAction = (name) => addMsg("MR AI", `${name} inatekelezwa... ✔ Imekamilika.`);
+  const quickAction
+ = (name) => addMsg("MR AI", `${name} inatekelezwa... ✔ Imekamilika.`);
 
   // ---- shared style helpers ----
   const panelStyle = {
@@ -81,17 +121,23 @@ export default function MRAICommandCenter() {
     paddingBottom: 7,
     fontWeight: 700,
   };
-  const barRow = (label, val) => (
-    <div style={{ marginBottom: 8 }} key={label}>
-      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10.5, color: theme.dim, marginBottom: 3 }}>
-        <span>{label}</span>
-        <b style={{ color: theme.text }}>{val}%</b>
+  const barRow = (label, val) => {
+    const numeric = Number(val);
+    const known = Number.isFinite(numeric);
+    return (
+      <div style={{ marginBottom: 8 }} key={label}>
+        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10.5, color: theme.dim, marginBottom: 3 }}>
+          <span>{label}</span>
+          <b style={{ color: theme.text }}>{known ? String(numeric) + "%" : "N/A"}</b>
+        </div>
+        <div style={{ height: 5, background: "rgba(255,255,255,0.06)", borderRadius: 3, overflow: "hidden" }}>
+          {known && (
+            <div style={{ height: "100%", width: Math.max(0, Math.min(100, numeric)) + "%", borderRadius: 3, background: `linear-gradient(90deg, ${theme.accent2}, ${theme.accent})`, boxShadow: `0 0 8px ${theme.glow}`, transition: "width 1s ease" }} />
+          )}
+        </div>
       </div>
-      <div style={{ height: 5, background: "rgba(255,255,255,0.06)", borderRadius: 3, overflow: "hidden" }}>
-        <div style={{ height: "100%", width: `${val}%`, borderRadius: 3, background: `linear-gradient(90deg, ${theme.accent2}, ${theme.accent})`, boxShadow: `0 0 8px ${theme.glow}`, transition: "width 1s ease" }} />
-      </div>
-    </div>
-  );
+    );
+  };
   const kvRow = (label, val, colorAccent) => (
     <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, padding: "5px 0", borderBottom: "1px dashed rgba(255,255,255,0.06)" }} key={label}>
       <span style={{ color: theme.dim }}>{label}</span>
@@ -100,9 +146,7 @@ export default function MRAICommandCenter() {
   );
 
   const navItems = ["🏠 Dashboard", "🧠 AI Core", "🤖 Agents", "📋 Tasks", "📅 Calendar", "💾 Memory", "📁 Files", "💬 Communication", "📊 Analytics", "⚙️ System", "🔧 Settings"];
-  const quickCommands = isWorking
-    ? ["🔍 SCAN SYSTEM", "📊 ANALYZE DATA", "🌐 WEB RESEARCH", "📄 GENERATE REPORT", "🛡️ SECURITY SCAN", "⛔ TERMINATE THREATS"]
-    : ["🔍 SCAN SYSTEM", "📊 ANALYZE DATA", "🌐 WEB RESEARCH", "📄 GENERATE REPORT", "🛡️ SECURITY CHECK", "⚙️ OPTIMIZE"];
+  const quickCommands = ["🔍 SCAN SYSTEM", "↻ REFRESH TELEMETRY", "🌐 WEB RESEARCH", "📄 GENERATE REPORT", "🛡️ SECURITY CHECK", "⚙️ OPTIMIZE"];
 
   const researchNormal = [
     ["Global Technology Trends", "Latest AI and Tech Updates"],
@@ -193,7 +237,7 @@ export default function MRAICommandCenter() {
           {/* SYSTEM STATUS */}
           <div style={{ ...panelStyle, gridColumn: 2, gridRow: 1 }}>
             <div style={h2Style}>System Status</div>
-            {barRow("CPU USAGE", cpu)}
+            {barRow("CPU USAGE", stats.cpu)}
             {barRow("MEMORY", stats.mem)}
             {barRow("NETWORK", stats.net)}
             {barRow("STORAGE", stats.sto)}
@@ -204,10 +248,10 @@ export default function MRAICommandCenter() {
           <div style={{ ...panelStyle, gridColumn: 3, gridRow: 1, display: "flex", gap: 12 }}>
             <div style={{ flex: 1 }}>
               <div style={h2Style}>AI Core Status</div>
-              {kvRow("AI MODEL", "JARVIS v2.6")}
+              {kvRow("AI MODEL", "MR AI CORE")}
               {kvRow("LEARNING RATE", stats.learn)}
               {kvRow("RESPONSE TIME", stats.resp)}
-              {kvRow("UPTIME", "12d 08h 24m")}
+              {kvRow("UPTIME", stats.uptime)}
               {kvRow("STATUS", stats.status, isWorking ? theme.accent : "#22ff8c")}
             </div>
             <div style={{ width: 80, flexShrink: 0, borderRadius: 6, background: `radial-gradient(circle at 50% 35%, ${theme.glow}, transparent 65%)`, border: `1px solid ${theme.border}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -269,12 +313,12 @@ export default function MRAICommandCenter() {
                   <div style={{ color: theme.accent }}>&gt; SCANNING global network...</div>
                   <div style={{ color: theme.accent }}>&gt; THREAT ANALYSIS in progress...</div>
                   <div>&gt; SYSTEM CHECK: 72%</div>
-                  <div style={{ color: theme.accent }}>&gt; 3 THREATS DETECTED — analyzing...</div>
+                  <div style={{ color: theme.dim }}>&gt; Threat count unavailable without a security engine.</div>
                 </>
               ) : (
                 <>
                   <div>&gt; System nominal. Monitoring active nodes.</div>
-                  <div>&gt; No anomalies detected.</div>
+                  <div>&gt; Security telemetry not configured. No threat claim is made.</div>
                 </>
               )}
             </div>
