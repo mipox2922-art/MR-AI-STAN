@@ -20,6 +20,7 @@ class TokenResponse(BaseModel):
 class ChatRequest(BaseModel):
     message: str
     provider: str = "gemini"
+    tool_context: dict | None = None
 
 
 class ChatResponse(BaseModel):
