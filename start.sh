@@ -61,6 +61,11 @@ if command -v gh >/dev/null 2>&1 && [ -n "${CODESPACE_NAME:-}" ]; then
 fi
 
 echo ""
+echo "🔗 APP URLS (Codespaces itaforward hizi moja kwa moja):"
+echo "Frontend: http://localhost:5173"
+echo "Backend:  http://localhost:8000"
+echo "Health:   http://localhost:8000/health"
+echo ""
 echo "⏳ Kusubiri backend iwe tayari..."
 
 for i in {1..30}; do
