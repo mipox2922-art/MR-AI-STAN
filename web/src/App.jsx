@@ -6,7 +6,8 @@ import {
   scanRadar,
   login,
   register,
-  planAgentWork,\n  executeMission,
+  planAgentWork,
+  executeMission,
 } from "./api";
 import Chat from "./components/Chat";
 import Core from "./components/Core";
@@ -149,7 +150,8 @@ function Radar({ agents, findings = [], working }) {
 
 function AgentsPanel({ agents, onPlan }) {
   const [request, setRequest] = useState("");
-  const [planResult, setPlanResult] = useState(null);\n  const [missionResult, setMissionResult] = useState(null);
+  const [planResult, setPlanResult] = useState(null);
+  const [missionResult, setMissionResult] = useState(null);
 
   async function buildMissionPlan() {
     if (!request.trim()) return;
