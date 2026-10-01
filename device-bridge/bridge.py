@@ -42,10 +42,10 @@ def run(cmd: list[str], timeout: int = 20) -> str:
     except FileNotFoundError as exc:
         raise HTTPException(503, f"Required executable not found: {cmd[0]}") from exc
     except subprocess.TimeoutExpired as exc:
-        raise HTTPException(504, f"Command timed out: {" ".join(cmd)}") from exc
+        raise HTTPException(504, "Command timed out: " + " ".join(cmd)) from exc
     output = (result.stdout + chr(10) + result.stderr).strip()
     if result.returncode != 0:
-        raise HTTPException(400, output or f"Command failed: {" ".join(cmd)}")
+        raise HTTPException(400, output or ("Command failed: " + " ".join(cmd)))
     return output
 
 class RebootRequest(BaseModel):
