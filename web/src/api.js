@@ -264,3 +264,11 @@ export function planAgentWork(requestText) {
     body: JSON.stringify({ request: requestText })
   });
 }
+
+
+export function executeAgentAction(action, payload = {}) {
+  return request("/agents/execute", {
+    method: "POST",
+    body: JSON.stringify({ action, ...payload })
+  });
+}
