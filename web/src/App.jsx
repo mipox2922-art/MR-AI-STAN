@@ -247,6 +247,7 @@ function App() {
         setMode(current => {
           const next = current === "working" ? "normal" : "working";
           localStorage.setItem("mr_ai_mode", next);
+          setCoreState(next === "working" ? "WORKING" : "IDLE");
           return next;
         });
       }
