@@ -138,15 +138,15 @@ function Radar({ agents, working }) {
 
 function AgentsPanel({ agents, onPlan }) {
   const [request, setRequest] = useState("");
-  const [plan, setPlan] = useState(null);
+  const [planResult, setPlanResult] = useState(null);
 
-  async function plan() {
+  async function buildMissionPlan() {
     if (!request.trim()) return;
     try {
       const result = await onPlan(request.trim());
-      setPlan(result);
+      setPlanResult(result);
     } catch (error) {
-      setPlan({ status: "ERROR", reason: error.message });
+      setPlanResult({ status: "ERROR", reason: error.message });
     }
   }
 
@@ -177,10 +177,10 @@ function AgentsPanel({ agents, onPlan }) {
         <div className="panel-title">MISSION PLANNER</div>
         <div className="planner-row">
           <input value={request} onChange={e => setRequest(e.target.value)} placeholder="Mfano: nitafutie remote jobs za Python na React" />
-          <button onClick={plan}>PLAN</button>
+          <button onClick={buildMissionPlan}>PLAN</button>
         </div>
-        {plan && (
-          <pre className="plan-output">{JSON.stringify(plan, null, 2)}</pre>
+        {planResult && (
+          <pre className="plan-output">{JSON.stringify(planResult, null, 2)}</pre>
         )}
       </div>
     </section>
