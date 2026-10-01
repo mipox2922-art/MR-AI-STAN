@@ -7,7 +7,8 @@ from sqlalchemy.orm import Session
 from ..models import ActivityLog, Task
 from ..routers.system import system_status
 from ..tools.registry import registry_summary
-from ..tools.router import route_command\nfrom .handoffs import build_browser_handoff
+from ..tools.router import route_command
+from .handoffs import build_browser_handoff
 
 
 def _task_payload(task: Task) -> dict[str, Any]:
