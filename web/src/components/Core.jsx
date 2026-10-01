@@ -1,5 +1,3 @@
-import { useEffect, useState } from "react";
-
 export default function Core({ state = "IDLE", modActive = true }) {
   return () => clearTimeout(timer);
   }, [modActive]);
