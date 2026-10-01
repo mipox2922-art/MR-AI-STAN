@@ -22,7 +22,7 @@ AGENTS: tuple[AgentDefinition, ...] = (
         "orchestrator", "MR AI Orchestrator",
         "Plans multi-step work, delegates to specialist agents and tracks verified results.",
         ("planning", "delegation", "verification", "task_tracking"),
-        ("agent_router", "mission_planner", "memory"),
+        ("agent_router", "mission_planner", "memory", "system_telemetry"),
         "LOW",
     ),
     AgentDefinition(
