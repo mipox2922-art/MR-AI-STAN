@@ -342,12 +342,12 @@ function App() {
                   <div className="panel-head">
                     <div>
                       <span className="eyebrow">LIVE RADAR</span>
-                      <h2>Agent Activity</h2>
+                      <h2>Agent Registry</h2>
                     </div>
-                    <span className="badge">{agents.length} ONLINE</span>
+                    <span className="badge">{agents.length} REGISTERED</span>
                   </div>
                   <Radar agents={agents} working={working} />
-                  <p className="radar-note">Markers represent registered agents. No fabricated threat locations.</p>
+                  <p className="radar-note">Markers represent registered agents. Operational events will be rendered only when real task/event data exists.</p>
                 </div>
               </section>
 
