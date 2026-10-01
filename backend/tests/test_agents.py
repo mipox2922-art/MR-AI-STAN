@@ -30,3 +30,23 @@ def test_job_plan_exposes_real_hands():
 
 def test_unknown_request_uses_research_fallback():
     assert select_agents("nisaidie kuelewa recursion") == ["orchestrator", "research"]
+
+
+from app.orchestration.handoffs import build_browser_handoff
+
+
+def test_browser_handoff_opens_explicit_url():
+    result = build_browser_handoff("fungua https://example.com")
+    assert result["action"] == "NAVIGATE"
+    assert result["payload"]["url"] == "https://example.com"
+
+
+def test_browser_handoff_reads_current_page():
+    result = build_browser_handoff("soma ukurasa huu")
+    assert result["action"] == "GET_PAGE_DATA"
+
+
+def test_browser_handoff_can_search_web():
+    result = build_browser_handoff("tafuta OpenAI Agents")
+    assert result["action"] == "NAVIGATE"
+    assert "google.com/search?q=" in result["payload"]["url"]
