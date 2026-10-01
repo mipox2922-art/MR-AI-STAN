@@ -6,7 +6,7 @@ import {
   scanRadar,
   login,
   register,
-  planAgentWork,
+  planAgentWork,\n  executeMission,
 } from "./api";
 import Chat from "./components/Chat";
 import Core from "./components/Core";
@@ -149,15 +149,27 @@ function Radar({ agents, findings = [], working }) {
 
 function AgentsPanel({ agents, onPlan }) {
   const [request, setRequest] = useState("");
-  const [planResult, setPlanResult] = useState(null);
+  const [planResult, setPlanResult] = useState(null);\n  const [missionResult, setMissionResult] = useState(null);
 
   async function buildMissionPlan() {
     if (!request.trim()) return;
     try {
       const result = await onPlan(request.trim());
       setPlanResult(result);
+      setMissionResult(null);
     } catch (error) {
       setPlanResult({ status: "ERROR", reason: error.message });
+    }
+  }
+
+  async function runMission() {
+    if (!request.trim()) return;
+    setMissionResult({ status: "STARTING" });
+    try {
+      const result = await executeMission(request.trim());
+      setMissionResult(result);
+    } catch (error) {
+      setMissionResult({ status: "ERROR", reason: error.message });
     }
   }
 
@@ -189,9 +201,13 @@ function AgentsPanel({ agents, onPlan }) {
         <div className="planner-row">
           <input value={request} onChange={e => setRequest(e.target.value)} placeholder="Mfano: nitafutie remote jobs za Python na React" />
           <button onClick={buildMissionPlan}>PLAN</button>
+          <button className="primary-button" onClick={runMission}>RUN MISSION</button>
         </div>
         {planResult && (
           <pre className="plan-output">{JSON.stringify(planResult, null, 2)}</pre>
+        )}
+        {missionResult && (
+          <pre className="plan-output mission-output">{JSON.stringify(missionResult, null, 2)}</pre>
         )}
       </div>
     </section>
