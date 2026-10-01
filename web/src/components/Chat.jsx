@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { chat, dispatchTool } from "../api";
+import { chat, dispatchTool, getExecutiveBriefing } from "../api";
 import VoiceControl from "./VoiceControl";
 
 export default function Chat({ onState, onModToggle }) {
@@ -24,6 +24,10 @@ export default function Chat({ onState, onModToggle }) {
       return true;
     }
     return false;
+  }
+
+  function isGreeting(value) {
+    return /^(mr\s*ai|mr ai[,! ]*(habari|mambo|vipi|hello|hi|niaje)?|habari( mr ai)?|mambo( mr ai)?|vipi( mr ai)?|niaje( mr ai)?|good morning( mr ai)?|good evening( mr ai)?)\W*$/i.test(value.trim());
   }
 
   async function send() {
@@ -52,16 +56,26 @@ export default function Chat({ onState, onModToggle }) {
       setToolStatus("ROUTING");
       let dispatch = null;
 
-      try {
-        dispatch = await dispatchTool(text);
-        const selected = dispatch?.route?.tool || dispatch?.tool;
-        setToolStatus(
-          selected
-            ? `TOOL: ${selected} / ${dispatch.status || "ROUTED"}`
-            : "AI_ONLY"
-        );
-      } catch (toolError) {
-        setToolStatus(`TOOL ROUTER ERROR / ${toolError.message}`);
+      if (isGreeting(text)) {
+        try {
+          dispatch = await getExecutiveBriefing();
+          setToolStatus(`EXECUTIVE BRIEFING / ${dispatch.status || "READY"}`);
+        } catch (briefingError) {
+          setToolStatus(`BRIEFING ERROR / ${briefingError.message}`);
+        }
+      } else {
+        try {
+          dispatch = await dispatchTool(text);
+          const selected = dispatch?.route?.tool || dispatch?.tool;
+          const agent = dispatch?.route?.agent;
+          setToolStatus(
+            selected
+              ? `${agent ? "AGENT: " + agent + " / " : ""}TOOL: ${selected} / ${dispatch.status || "ROUTED"}`
+              : "AI_ONLY"
+          );
+        } catch (toolError) {
+          setToolStatus(`TOOL ROUTER ERROR / ${toolError.message}`);
+        }
       }
 
       const toolContext = dispatch
@@ -76,6 +90,7 @@ export default function Chat({ onState, onModToggle }) {
                   }
                 : dispatch.result,
             message: dispatch.message,
+            briefing: isGreeting(text),
           }
         : null;
 
