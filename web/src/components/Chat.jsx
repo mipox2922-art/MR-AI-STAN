@@ -1,11 +1,12 @@
 import { useRef, useState } from "react";
-import { chat } from "../api";
+import { chat, dispatchTool } from "../api";
 import VoiceControl from "./VoiceControl";
 
 export default function Chat({ onState, onModToggle }) {
   const [message, setMessage] = useState("");
   const [provider, setProvider] = useState("gemini");
   const utteranceRef = useRef(null);
+  const [toolStatus, setToolStatus] = useState("AI_ONLY");
   const [messages, setMessages] = useState([
     {
       role: "assistant",
@@ -48,7 +49,37 @@ export default function Chat({ onState, onModToggle }) {
     onState("THINKING");
 
     try {
-      const result = await chat(text, provider);
+      setToolStatus("ROUTING");
+      let dispatch = null;
+
+      try {
+        dispatch = await dispatchTool(text);
+        const selected = dispatch?.route?.tool || dispatch?.tool;
+        setToolStatus(
+          selected
+            ? `TOOL: ${selected} / ${dispatch.status || "ROUTED"}`
+            : "AI_ONLY"
+        );
+      } catch (toolError) {
+        setToolStatus(`TOOL ROUTER ERROR / ${toolError.message}`);
+      }
+
+      const toolContext = dispatch
+        ? {
+            status: dispatch.status,
+            route: dispatch.route,
+            result:
+              dispatch.result?.results
+                ? {
+                    ...dispatch.result,
+                    results: dispatch.result.results.slice(0, 5),
+                  }
+                : dispatch.result,
+            message: dispatch.message,
+          }
+        : null;
+
+      const result = await chat(text, provider, toolContext);
       setMessages(prev => [
         ...prev,
         {
@@ -91,6 +122,7 @@ export default function Chat({ onState, onModToggle }) {
           <strong>MR AI CORE</strong>
           <span>SECURE COMMAND CHANNEL</span>
         </div>
+        <span className="tool-routing-status">{toolStatus}</span>
         <select
           value={provider}
           onChange={e => setProvider(e.target.value)}
