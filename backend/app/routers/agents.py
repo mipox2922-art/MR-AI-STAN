@@ -7,7 +7,7 @@ from ..models import ActivityLog, Task
 from ..routers.system import system_status
 from ..agents.registry import AGENTS
 from ..orchestration.planner import build_plan
-from ..orchestration.briefing import build_executive_briefing
+from ..orchestration.briefing import build_executive_briefing\nfrom ..orchestration.executor import execute_mission
 
 router = APIRouter(prefix="/agents", tags=["Agents"])
 
@@ -43,7 +43,7 @@ def executive_briefing(
     return build_executive_briefing(current_user, db)
 
 
-@router.post("/execute")
+@router.post("/mission")\nasync def run_mission(\n    payload: dict,\n    current_user=Depends(get_current_user),\n    db: Session = Depends(get_db),\n):\n    request = str(payload.get("request", "")).strip()\n    if not request:\n        raise HTTPException(400, "request is required")\n    return await execute_mission(request, current_user, db)\n\n\n@router.post("/execute")
 def execute_agent_action(
     payload: dict,
     current_user=Depends(get_current_user),
