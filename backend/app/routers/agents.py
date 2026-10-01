@@ -1,5 +1,10 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
+
+from ..database import get_db
 from ..dependencies import get_current_user
+from ..models import ActivityLog, Task
+from ..routers.system import system_status
 from ..agents.registry import AGENTS
 from ..orchestration.planner import build_plan
 
@@ -26,3 +31,66 @@ def plan_agent_work(payload: dict, current_user=Depends(get_current_user)):
     if not request:
         return {"status": "REJECTED", "reason": "request is required"}
     return build_plan(request)
+
+
+@router.post("/execute")
+def execute_agent_action(
+    payload: dict,
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Execute only first-party safe actions implemented by the backend.
+
+    External browser/device actions are intentionally delegated to their
+    permissioned local hands instead of being impersonated here.
+    """
+    action = str(payload.get("action", "")).strip().casefold()
+
+    if action == "system_scan":
+        result = system_status(current_user)
+        db.add(ActivityLog(
+            user_id=current_user.id,
+            action="SYSTEM_SCAN",
+            details="Verified host telemetry requested by orchestrator",
+        ))
+        db.commit()
+        return {"status": "COMPLETED", "action": action, "result": result}
+
+    if action == "create_task":
+        title = str(payload.get("title", "")).strip()
+        if not title:
+            raise HTTPException(400, "title is required")
+        task = Task(
+            user_id=current_user.id,
+            title=title,
+            description=str(payload.get("description", "")).strip(),
+            priority=str(payload.get("priority", "NORMAL")).upper(),
+            agent=str(payload.get("agent", "orchestrator")).strip() or "orchestrator",
+        )
+        db.add(task)
+        db.add(ActivityLog(
+            user_id=current_user.id,
+            action="AGENT_TASK_CREATED",
+            details=title,
+        ))
+        db.commit()
+        db.refresh(task)
+        return {
+            "status": "COMPLETED",
+            "action": action,
+            "result": {
+                "task_id": task.id,
+                "title": task.title,
+                "agent": task.agent,
+            },
+        }
+
+    if action in {"browser", "device", "gmail", "creative", "coding"}:
+        return {
+            "status": "WAITING_FOR_HAND",
+            "action": action,
+            "message": "This action requires the corresponding permissioned external hand. No completion is claimed.",
+        }
+
+    raise HTTPException(400, "Unsupported agent action")
