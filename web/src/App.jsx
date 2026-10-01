@@ -14,6 +14,8 @@ import Activity from "./components/Activity";
 import BrowserHands from "./components/BrowserHands";
 import DeviceLab from "./components/DeviceLab";
 import CreativeStudio from "./components/CreativeStudio";
+import TrackingMap from "./components/TrackingMap";
+import SecurityHub from "./components/SecurityHub";
 
 const NAV = [
   ["dashboard", "⌂", "Dashboard"],
@@ -22,6 +24,8 @@ const NAV = [
   ["browser", "↗", "Browser Hands"],
   ["device", "⌁", "Device Lab"],
   ["creative", "✦", "Creative Studio"],
+  ["map", "⌖", "Tracking Map"],
+  ["security", "🛡", "Google Protection"],
   ["tasks", "✓", "Tasks"],
   ["memory", "◇", "Memory"],
   ["system", "⌘", "System"],
@@ -201,7 +205,6 @@ function App() {
   const [radarFindings, setRadarFindings] = useState([]);
   const [clock, setClock] = useState(new Date());
 
-
   const authenticated = Boolean(token);
 
   const refresh = useCallback(async () => {
@@ -231,9 +234,26 @@ function App() {
     refresh();
     const timer = setInterval(refresh, 5000);
     const clockTimer = setInterval(() => setClock(new Date()), 1000);
+    const savedMode = localStorage.getItem("mr_ai_mode");
+    if (savedMode === "working") setMode("working");
+
+    const onShortcut = event => {
+      if (event.ctrlKey && event.shiftKey && event.key.toLowerCase() === "m") {
+        event.preventDefault();
+        setMode(current => {
+          const next = current === "working" ? "normal" : "working";
+          localStorage.setItem("mr_ai_mode", next);
+          return next;
+        });
+      }
+    };
+
+    window.addEventListener("keydown", onShortcut);
+
     return () => {
       clearInterval(timer);
       clearInterval(clockTimer);
+      window.removeEventListener("keydown", onShortcut);
     };
   }, [authenticated, refresh]);
 
@@ -266,6 +286,13 @@ function App() {
 
   const working = mode === "working";
 
+  function toggleMode(nextWorking) {
+    const next = nextWorking ? "working" : "normal";
+    localStorage.setItem("mr_ai_mode", next);
+    setMode(next);
+    setCoreState(nextWorking ? "WORKING" : "IDLE");
+  }
+
   return (
     <div className={`app-shell ${working ? "mode-working" : ""}`}>
       <aside className="sidebar">
@@ -291,7 +318,7 @@ function App() {
         </nav>
 
         <div className="sidebar-footer">
-          <button className={working ? "danger-button" : "primary-button"} onClick={() => setMode(working ? "normal" : "working")}>
+          <button className={working ? "danger-button" : "primary-button"} onClick={() => toggleMode(!working)}>
             {working ? "NORMAL MODE" : "WORKING MODE"}
           </button>
           <button className="ghost-button" onClick={logout}>DISCONNECT SESSION</button>
@@ -309,7 +336,10 @@ function App() {
               <strong>{clock.toLocaleTimeString("sw-TZ", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</strong>
               <span>{clock.toLocaleDateString("sw-TZ", { weekday: "short", day: "2-digit", month: "short", year: "numeric" })}</span>
             </div>
-            <span className="live-dot">LIVE</span>
+            <div className="mode-indicator">
+              <span className="mode-label">{working ? "WORKING MODE" : "NORMAL MODE"}</span>
+              <span className="live-dot">LIVE</span>
+            </div>
           </div>
         </header>
 
@@ -368,7 +398,7 @@ function App() {
               <section className="split-grid">
                 <Chat
                   onState={setCoreState}
-                  onModToggle={value => setMode(value ? "working" : "normal")}
+                  onModToggle={toggleMode}
                 />
                 <Activity />
               </section>
