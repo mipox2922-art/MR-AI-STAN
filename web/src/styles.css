@@ -1241,3 +1241,250 @@ button:disabled {
     height: 280px;
   }
 }
+
+
+.tool-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.tool-summary div {
+  border: 1px solid var(--line);
+  padding: 11px;
+  background: rgba(255,255,255,.012);
+}
+
+.tool-summary span,
+.tool-summary strong {
+  display: block;
+}
+
+.tool-summary span {
+  color: var(--muted);
+  font-size: 8px;
+  letter-spacing: 1.5px;
+}
+
+.tool-summary strong {
+  color: var(--accent);
+  margin-top: 4px;
+  font-size: 15px;
+}
+
+.tool-category {
+  margin-top: 18px;
+}
+
+.tool-registry-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 9px;
+  margin-top: 8px;
+}
+
+.tool-registry-card {
+  border: 1px solid var(--line);
+  padding: 12px;
+  background: rgba(255,255,255,.01);
+}
+
+.tool-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.tool-card-head strong {
+  color: #eaffff;
+  font-size: 10px;
+}
+
+.tool-state {
+  font-size: 7px;
+  letter-spacing: 1px;
+  border: 1px solid var(--line);
+  color: var(--accent);
+  padding: 4px 5px;
+  white-space: nowrap;
+}
+
+.tool-state.not-installed,
+.tool-state.optional-not-installed,
+.tool-state.optional-not-configured {
+  color: #ffae42;
+}
+
+.tool-state.not-connected {
+  color: #ff5555;
+}
+
+.tool-registry-card p {
+  color: var(--muted);
+  font-size: 9px;
+  line-height: 1.5;
+  min-height: 40px;
+  margin: 8px 0;
+}
+
+.tool-registry-card small {
+  color: var(--accent);
+  font-size: 7px;
+  letter-spacing: .9px;
+}
+
+.tool-search {
+  margin-top: 20px;
+  border-top: 1px solid var(--line);
+  padding-top: 16px;
+}
+
+.tool-search-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.tool-search-row input {
+  min-width: 0;
+  flex: 1;
+  color: #dffcff;
+  background: #03080b;
+  border: 1px solid var(--line);
+  padding: 11px 12px;
+  outline: none;
+}
+
+.search-results {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.search-result {
+  border: 1px solid var(--line);
+  padding: 10px;
+}
+
+.search-result a {
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.search-result span,
+.search-result small {
+  display: block;
+}
+
+.search-result span {
+  color: var(--muted);
+  font-size: 9px;
+  line-height: 1.45;
+  margin-top: 4px;
+}
+
+.search-result small {
+  color: #78969b;
+  margin-top: 5px;
+  font-size: 7px;
+}
+
+.palette-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: start center;
+  padding: 9vh 18px 18px;
+  background: rgba(0,0,0,.72);
+  backdrop-filter: blur(8px);
+}
+
+.command-palette {
+  width: min(680px, 100%);
+  border: 1px solid var(--line);
+  background: #030a0e;
+  box-shadow: 0 20px 80px rgba(0,0,0,.5);
+}
+
+.palette-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 11px 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.palette-close {
+  padding: 5px 8px;
+}
+
+.command-palette > input {
+  display: block;
+  width: calc(100% - 24px);
+  margin: 12px;
+  color: #dffcff;
+  background: #02070a;
+  border: 1px solid var(--line);
+  padding: 12px;
+  outline: none;
+}
+
+.palette-actions {
+  max-height: 52vh;
+  overflow: auto;
+  padding: 0 12px 12px;
+  display: grid;
+  gap: 6px;
+}
+
+.palette-action {
+  border: 1px solid var(--line);
+  background: rgba(255,255,255,.015);
+  color: #dffcff;
+  text-align: left;
+  padding: 10px 11px;
+}
+
+.palette-action:hover {
+  border-color: var(--accent);
+  background: rgba(0,243,255,.04);
+}
+
+.palette-action strong,
+.palette-action span {
+  display: block;
+}
+
+.palette-action strong {
+  font-size: 10px;
+}
+
+.palette-action span {
+  color: var(--muted);
+  margin-top: 3px;
+  font-size: 7px;
+  letter-spacing: 1px;
+}
+
+.mode-action {
+  background: rgba(255,85,85,.035);
+}
+
+@media (max-width: 760px) {
+  .tool-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .tool-search-row {
+    flex-direction: column;
+  }
+
+  .command-palette {
+    width: 100%;
+  }
+}
