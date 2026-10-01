@@ -109,3 +109,92 @@ export function createMemory(key, value) {
     body: JSON.stringify({ key, value })
   });
 }
+
+const DEVICE_BRIDGE_URL =
+  import.meta.env.VITE_DEVICE_BRIDGE_URL || "http://127.0.0.1:8765";
+
+function getBridgeToken() {
+  return localStorage.getItem("mr_ai_bridge_token") || "";
+}
+
+export function setBridgeToken(token) {
+  localStorage.setItem("mr_ai_bridge_token", token);
+}
+
+export function clearBridgeToken() {
+  localStorage.removeItem("mr_ai_bridge_token");
+}
+
+async function bridgeRequest(path, options = {}) {
+  const token = getBridgeToken();
+  const headers = {
+    ...(options.body ? { "Content-Type": "application/json" } : {}),
+    ...(options.headers || {})
+  };
+
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  const response = await fetch(`${DEVICE_BRIDGE_URL}${path}`, {
+    ...options,
+    headers
+  });
+
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new Error(data.detail || "Device bridge request failed");
+  }
+
+  return data;
+}
+
+export function getDeviceBridgeHealth() {
+  return bridgeRequest("/health");
+}
+
+export function getAndroidDevices() {
+  return bridgeRequest("/devices/android");
+}
+
+export function getFastbootDevices() {
+  return bridgeRequest("/devices/fastboot");
+}
+
+export function getAndroidDeviceInfo(serial) {
+  return bridgeRequest(`/devices/${encodeURIComponent(serial)}/info`);
+}
+
+export function getAndroidDiagnostics(serial) {
+  return bridgeRequest(`/devices/${encodeURIComponent(serial)}/diagnostics`);
+}
+
+export function getAndroidLogs(serial) {
+  return bridgeRequest(`/devices/${encodeURIComponent(serial)}/logs`);
+}
+
+export function rebootAndroid(serial, mode = "system") {
+  return bridgeRequest(`/devices/${encodeURIComponent(serial)}/reboot`, {
+    method: "POST",
+    body: JSON.stringify({ mode })
+  });
+}
+
+export function scanBluetooth() {
+  return bridgeRequest("/bluetooth/scan");
+}
+
+export function flashFirmware({ serial, partition, image_path, sha256, confirm }) {
+  return bridgeRequest("/devices/flash", {
+    method: "POST",
+    body: JSON.stringify({
+      serial,
+      partition,
+      image_path,
+      sha256,
+      confirm
+    })
+  });
+}
+
