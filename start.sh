@@ -45,22 +45,30 @@ echo "🚀 Kuanzisha frontend..."
   nohup npm run dev -- --host 0.0.0.0 --port 5173 >"$FRONTEND_LOG" 2>&1 &
 )
 
-echo "🌐 Kuweka port 8000 kuwa Public..."
-gh codespace ports visibility 8000:public -c "${CODESPACE_NAME:-}" 2>/dev/null ||   echo "⚠️ Fungua tab ya PORTS na uweke 8000 -> Public kwa mkono"
+echo "🌐 Kuweka ports 8000 na 5173 kuwa Public..."
+if [ -n "${CODESPACE_NAME:-}" ]; then
+  gh codespace ports visibility 8000:public 5173:public -c "$CODESPACE_NAME" 2>/dev/null ||     echo "⚠️ Fungua tab ya PORTS na uweke 8000 na 5173 -> Public kwa mkono"
+else
+  echo "⚠️ CODESPACE_NAME haipo; fungua tab ya PORTS na uweke 8000 na 5173 -> Public kwa mkono"
+fi
 
 echo ""
 echo "⏳ Kusubiri backend iwe tayari..."
 
-for i in {1..20}; do
+for i in {1..30}; do
   if curl -fsS --max-time 2 http://127.0.0.1:8000/health >/dev/null 2>&1; then
     echo "✅ Backend (localhost:8000): HTTP 200"
-    echo "✅ Frontend: http://localhost:5173/"
+    if curl -fsS --max-time 2 http://127.0.0.1:5173/ >/dev/null 2>&1; then
+      echo "✅ Frontend (localhost:5173): HTTP 200"
+    else
+      echo "⚠️ Frontend haijawa tayari bado. Angalia: $FRONTEND_LOG"
+    fi
     exit 0
   fi
   sleep 1
 done
 
-echo "❌ Backend haikuanza ndani ya sekunde 20."
+echo "❌ Backend haikuanza ndani ya sekunde 30."
 echo ""
 echo "----- BACKEND LOG -----"
 if [ -f "$BACKEND_LOG" ]; then
