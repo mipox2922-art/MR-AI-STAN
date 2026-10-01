@@ -274,6 +274,13 @@ export function executeMission(requestText) {
   });
 }
 
+export function reportMissionHandoff(missionId, status, evidence) {
+  return request(`/agents/mission/${missionId}/handoff`, {
+    method: "POST",
+    body: JSON.stringify({ status, evidence }),
+  });
+}
+
 export function executeAgentAction(action, payload = {}) {
   return request("/agents/execute", {
     method: "POST",
