@@ -15,6 +15,8 @@ MR AI STAN
 ├── Real System Telemetry
 ├── Chrome Browser Hands
 ├── Creative Studio
+├── Tracking Map (authorized location)
+├── Google Protection Console
 ├── Local Device Bridge
 └── Secure FastAPI Backend
 ```
@@ -67,6 +69,8 @@ npm run dev -- --host 0.0.0.0 --port 5173
 
 The web app includes:
 - responsive command center
+- persistent NORMAL/WORKING mood with red accent in WORKING mode
+- a keyboard shortcut: Ctrl+Shift+M toggles the mode
 - real backend telemetry
 - agent catalog and mission planner
 - browser hands controls
@@ -74,6 +78,8 @@ The web app includes:
 - editable graphic canvas
 - voice input through the browser Speech API
 - verified activity stream
+- real OpenStreetMap map with browser geolocation permission
+- Google Security Checkup, recent security events, and Gmail activity entry points
 
 ## Browser Hands
 
@@ -160,3 +166,21 @@ The devcontainer also starts `start.sh` after the container starts.
 - High-risk device/security operations require confirmation.
 - Secrets are excluded by `.gitignore`.
 - Verified activity is recorded by the backend.
+
+
+## Free-first tools
+
+The UI favors tools that do not require a paid map or desktop automation subscription:
+- OpenStreetMap for the geographic map, with attribution
+- Browser Speech API for voice input and the existing speech-synthesis voice output
+- Chrome extension APIs for authorized page-level browser hands
+- ADB/Fastboot, psutil and Bleak for local device and sensor work
+- HTML Canvas for editable poster/banner creation
+
+### Tracking and Google protection boundary
+
+MR AI STAN shows location only from an authorized source. The Tracking Map can request the operator's browser location permission and plot the verified coordinates on OpenStreetMap.
+
+Gmail itself can expose recent account access IP addresses and approximate locations through Google's Last account activity page. MR AI does not convert an arbitrary person's IP into a hidden GPS tracker. For future Google Workspace integration, use an authorized Google OAuth/Admin Reports connection and keep the source data attributable.
+
+The Google Protection panel links directly to Google's official Security Checkup, recent security events, and Gmail. It never asks MR AI for a Google password.
