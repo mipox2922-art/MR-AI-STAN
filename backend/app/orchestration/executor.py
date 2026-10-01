@@ -89,9 +89,15 @@ async def execute_mission(
                 })
                 continue
         if tool_id == "searxng" and "searxng" in step["tools"]:
-            if not registry_summary()["tools"]:
+            search_tool = next(
+                (tool for tool in registry_summary()["tools"] if tool["id"] == "searxng"),
+                None,
+            )
+            if not search_tool or search_tool["status"] != "CONNECTED":
                 status = "NOT_CONNECTED"
-                evidence = {"message": "Search registry is unavailable."}
+                evidence = {
+                    "message": "SearXNG is not connected; the mission cannot claim a verified backend search.",
+                }
             else:
                 # Search execution stays in the normal tool dispatch route. The
                 # mission reports ownership but does not duplicate the HTTP action.
