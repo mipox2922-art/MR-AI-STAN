@@ -53,6 +53,14 @@ else
 fi
 
 echo ""
+echo "🔗 Codespaces port links:"
+if command -v gh >/dev/null 2>&1 && [ -n "${CODESPACE_NAME:-}" ]; then
+  gh codespace ports --json sourcePort,browseUrl,visibility -c "$CODESPACE_NAME" \
+    --jq '.[] | select(.sourcePort == 8000 or .sourcePort == 5173) | "(.sourcePort) | (.visibility) | (.browseUrl)"' \
+    2>/dev/null || true
+fi
+
+echo ""
 echo "⏳ Kusubiri backend iwe tayari..."
 
 for i in {1..30}; do
