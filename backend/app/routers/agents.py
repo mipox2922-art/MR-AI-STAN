@@ -56,6 +56,51 @@ async def run_mission(
     return await execute_mission(request, current_user, db)
 
 
+@router.post("/mission/{mission_id}/handoff")
+def report_mission_handoff(
+    mission_id: int,
+    payload: dict,
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    mission = (
+        db.query(Task)
+        .filter(Task.id == mission_id, Task.user_id == current_user.id)
+        .first()
+    )
+    if not mission:
+        raise HTTPException(404, "Mission not found")
+
+    status = str(payload.get("status", "")).upper()
+    evidence = payload.get("evidence")
+    if status not in {"COMPLETED", "FAILED"}:
+        raise HTTPException(400, "handoff status must be COMPLETED or FAILED")
+
+    mission.status = status
+    mission.progress = 100 if status == "COMPLETED" else mission.progress
+    mission.result = str(evidence)[:12000] if evidence is not None else ""
+    mission.error = None if status == "COMPLETED" else str(evidence)[:4000]
+    db.add(ActivityLog(
+        user_id=current_user.id,
+        action="MISSION_HANDOFF_RESULT",
+        details=f"Mission {mission.id}: {status}",
+    ))
+    db.commit()
+    db.refresh(mission)
+
+    return {
+        "status": status,
+        "verified": status == "COMPLETED",
+        "mission": {
+            "id": mission.id,
+            "status": mission.status,
+            "progress": mission.progress,
+            "result": mission.result,
+            "error": mission.error,
+        },
+    }
+
+
 @router.post("/execute")
 def execute_agent_action(
     payload: dict,
