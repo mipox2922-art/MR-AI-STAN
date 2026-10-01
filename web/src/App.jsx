@@ -3,6 +3,7 @@ import {
   getAgents,
   getStatus,
   getToken,
+  scanRadar,
   login,
   register,
   planAgentWork,
@@ -108,8 +109,11 @@ function Metric({ label, value }) {
   );
 }
 
-function Radar({ agents, working }) {
-  const visible = agents.slice(0, 10);
+function Radar({ agents, findings = [], working }) {
+  const visible = findings.length ? findings.slice(0, 20) : agents.slice(0, 10).map(agent => ({
+    type: "agent",
+    label: agent.name
+  }));
   return (
     <div className="radar">
       <div className={`radar-sweep ${working ? "radar-sweep-active" : ""}`} />
@@ -124,9 +128,9 @@ function Radar({ agents, working }) {
         const y = 50 + Math.sin(angle) * radius;
         return (
           <span
-            key={agent.id}
+            key={agent.id || agent.label || index}
             className="radar-dot"
-            title={agent.name}
+            title={agent.name || agent.label}
             style={{ left: x + "%", top: y + "%" }}
           />
         );
@@ -194,7 +198,9 @@ function App() {
   const [coreState, setCoreState] = useState("IDLE");
   const [system, setSystem] = useState(null);
   const [agents, setAgents] = useState([]);
+  const [radarFindings, setRadarFindings] = useState([]);
   const [clock, setClock] = useState(new Date());
+
 
   const authenticated = Boolean(token);
 
@@ -202,8 +208,16 @@ function App() {
     if (!getToken()) return;
     try {
       const [status, fleet] = await Promise.all([getStatus(), getAgents()]);
+      let radar = [];
+      try {
+        const result = await scanRadar();
+        radar = result.findings || [];
+      } catch {
+        radar = [];
+      }
       setSystem(status);
       setAgents(fleet);
+      setRadarFindings(radar);
     } catch (error) {
       if (/401|unauthorized/i.test(error.message)) {
         localStorage.removeItem("mr_ai_token");
@@ -346,8 +360,8 @@ function App() {
                     </div>
                     <span className="badge">{agents.length} REGISTERED</span>
                   </div>
-                  <Radar agents={agents} working={working} />
-                  <p className="radar-note">Markers represent registered agents. Operational events will be rendered only when real task/event data exists.</p>
+                  <Radar agents={agents} findings={radarFindings} working={working} />
+                  <p className="radar-note">Markers come from real local sensor findings when the device bridge is connected; otherwise registered agents are shown as the fallback view.</p>
                 </div>
               </section>
 
