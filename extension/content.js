@@ -99,6 +99,14 @@
     if (event.source !== window || !event.data || event.data.source !== SOURCE) return;
     if (event.data.type !== "MR_AI_BROWSER_ACTION") return;
 
+    const origin = event.origin || "";
+    const allowed =
+      origin === "http://localhost:5173" ||
+      origin === "http://127.0.0.1:5173" ||
+      /^https:\/\/[^.]+\.app\.github\.dev$/.test(origin);
+
+    if (!allowed) return;
+
     const result = await runAction(event.data);
     reply(event.data.requestId, true, result);
   });
