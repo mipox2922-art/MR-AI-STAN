@@ -95,7 +95,7 @@
     }
   }
 
-  window.addEventListener("message", async (event) => {
+  async function handleWindowMessage(event) {
     if (event.source !== window || !event.data || event.data.source !== SOURCE) return;
     if (event.data.type !== "MR_AI_BROWSER_ACTION") return;
 
@@ -107,7 +107,26 @@
 
     if (!allowed) return;
 
-    const result = await runAction(event.data);
-    reply(event.data.requestId, true, result);
+    try {
+      const result = await runAction(event.data);
+      reply(event.data.requestId, true, result);
+    } catch (error) {
+      reply(event.data.requestId, false, null, error.message);
+    }
+  }
+
+  window.addEventListener("message", handleWindowMessage);
+
+  chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (!message || message.type !== "GET_PAGE_DATA") return false;
+
+    runAction({
+      requestId: message.requestId || `popup-${Date.now()}`,
+      action: "GET_PAGE_DATA"
+    })
+      .then(result => sendResponse({ ok: true, result }))
+      .catch(error => sendResponse({ ok: false, error: error.message }));
+
+    return true;
   });
 })();
