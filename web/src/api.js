@@ -252,3 +252,15 @@ export function browserScroll(amount = 600) {
 export function browserNavigate(url) {
   return browserAction("NAVIGATE", { url });
 }
+
+
+export function getAgents() {
+  return request("/agents");
+}
+
+export function planAgentWork(requestText) {
+  return request("/agents/plan", {
+    method: "POST",
+    body: JSON.stringify({ request: requestText })
+  });
+}
