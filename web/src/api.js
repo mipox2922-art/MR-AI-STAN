@@ -70,12 +70,13 @@ export async function login(username, password) {
   return data;
 }
 
-export function chat(message, provider = "gemini") {
+export function chat(message, provider = "gemini", toolContext = null) {
   return request("/ai/chat", {
     method: "POST",
     body: JSON.stringify({
       message,
-      provider
+      provider,
+      tool_context: toolContext
     })
   });
 }
@@ -302,5 +303,13 @@ export function searchToolWeb(query) {
   return request("/tools/search", {
     method: "POST",
     body: JSON.stringify({ query }),
+  });
+}
+
+
+export function dispatchTool(command) {
+  return request("/tools/dispatch", {
+    method: "POST",
+    body: JSON.stringify({ command }),
   });
 }
