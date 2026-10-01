@@ -276,3 +276,19 @@ export function executeAgentAction(action, payload = {}) {
 export function browserDrag(selector, dx, dy) {
   return browserAction("DRAG", { selector, dx, dy });
 }
+
+export function scanWifi() {
+  return bridgeRequest("/wifi/scan");
+}
+
+export function scanRadar() {
+  return bridgeRequest("/radar/scan");
+}
+
+export function getRadioStatus() {
+  return bridgeRequest("/radio/status");
+}
+
+export function getBootState(serial) {
+  return bridgeRequest(`/devices/${encodeURIComponent(serial)}/boot-state`);
+}
