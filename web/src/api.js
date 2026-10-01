@@ -272,3 +272,7 @@ export function executeAgentAction(action, payload = {}) {
     body: JSON.stringify({ action, ...payload })
   });
 }
+
+export function browserDrag(selector, dx, dy) {
+  return browserAction("DRAG", { selector, dx, dy });
+}
