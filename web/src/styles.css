@@ -1488,3 +1488,23 @@ button:disabled {
     width: 100%;
   }
 }
+
+
+.tool-routing-status {
+  margin-left: auto;
+  border: 1px solid var(--line);
+  color: var(--accent);
+  padding: 5px 7px;
+  font-size: 7px;
+  letter-spacing: 1px;
+  white-space: nowrap;
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (max-width: 760px) {
+  .tool-routing-status {
+    display: none;
+  }
+}
