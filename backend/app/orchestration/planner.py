@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import asdict
 from typing import Any
 
-from .registry import AGENTS
+from ..agents.registry import AGENTS
 
 
 ROUTES = (
