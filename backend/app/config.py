@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     kimi_base_url: str = "https://api.moonshot.ai/v1"
 
     cors_origins: str = "http://localhost:5173"
+    searxng_url: str = ""
 
     model_config = SettingsConfigDict(
         env_file=".env",
