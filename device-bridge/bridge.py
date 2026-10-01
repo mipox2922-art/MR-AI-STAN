@@ -161,6 +161,37 @@ def boot_state(serial: str):
         "note": "These are boot/security state signals only; they do not bypass device protection.",
     }
 
+
+@app.get("/location/public", dependencies=[Depends(require_token)])
+def public_location():
+    try:
+        from urllib.request import Request, urlopen
+        request = Request(
+            "https://ipwho.is/",
+            headers={"User-Agent": "MR-AI-STAN-Local-Bridge/0.1"},
+        )
+        with urlopen(request, timeout=8) as response:
+            import json
+            data = json.load(response)
+    except Exception as exc:
+        raise HTTPException(503, f"Public IP geolocation unavailable: {type(exc).__name__}: {exc}") from exc
+
+    if data.get("success") is False:
+        raise HTTPException(503, "Public IP geolocation provider rejected the request")
+
+    return {
+        "source": "ipwho.is",
+        "ip": data.get("ip"),
+        "latitude": data.get("latitude"),
+        "longitude": data.get("longitude"),
+        "city": data.get("city"),
+        "region": data.get("region"),
+        "country": data.get("country"),
+        "country_code": data.get("country_code"),
+        "timezone": (data.get("timezone") or {}).get("id"),
+        "note": "IP location is approximate and may reflect a VPN, proxy, ISP gateway, or mobile carrier.",
+    }
+
 @app.get("/radio/status", dependencies=[Depends(require_token)])
 def radio_status():
     rtl_power = shutil.which("rtl_power")
