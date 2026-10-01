@@ -227,6 +227,80 @@ def flash(request: FlashRequest):
     }
 
 
+
+@app.get("/radar/scan", dependencies=[Depends(require_token)])
+async def radar_scan():
+    findings = []
+
+    try:
+        wifi = wifi_scan()
+        for network in wifi.get("networks", []):
+            ssid = network.get("ssid") or "(hidden)"
+            signal = network.get("signal_percent") or (
+                network.get("bssids", [{}])[0].get("signal") if network.get("bssids") else None
+            )
+            findings.append({
+                "type": "wifi",
+                "label": ssid,
+                "signal": signal,
+                "source": wifi.get("source"),
+            })
+    except HTTPException as exc:
+        wifi = {"status": "UNAVAILABLE", "reason": exc.detail}
+
+    try:
+        bluetooth = await bluetooth_scan()
+        for device in bluetooth.get("devices", []):
+            findings.append({
+                "type": "bluetooth",
+                "label": device.get("name") or device.get("address") or "BLE device",
+                "signal": device.get("rssi"),
+                "source": "BLE",
+            })
+    except HTTPException:
+        bluetooth = {"status": "UNAVAILABLE"}
+
+    try:
+        android = android_devices()
+    except HTTPException:
+        android = {"devices": []}
+
+    for device in android.get("devices", []):
+        findings.append({
+            "type": "android",
+            "label": device.get("serial", "Android"),
+            "signal": None,
+            "source": "ADB",
+        })
+
+    try:
+        fastboot = fastboot_devices()
+    except HTTPException:
+        fastboot = {"devices": []}
+
+    for device in fastboot.get("devices", []):
+        findings.append({
+            "type": "fastboot",
+            "label": device.get("serial", "Fastboot"),
+            "signal": None,
+            "source": "FASTBOOT",
+        })
+
+    radio = radio_status()
+    return {
+        "status": "READY",
+        "findings": findings,
+        "counts": {
+            "total": len(findings),
+            "wifi": sum(item["type"] == "wifi" for item in findings),
+            "bluetooth": sum(item["type"] == "bluetooth" for item in findings),
+            "android": sum(item["type"] == "android" for item in findings),
+            "fastboot": sum(item["type"] == "fastboot" for item in findings),
+        },
+        "radio": radio,
+        "note": "Local receive/diagnostic sensors only. No arbitrary radio-spectrum data is claimed without SDR hardware.",
+    }
+
 @app.get("/wifi/scan", dependencies=[Depends(require_token)])
 def wifi_scan():
     if os.name == "nt" and shutil.which("netsh"):
