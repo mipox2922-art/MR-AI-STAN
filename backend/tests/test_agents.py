@@ -21,6 +21,12 @@ def test_every_agent_declares_tools():
         assert agent.tools
 
 
+def test_orchestrator_can_use_system_telemetry():
+    result = build_plan("angalia CPU na RAM za mfumo")
+    orchestrator = next(step for step in result["steps"] if step["agent"] == "orchestrator")
+    assert "system_telemetry" in orchestrator["tools"]
+
+
 def test_job_plan_exposes_real_hands():
     result = build_plan("tafuta remote jobs")
     jobs = next(step for step in result["steps"] if step["agent"] == "jobs")
