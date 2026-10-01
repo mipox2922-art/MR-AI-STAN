@@ -6,6 +6,8 @@ import {
   scanBluetooth,
   getAndroidDeviceInfo,
   getAndroidDiagnostics,
+  getBootState,
+  scanWifi,
   rebootAndroid,
   setBridgeToken
 } from "../api";
@@ -46,12 +48,14 @@ export default function DeviceLab() {
           return data;
         })}>ADB DEVICES</button>
         <button onClick={() => run("FASTBOOT", getFastbootDevices)}>FASTBOOT</button>
+        <button onClick={() => run("WI-FI", scanWifi)}>WI-FI SCAN</button>
         <button onClick={() => run("BLUETOOTH", scanBluetooth)}>BLE SCAN</button>
       </div>
       {selected && (
         <div className="tool-grid">
           <button onClick={() => run("INFO", () => getAndroidDeviceInfo(selected))}>DEVICE INFO</button>
           <button onClick={() => run("DIAGNOSTICS", () => getAndroidDiagnostics(selected))}>DIAGNOSTICS</button>
+          <button onClick={() => run("BOOT STATE", () => getBootState(selected))}>BOOT STATE</button>
           <button onClick={() => run("REBOOT", () => rebootAndroid(selected, "system"))}>REBOOT SYSTEM</button>
         </div>
       )}
