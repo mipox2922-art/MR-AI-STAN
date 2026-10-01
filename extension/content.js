@@ -58,6 +58,28 @@
         return { scrolled: amount };
       }
 
+      if (action === "DRAG") {
+        const element = document.querySelector(message.selector);
+        if (!element) throw new Error("Element not found");
+        const rect = element.getBoundingClientRect();
+        const startX = rect.left + rect.width / 2;
+        const startY = rect.top + rect.height / 2;
+        const endX = startX + Number(message.dx ?? 0);
+        const endY = startY + Number(message.dy ?? 0);
+
+        element.dispatchEvent(new PointerEvent("pointerdown", {
+          bubbles: true, clientX: startX, clientY: startY, buttons: 1
+        }));
+        element.dispatchEvent(new PointerEvent("pointermove", {
+          bubbles: true, clientX: endX, clientY: endY, buttons: 1
+        }));
+        element.dispatchEvent(new PointerEvent("pointerup", {
+          bubbles: true, clientX: endX, clientY: endY, buttons: 0
+        }));
+
+        return { dragged: true, selector: message.selector, dx: Number(message.dx ?? 0), dy: Number(message.dy ?? 0) };
+      }
+
       if (action === "NAVIGATE") {
         const url = new URL(String(message.url), location.href);
         if (!["http:", "https:"].includes(url.protocol)) {
