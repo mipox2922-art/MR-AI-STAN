@@ -80,6 +80,9 @@ The web app includes:
 - verified activity stream
 - real OpenStreetMap map with browser geolocation permission
 - Google Security Checkup, recent security events, and Gmail activity entry points
+- tool registry with real readiness states
+- Ctrl+K command palette for power-user navigation
+- optional self-hosted SearXNG web search integration
 
 ## Browser Hands
 
@@ -184,3 +187,15 @@ MR AI STAN shows location only from an authorized source. The Tracking Map can r
 Gmail itself can expose recent account access IP addresses and approximate locations through Google's Last account activity page. MR AI does not convert an arbitrary person's IP into a hidden GPS tracker. For future Google Workspace integration, use an authorized Google OAuth/Admin Reports connection and keep the source data attributable.
 
 The Google Protection panel links directly to Google's official Security Checkup, recent security events, and Gmail. It never asks MR AI for a Google password.
+
+
+## Tool intelligence
+
+The Toolbox panel is a registry, not a fake list. Each tool reports its current state:
+- READY or CONNECTED means the current subsystem is available
+- NOT_CONNECTED means a configured external connection is missing
+- OPTIONAL_* means the capability exists as a supported extension point but is not installed/configured in this environment
+
+The optional SearXNG integration uses the configured SEARXNG_URL. SearXNG exposes a JSON search API and can be self-hosted, which keeps the search dependency under the operator's control. citeturn527615search0turn527615search2turn527615search3
+
+The command palette opens with Ctrl+K and exposes the major STAN subsystems without forcing the operator to hunt through the sidebar.
