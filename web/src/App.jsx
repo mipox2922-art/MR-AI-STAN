@@ -18,6 +18,7 @@ import CreativeStudio from "./components/CreativeStudio";
 import TrackingMap from "./components/TrackingMap";
 import SecurityHub from "./components/SecurityHub";
 import ToolBox from "./components/ToolBox";
+import WebIntelligence from "./components/WebIntelligence";
 import CommandPalette from "./components/CommandPalette";
 
 const NAV = [
@@ -30,6 +31,7 @@ const NAV = [
   ["map", "⌖", "Tracking Map"],
   ["security", "🛡", "Google Protection"],
   ["tools", "⚙", "Toolbox"],
+  ["web", "◎", "Web Intelligence"],
   ["tasks", "✓", "Tasks"],
   ["memory", "◇", "Memory"],
   ["system", "⌘", "System"],
@@ -471,6 +473,7 @@ function App() {
           {active === "browser" && <BrowserHands />}
           {active === "device" && <DeviceLab />}
           {active === "creative" && <CreativeStudio />}
+          {active === "web" && <WebIntelligence />}
 
           {active === "tasks" && (
             <section className="panel large-panel">
