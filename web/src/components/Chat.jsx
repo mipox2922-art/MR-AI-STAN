@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { chat } from "../api";
 import VoiceControl from "./VoiceControl";
 
 export default function Chat({ onState, onModToggle }) {
   const [message, setMessage] = useState("");
   const [provider, setProvider] = useState("gemini");
+  const utteranceRef = useRef(null);
   const [messages, setMessages] = useState([
     {
       role: "assistant",
@@ -55,8 +56,22 @@ export default function Chat({ onState, onModToggle }) {
           content: result.response
         }
       ]);
-      onState("SPEAKING");
-      setTimeout(() => onState("IDLE"), 1000);
+
+      const speech = window.speechSynthesis;
+      if (speech && "SpeechSynthesisUtterance" in window) {
+        speech.cancel();
+        const utterance = new SpeechSynthesisUtterance(result.response);
+        utterance.lang = "sw-TZ";
+        utterance.rate = 1;
+        utterance.pitch = 1;
+        utterance.onstart = () => onState("SPEAKING");
+        utterance.onend = () => onState("IDLE");
+        utterance.onerror = () => onState("ERROR");
+        utteranceRef.current = utterance;
+        speech.speak(utterance);
+      } else {
+        onState("IDLE");
+      }
     } catch (error) {
       setMessages(prev => [
         ...prev,
