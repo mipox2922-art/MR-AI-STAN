@@ -9,3 +9,5 @@ httpx
 python-multipart
 email-validator
 pwdlib[argon2]
+openai
+google-genai
