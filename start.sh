@@ -13,6 +13,7 @@ BACKEND_PID="$RUNTIME_DIR/backend.pid"
 FRONTEND_PID="$RUNTIME_DIR/frontend.pid"
 HEALTH_URL="http://127.0.0.1:8000/health"
 FRONTEND_URL="http://127.0.0.1:5173/"
+PYTHON_BIN="${MR_AI_PYTHON:-$(command -v python3.12 2>/dev/null || command -v python3 2>/dev/null || true)}"
 
 mkdir -p "$RUNTIME_DIR"
 
@@ -44,7 +45,6 @@ process_from_pidfile_alive() {
     return 0
   fi
 
-  # The recorded PID has been reused by another process. Do not touch it.
   rm -f "$pid_file"
   return 1
 }
@@ -84,17 +84,42 @@ info "MR AI STAN startup"
 echo "Repository: $ROOT_DIR"
 echo "Logs: $RUNTIME_DIR"
 
+if [[ -z "$PYTHON_BIN" ]]; then
+  echo "ERROR: No Python interpreter found."
+  exit 1
+fi
+
+if [[ "$("$PYTHON_BIN" --version 2>&1)" != Python\ 3.12.* ]]; then
+  info "Preferred Python 3.12 is unavailable; using $("$PYTHON_BIN" --version 2>&1)."
+fi
+
+# The Ubuntu image can include Python 3.12 without the venv/ensurepip package.
+# Install that package only when we actually need to create the project venv.
+if [[ ! -x "$BACKEND_DIR/.venv/bin/python" ]]; then
+  info "Preparing Python virtual environment with $("$PYTHON_BIN" --version 2>&1)"
+  if ! "$PYTHON_BIN" -m venv "$BACKEND_DIR/.venv" >/dev/null 2>&1; then
+    if command -v apt-get >/dev/null 2>&1 && command -v sudo >/dev/null 2>&1 && [[ "$("$PYTHON_BIN" --version 2>&1)" == Python\ 3.12.* ]]; then
+      info "Python venv support is missing; installing python3.12-venv"
+      sudo apt-get update
+      sudo apt-get install -y python3.12-venv
+      rm -rf "$BACKEND_DIR/.venv"
+      "$PYTHON_BIN" -m venv "$BACKEND_DIR/.venv"
+    else
+      echo "ERROR: Cannot create backend/.venv and automatic package installation is unavailable."
+      echo "Interpreter: $PYTHON_BIN"
+      "$PYTHON_BIN" --version || true
+      exit 1
+    fi
+  fi
+fi
+
+PYTHON="$BACKEND_DIR/.venv/bin/python"
+
 if [[ ! -f "$BACKEND_DIR/.env" ]]; then
   cp "$BACKEND_DIR/.env.example" "$BACKEND_DIR/.env"
   info "Created backend/.env from backend/.env.example"
 fi
 
-if [[ ! -x "$BACKEND_DIR/.venv/bin/python" ]]; then
-  info "Creating backend virtual environment"
-  python3 -m venv "$BACKEND_DIR/.venv"
-fi
-
-PYTHON="$BACKEND_DIR/.venv/bin/python"
 info "Installing/verifying backend dependencies"
 "$PYTHON" -m pip install --disable-pip-version-check -q -r "$BACKEND_DIR/requirements.txt"
 
@@ -122,7 +147,6 @@ if ! curl -fsS --max-time 2 "$HEALTH_URL" >/dev/null 2>&1; then
   fi
 else
   info "Backend is already healthy; leaving existing process untouched"
-  # There may be an earlier process without a PID file. Do not start a duplicate.
 fi
 
 if ! curl -fsS --max-time 2 "$FRONTEND_URL" >/dev/null 2>&1; then
@@ -149,7 +173,7 @@ echo "  Backend:  http://127.0.0.1:8000"
 echo "  Health:   $HEALTH_URL"
 echo
 echo "Codespaces port forwarding is declared in .devcontainer/devcontainer.json."
-echo "If a Codespaces visibility command returns 404, use the Ports panel; the app startup should continue."
+echo "If GitHub CLI cannot change port visibility, use the Ports panel; service startup continues."
 
 if [[ -n "${CODESPACE_NAME:-}" ]] && command -v gh >/dev/null 2>&1; then
   if gh codespace ports visibility 5173:public 8000:public -c "$CODESPACE_NAME" >/dev/null 2>&1; then
