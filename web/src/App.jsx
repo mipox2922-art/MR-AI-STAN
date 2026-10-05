@@ -158,7 +158,29 @@ export default function MRAICommandCenter() {
           {/* SIDEBAR */}
           <div style={{ ...panelStyle, gridColumn: 1, gridRow: "1 / 3", display: "flex", flexDirection: "column" }}>
             <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 14 }}>
-              <div style={{ width: 48, height: 48, borderRadius: "50%", border: `2px solid ${theme.accent}`, background: `radial-gradient(circle at 35% 30%, ${theme.accent}, #000 75%)`, boxShadow: `0 0 16px ${theme.glow}`, flexShrink: 0 }} />
+              <div
+                aria-label="MR AI JARVIS avatar"
+                style={{
+                  width: 48,
+                  height: 48,
+                  borderRadius: "50%",
+                  border: `2px solid ${theme.accent}`,
+                  background: `radial-gradient(circle at 50% 38%, rgba(34,211,238,.16), #000 72%)`,
+                  boxShadow: `0 0 16px ${theme.glow}, inset 0 0 12px rgba(255,255,255,.04)`,
+                  flexShrink: 0,
+                  position: "relative",
+                  display: "grid",
+                  placeItems: "center",
+                  overflow: "hidden",
+                }}
+              >
+                <div style={{ width: 30, height: 26, border: `1px solid ${theme.accent}`, borderRadius: "46% 46% 42% 42%", position: "relative", boxShadow: `0 0 9px ${theme.glow}`, background: "rgba(0,0,0,.28)" }}>
+                  <div style={{ position: "absolute", top: 8, left: 6, width: 6, height: 3, borderRadius: 3, background: theme.accent, boxShadow: `0 0 6px ${theme.accent}` }} />
+                  <div style={{ position: "absolute", top: 8, right: 6, width: 6, height: 3, borderRadius: 3, background: theme.accent, boxShadow: `0 0 6px ${theme.accent}` }} />
+                  <div style={{ position: "absolute", left: "50%", bottom: 5, transform: "translateX(-50%)", width: 12, height: 2, borderRadius: 2, background: theme.accent, boxShadow: `0 0 5px ${theme.glow}` }} />
+                  <div style={{ position: "absolute", left: "50%", top: 0, transform: "translateX(-50%)", width: 1, height: "100%", background: theme.accent, opacity: .22 }} />
+                </div>
+              </div>
               <div>
                 <div style={{ fontWeight: 700, fontSize: 12.5 }}>BOSS FERISI</div>
                 <div style={{ fontSize: 10.5, color: theme.dim }}>Chief of Staff</div>
