@@ -1,5 +1,8 @@
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+import logging
+
+from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from .config import settings
 from .database import Base, engine
@@ -12,7 +15,11 @@ from .routers import (
     tasks,
     activity,
     system,
+    agents,
+    tools,
 )
+
+logger = logging.getLogger("mr_ai")
 
 Base.metadata.create_all(bind=engine)
 
@@ -42,6 +49,8 @@ app.include_router(memory.router)
 app.include_router(tasks.router)
 app.include_router(activity.router)
 app.include_router(system.router)
+app.include_router(agents.router)
+app.include_router(tools.router)
 
 
 @app.get("/")
@@ -77,15 +86,11 @@ async def websocket_endpoint(websocket: WebSocket):
 
 
 # ==============================================================================
-# GLOBAL EXCEPTION HANDLER (catches unhandled errors, returns clean 400/500)
+# GLOBAL EXCEPTION HANDLER
 # ==============================================================================
-from fastapi import Request
-from fastapi.responses import JSONResponse
-
-
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
-    logger.error(f"❌ Unhandled error on {request.url.path}: {exc}")
+    logger.exception("Unhandled error on %s: %s", request.url.path, exc)
     return JSONResponse(
         status_code=500,
         content={"detail": "Internal server error"},
