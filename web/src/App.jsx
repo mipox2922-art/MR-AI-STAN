@@ -143,7 +143,7 @@ export default function MRAICommandCenter() {
             <span>{clock.toLocaleDateString("sw-TZ", { weekday: "short", year: "numeric", month: "short", day: "2-digit" })}</span>
             <div style={{ display: "flex", alignItems: "center", gap: 6, color: theme.accent, fontWeight: 600 }}>
               <div style={{ width: 7, height: 7, borderRadius: "50%", background: theme.accent, boxShadow: `0 0 8px ${theme.glow}`, animation: "pulse 1.6s infinite" }} />
-              {isWorking ? "WORKING MODE" : "NORMAL MODE"}
+              {isWorking ? "MOD ON // WORKING" : "NORMAL MODE"}
             </div>
             <div style={{ display: "flex", border: `1px solid ${theme.border}`, borderRadius: 6, overflow: "hidden", cursor: "pointer" }}>
               <div onClick={() => setMode("normal")} style={{ padding: "7px 12px", fontSize: 10.5, fontWeight: 700, letterSpacing: 1.5, color: !isWorking ? "#000" : theme.dim, background: !isWorking ? theme.accent : "transparent" }}>NORMAL</div>
@@ -232,11 +232,39 @@ export default function MRAICommandCenter() {
               {kvRow("UPTIME", "12d 08h 24m")}
               {kvRow("STATUS", stats.status, isWorking ? theme.accent : "#22ff8c")}
             </div>
-            <div style={{ width: 80, flexShrink: 0, borderRadius: 6, background: `radial-gradient(circle at 50% 35%, ${theme.glow}, transparent 65%)`, border: `1px solid ${theme.border}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <div style={{ display: "flex", gap: 10 }}>
-                <i style={{ width: 6, height: 6, borderRadius: "50%", background: theme.accent, boxShadow: `0 0 12px 4px ${theme.glow}`, display: "block" }} />
-                <i style={{ width: 6, height: 6, borderRadius: "50%", background: theme.accent, boxShadow: `0 0 12px 4px ${theme.glow}`, display: "block" }} />
+            <div
+              aria-label="MR AI JARVIS core avatar"
+              style={{
+                width: 96,
+                height: 96,
+                flexShrink: 0,
+                borderRadius: "50%",
+                border: `1px solid ${theme.border}`,
+                background: `radial-gradient(circle at 50% 42%, ${theme.glow}, transparent 68%)`,
+                boxShadow: `0 0 22px -4px ${theme.glow}, inset 0 0 18px rgba(255,255,255,.03)`,
+                display: "grid",
+                placeItems: "center",
+                position: "relative",
+                animation: isWorking ? "pulse 1.2s infinite" : "none",
+              }}
+            >
+              <div style={{
+                width: 58,
+                height: 48,
+                border: `1px solid ${theme.accent}`,
+                borderRadius: "48% 48% 44% 44%",
+                position: "relative",
+                background: "rgba(0,0,0,.24)",
+                boxShadow: `0 0 12px -2px ${theme.glow}, inset 0 0 10px rgba(255,255,255,.04)`,
+              }}>
+                <div style={{ position: "absolute", top: 14, left: 10, width: 12, height: 5, borderRadius: 4, background: theme.accent, boxShadow: `0 0 9px ${theme.accent}` }} />
+                <div style={{ position: "absolute", top: 14, right: 10, width: 12, height: 5, borderRadius: 4, background: theme.accent, boxShadow: `0 0 9px ${theme.accent}` }} />
+                <div style={{ position: "absolute", left: "50%", top: 5, width: 1, height: 37, transform: "translateX(-50%)", background: theme.accent, opacity: .16 }} />
+                <div style={{ position: "absolute", left: "50%", bottom: 8, width: isWorking ? 18 : 14, height: isWorking ? 5 : 2, transform: "translateX(-50%)", borderRadius: 8, background: theme.accent, boxShadow: `0 0 8px ${theme.glow}`, transition: "all .25s ease" }} />
               </div>
+              <span style={{ position: "absolute", bottom: 4, fontSize: 7, fontWeight: 800, letterSpacing: 1.4, color: theme.accent }}>
+                {isWorking ? "MOD ON" : "MR AI"}
+              </span>
             </div>
           </div>
 
