@@ -18,6 +18,7 @@ node_modules/
 web/dist/
 
 # Logs
+.runtime/
 *.log
 
 # OS
