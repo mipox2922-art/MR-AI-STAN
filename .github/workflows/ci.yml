@@ -18,7 +18,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Validate Codespaces startup script
-        run: bash -n start.sh
+        run: bash -n ../start.sh
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
