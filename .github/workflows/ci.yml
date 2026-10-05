@@ -23,7 +23,7 @@ jobs:
           SECRET_KEY: ci-test-secret
         run: |
           cd backend
-          python -c "from app.main import app; print(app.title); print([r.path for r in app.routes])"
+          python -c "from app.main import app; print(app.title); print(len(app.routes), \"routes loaded\")"
 
   frontend:
     runs-on: ubuntu-latest
