@@ -9,7 +9,9 @@ import {
   getBootState,
   scanWifi,
   rebootAndroid,
-  setBridgeToken
+  setBridgeToken,
+  getRadioStatus,
+  scanRadar
 } from "../api";
 
 export default function DeviceLab() {
@@ -50,6 +52,8 @@ export default function DeviceLab() {
         <button onClick={() => run("FASTBOOT", getFastbootDevices)}>FASTBOOT</button>
         <button onClick={() => run("WI-FI", scanWifi)}>WI-FI SCAN</button>
         <button onClick={() => run("BLUETOOTH", scanBluetooth)}>BLE SCAN</button>
+        <button onClick={() => run("RADIO / RF", getRadioStatus)}>RADIO / RF</button>
+        <button onClick={() => run("RADAR", scanRadar)}>RADAR SCAN</button>
       </div>
       {selected && (
         <div className="tool-grid">
