@@ -24,6 +24,11 @@ jobs:
         run: |
           cd backend
           python -c "from app.main import app; print(app.title); print(len(app.routes), \"routes loaded\")"
+      - name: Run backend smoke tests
+        working-directory: backend
+        env:
+          SECRET_KEY: ci-test-secret
+        run: python -m pytest -q tests/test_smoke.py
 
   frontend:
     runs-on: ubuntu-latest
