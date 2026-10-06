@@ -332,3 +332,26 @@ export function dispatchTool(command) {
 export function getExecutiveBriefing() {
   return request("/agents/briefing");
 }
+
+
+export function runOrchestrator(message) {
+  return request("/orchestrator/run", {
+    method: "POST",
+    body: JSON.stringify({ message }),
+  });
+}
+
+export function getOrchestratorExecutions() {
+  return request("/orchestrator/executions");
+}
+
+export function getPendingApprovals() {
+  return request("/orchestrator/approvals");
+}
+
+export function resolveApproval(approvalId, decision) {
+  return request(`/orchestrator/approvals/${approvalId}/resolve`, {
+    method: "POST",
+    body: JSON.stringify({ decision }),
+  });
+}
