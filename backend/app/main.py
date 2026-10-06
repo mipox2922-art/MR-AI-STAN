@@ -51,6 +51,7 @@ app.include_router(activity.router)
 app.include_router(system.router)
 app.include_router(agents.router)
 app.include_router(tools.router)
+app.include_router(orchestration.router)
 
 
 @app.get("/")
