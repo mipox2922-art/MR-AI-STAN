@@ -32,6 +32,8 @@ from ..providers.factory import get_provider
 from ..providers.base import AIProviderError
 from ..realtime import manager
 from ..schemas import ChatRequest, ChatResponse
+from ..core.intent import classify
+from ..core.orchestrator import run as run_orchestration
 
 # ==============================================================================
 # CONSTANTS & CONFIGURATION
@@ -367,7 +369,37 @@ async def chat(
         )
     
     # ─────────────────────────────────────────────────────────────────────
-    # STEP 2: GET AI PROVIDER
+    # STEP 2: EXECUTE RECOGNIZED ACTIONS THROUGH THE ORCHESTRATOR
+    # ─────────────────────────────────────────────────────────────────────
+    intent = classify(data.message)
+    if intent.name != "CHAT":
+        orchestration_result = await run_orchestration(current_user.id, data.message, db)
+        if orchestration_result.get("status") == "WAITING_APPROVAL":
+            answer = (
+                f"Kitendo {intent.name} kinahitaji idhini yako. "
+                f"Approval ID: {orchestration_result.get('approval_id')}."
+            )
+        else:
+            answer = (
+                f"Intent: {intent.name}. "
+                f"Status: {orchestration_result.get('status')}. "
+                f"Result: {orchestration_result.get('result', orchestration_result.get('error', 'No result'))}"
+            )
+        elapsed = time.time() - request_start
+        try:
+            conversation = get_or_create_conversation(db, current_user.id, title=f"Chat - {datetime.now(timezone.utc).strftime('%Y-%m-%d')}")
+            save_messages_and_log(db, conversation.id, current_user.id, data.message, answer, "orchestrator")
+        except SQLAlchemyError:
+            raise HTTPException(status_code=500, detail=DATABASE_ERROR_MSG)
+        return ChatResponse(
+            response=answer,
+            provider="orchestrator",
+            request_id=request_id,
+            elapsed_ms=int(elapsed * 1000),
+        )
+
+    # ─────────────────────────────────────────────────────────────────────
+    # STEP 3: GET AI PROVIDER
     # ─────────────────────────────────────────────────────────────────────
     try:
         provider = get_provider(data.provider)
