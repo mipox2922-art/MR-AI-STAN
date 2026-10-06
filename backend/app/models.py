@@ -143,3 +143,30 @@ class Setting(Base):
     user_id = Column(Integer, nullable=False)
     key = Column(String(255), nullable=False)
     value = Column(Text, default="")
+
+
+class Execution(Base):
+    __tablename__ = "executions"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, nullable=False)
+    intent = Column(String(100), nullable=False)
+    status = Column(String(40), default="PLANNED")
+    risk = Column(String(20), default="LOW")
+    result = Column(Text, nullable=True)
+    error = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class ApprovalRequest(Base):
+    __tablename__ = "approval_requests"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, nullable=False)
+    action = Column(String(100), nullable=False)
+    payload = Column(Text, nullable=False)
+    status = Column(String(30), default="PENDING")
+    expires_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    resolved_at = Column(DateTime, nullable=True)
