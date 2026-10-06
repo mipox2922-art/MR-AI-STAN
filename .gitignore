@@ -27,3 +27,6 @@ backend/.env
 backend/mr_ai.db
 *.bak
 *.backup-auth
+
+# Local runtime state
+.runtime/
