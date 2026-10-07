@@ -81,6 +81,30 @@ export function chat(message, provider = "gemini", toolContext = null) {
   });
 }
 
+
+export function getGmailStatus() {
+  return request("/integrations/gmail/status");
+}
+
+export function startGmailConnect() {
+  return request("/integrations/gmail/connect");
+}
+
+export function searchGmail(query = "", maxResults = 20) {
+  const params = new URLSearchParams();
+  if (query) params.set("q", query);
+  params.set("max_results", String(maxResults));
+  return request("/integrations/gmail/messages?" + params.toString());
+}
+
+export function getGmailMessage(messageId) {
+  return request(`/integrations/gmail/messages/${encodeURIComponent(messageId)}`);
+}
+
+export function disconnectGmail() {
+  return request("/integrations/gmail", { method: "DELETE" });
+}
+
 export function getStatus() {
   return request("/system/status");
 }
