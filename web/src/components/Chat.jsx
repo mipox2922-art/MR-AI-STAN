@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { chat, dispatchTool, getExecutiveBriefing, getChatHistory } from "../api";
+import { chat, routeTool, getExecutiveBriefing, getChatHistory } from "../api";
 import VoiceControl from "./VoiceControl";
 
 export default function Chat({ onState, onModToggle, onPowerCommand }) {
@@ -113,7 +113,7 @@ export default function Chat({ onState, onModToggle, onPowerCommand }) {
         }
       } else {
         try {
-          dispatch = await dispatchTool(text);
+          dispatch = await routeTool(text);
           const selected = dispatch?.route?.tool || dispatch?.tool;
           const agent = dispatch?.route?.agent;
           setToolStatus(
