@@ -11,6 +11,7 @@ import {
   getTasks,
   getMemories,
   getActivity,
+  getGmailStatus,
   reportMissionHandoff,
   getCurrentPage,
   browserNavigate,
@@ -293,6 +294,8 @@ function App() {
   const [tasks, setTasks] = useState([]);
   const [memories, setMemories] = useState([]);
   const [activities, setActivities] = useState([]);
+  const [telemetryHistory, setTelemetryHistory] = useState([]);
+  const [gmailStatus, setGmailStatus] = useState(null);
   const [voiceTranscript, setVoiceTranscript] = useState("");
   const [clock, setClock] = useState(new Date());
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -302,12 +305,13 @@ function App() {
   const refresh = useCallback(async () => {
     if (!getToken()) return;
     try {
-      const [status, fleet, taskRows, memoryRows, activityRows] = await Promise.all([
+      const [status, fleet, taskRows, memoryRows, activityRows, mailState] = await Promise.all([
         getStatus(),
         getAgents(),
         getTasks(),
         getMemories(),
         getActivity(),
+        getGmailStatus(),
       ]);
       let radar = [];
       try {
@@ -317,10 +321,15 @@ function App() {
         radar = [];
       }
       setSystem(status);
+      setTelemetryHistory(history => [
+        ...history,
+        { ...(status.telemetry || {}), captured_at: Date.now() }
+      ].slice(-24));
       setAgents(fleet);
       setTasks(Array.isArray(taskRows) ? taskRows : []);
       setMemories(Array.isArray(memoryRows) ? memoryRows : []);
       setActivities(Array.isArray(activityRows) ? activityRows : []);
+      setGmailStatus(mailState);
       setRadarFindings(radar);
     } catch (error) {
       if (/401|unauthorized/i.test(error.message)) {
@@ -522,6 +531,8 @@ function App() {
           {active === "dashboard" && (
             <DashboardHome
               system={system}
+              telemetryHistory={telemetryHistory}
+              gmailStatus={gmailStatus}
               agents={agents}
               radarFindings={radarFindings}
               tasks={tasks}
