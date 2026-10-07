@@ -66,11 +66,36 @@ export default function DeviceLab() {
       {result && (
         <div className="device-result">
           <strong>{result.label}: {result.status}</strong>
-          <pre>{result.error || JSON.stringify(result.data, null, 2)}</pre>
+          {result.data?.findings ? (
+            <div className="tracked-device-list">
+              {result.data.findings.length === 0 ? (
+                <span className="notice">No local devices detected by the available sensors.</span>
+              ) : (
+                result.data.findings.slice(0, 20).map((device, index) => (
+                  <article className="tracked-device" key={(device.label || device.type || "device") + index}>
+                    <div>
+                      <strong>{device.label || "Unknown device"}</strong>
+                      <span>{String(device.type || "device").toUpperCase()} · {device.source || "LOCAL"}</span>
+                    </div>
+                    <div>
+                      <span>SIGNAL {device.signal ?? "N/A"}</span>
+                      <span>
+                        DIST {Number.isFinite(device.distance_estimate_m) ? device.distance_estimate_m + "m" : "N/A"}
+                      </span>
+                      <span>DIR {device.direction || "UNKNOWN"}</span>
+                      <span>CONF {Number.isFinite(device.distance_confidence) ? device.distance_confidence + "%" : "N/A"}</span>
+                    </div>
+                  </article>
+                ))
+              )}
+            </div>
+          ) : (
+            <pre>{result.error || JSON.stringify(result.data, null, 2)}</pre>
+          )}
         </div>
       )}
       <p className="notice">
-        Device actions are intended for devices you own or are explicitly authorized to administer.
+        Tracking reports only locally discoverable devices. BLE distance is an approximate RSSI estimate; direction stays UNKNOWN until hardware can provide bearing.
       </p>
     </section>
   );
