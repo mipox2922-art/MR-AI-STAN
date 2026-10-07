@@ -1,5 +1,5 @@
-import { useRef, useState } from "react";
-import { chat, dispatchTool, getExecutiveBriefing } from "../api";
+import { useEffect, useRef, useState } from "react";
+import { chat, dispatchTool, getExecutiveBriefing, getChatHistory } from "../api";
 import VoiceControl from "./VoiceControl";
 
 export default function Chat({ onState, onModToggle, onPowerCommand }) {
@@ -7,12 +7,31 @@ export default function Chat({ onState, onModToggle, onPowerCommand }) {
   const [provider, setProvider] = useState("gemini");
   const utteranceRef = useRef(null);
   const [toolStatus, setToolStatus] = useState("AI_ONLY");
+  const [sending, setSending] = useState(false);
   const [messages, setMessages] = useState([
     {
       role: "assistant",
       content: "Nipo boss 😎. Sema kazi."
     }
   ]);
+
+  useEffect(() => {
+    let active = true;
+    getChatHistory()
+      .then(data => {
+        if (!active || !Array.isArray(data?.messages) || data.messages.length === 0) return;
+        setMessages(data.messages.map(item => ({
+          role: item.role === "user" ? "user" : "assistant",
+          content: item.content,
+        })));
+      })
+      .catch(() => {
+        // Keep the local welcome message when history is unavailable.
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   function handleModCommand(text) {
     if (text.toLowerCase().includes("mod on") || text.toLowerCase().includes("washa mod")) {
@@ -71,11 +90,14 @@ export default function Chat({ onState, onModToggle, onPowerCommand }) {
       return;
     }
 
+    if (sending) return;
+
     setMessages(prev => [
       ...prev,
       { role: "user", content: text }
     ]);
     setMessage("");
+    setSending(true);
     onState("THINKING");
 
     try {
@@ -155,6 +177,8 @@ export default function Chat({ onState, onModToggle, onPowerCommand }) {
         }
       ]);
       onState("ERROR");
+    } finally {
+      setSending(false);
     }
   }
 
@@ -202,8 +226,8 @@ export default function Chat({ onState, onModToggle, onPowerCommand }) {
             if (getPowerCommand(text)) send(text);
           }}
         />
-        <button onClick={send}>
-          SEND
+        <button onClick={send} disabled={sending}>
+          {sending ? "..." : "SEND"}
         </button>
       </div>
     </section>
