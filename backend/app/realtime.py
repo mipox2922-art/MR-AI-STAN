@@ -1,23 +1,33 @@
+from __future__ import annotations
+
 from fastapi import WebSocket
 
 
 class ConnectionManager:
-
     def __init__(self):
-        self.connections: list[WebSocket] = []
+        self.connections: dict[WebSocket, int] = {}
 
-    async def connect(self, websocket: WebSocket):
+    async def connect(self, websocket: WebSocket, user_id: int):
         await websocket.accept()
-        self.connections.append(websocket)
+        self.connections[websocket] = user_id
 
     def disconnect(self, websocket: WebSocket):
-        if websocket in self.connections:
-            self.connections.remove(websocket)
+        self.connections.pop(websocket, None)
 
-    async def broadcast(self, event: str, data: dict):
-        dead = []
+    async def broadcast(
+        self,
+        event: str,
+        data: dict,
+        user_id: int | None = None,
+    ):
+        target_user_id = user_id if user_id is not None else data.get("user_id")
+        if target_user_id is None:
+            return
 
-        for connection in self.connections:
+        dead: list[WebSocket] = []
+        for connection, connection_user_id in list(self.connections.items()):
+            if connection_user_id != target_user_id:
+                continue
             try:
                 await connection.send_json({
                     "event": event,
