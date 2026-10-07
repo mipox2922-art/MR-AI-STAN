@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 import { chat, dispatchTool, getExecutiveBriefing } from "../api";
 import VoiceControl from "./VoiceControl";
 
-export default function Chat({ onState, onModToggle }) {
+export default function Chat({ onState, onModToggle, onPowerCommand }) {
   const [message, setMessage] = useState("");
   const [provider, setProvider] = useState("gemini");
   const utteranceRef = useRef(null);
@@ -26,6 +26,19 @@ export default function Chat({ onState, onModToggle }) {
     return false;
   }
 
+  function handlePowerCommand(text) {
+    const value = text.trim().toLowerCase();
+    if (/^(zima|lala|sleep|sleep mode)$/.test(value)) {
+      onPowerCommand?.("sleep");
+      return true;
+    }
+    if (/^(amka|wake|wake up|amka mr ai)$/.test(value)) {
+      onPowerCommand?.("wake");
+      return true;
+    }
+    return false;
+  }
+
   function isGreeting(value) {
     return /^(mr\s*ai|mr ai[,! ]*(habari|mambo|vipi|hello|hi|niaje)?|habari( mr ai)?|mambo( mr ai)?|vipi( mr ai)?|niaje( mr ai)?|good morning( mr ai)?|good evening( mr ai)?)\W*$/i.test(value.trim());
   }
@@ -33,6 +46,18 @@ export default function Chat({ onState, onModToggle }) {
   async function send() {
     if (!message.trim()) return;
     const text = message.trim();
+
+    // Power commands control the local MR AI mode and are not sent to the model.
+    if (handlePowerCommand(text)) {
+      const sleeping = /^(zima|lala|sleep|sleep mode)$/i.test(text.trim());
+      setMessages(prev => [
+        ...prev,
+        { role: "user", content: text },
+        { role: "assistant", content: sleeping ? "Naingia SLEEP MODE. Wake path imebaki tayari." : "Sawa boss, narudi ONLINE." }
+      ]);
+      setMessage("");
+      return;
+    }
 
     // Check for MOD commands first
     if (handleModCommand(text)) {
@@ -168,7 +193,7 @@ export default function Chat({ onState, onModToggle }) {
           onKeyDown={e => {
             if (e.key === "Enter") send();
           }}
-          placeholder="Mwambie MR AI kazi... (au sema 'mod on')"
+          placeholder="Mwambie MR AI kazi... (au sema 'zima', 'amka', au 'mod on')"
         />
         <VoiceControl onTranscript={(text) => setMessage(text)} />
         <button onClick={send}>
