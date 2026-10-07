@@ -293,6 +293,7 @@ function App() {
   const [tasks, setTasks] = useState([]);
   const [memories, setMemories] = useState([]);
   const [activities, setActivities] = useState([]);
+  const [telemetryHistory, setTelemetryHistory] = useState([]);
   const [voiceTranscript, setVoiceTranscript] = useState("");
   const [clock, setClock] = useState(new Date());
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -317,6 +318,16 @@ function App() {
         radar = [];
       }
       setSystem(status);
+      setTelemetryHistory(previous => [
+        ...previous,
+        {
+          at: new Date().toISOString(),
+          cpu: status?.telemetry?.cpu_percent,
+          memory: status?.telemetry?.memory_percent,
+          storage: status?.telemetry?.storage_percent,
+          gpu: status?.telemetry?.gpu?.utilization_percent,
+        },
+      ].slice(-24));
       setAgents(fleet);
       setTasks(Array.isArray(taskRows) ? taskRows : []);
       setMemories(Array.isArray(memoryRows) ? memoryRows : []);
@@ -527,6 +538,7 @@ function App() {
               tasks={tasks}
               memories={memories}
               activities={activities}
+              telemetryHistory={telemetryHistory}
               coreState={coreState}
               working={working}
               onRefresh={refresh}
