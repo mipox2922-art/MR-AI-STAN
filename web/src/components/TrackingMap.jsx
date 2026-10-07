@@ -20,6 +20,18 @@ function formatCoordinate(value, digits = 5) {
   return Number.isFinite(value) ? value.toFixed(digits) : "N/A";
 }
 
+function buildStreetViewUrl(latitude, longitude) {
+  const params = new URLSearchParams({
+    api: "1",
+    map_action: "pano",
+    viewpoint: String(latitude) + "," + String(longitude),
+    heading: "0",
+    pitch: "0",
+    fov: "90",
+  });
+  return "https://www.google.com/maps/@?" + params.toString();
+}
+
 export default function TrackingMap() {
   const [position, setPosition] = useState(null);
   const [status, setStatus] = useState("READY");
@@ -108,8 +120,7 @@ export default function TrackingMap() {
           operator grants browser location permission.
         </span>
         <span>
-          Gmail activity can provide recent account IPs and approximate locations
-          in Google’s own activity view; MR AI does not invent GPS coordinates from an IP.
+          Street View opens the panorama nearest the verified coordinates; coverage varies by location.
         </span>
       </div>
     </section>
