@@ -72,6 +72,11 @@ def system_status(current_user=Depends(get_current_user)):
             "uptime_seconds": max(0, int(time.time() - psutil.boot_time())),
         },
         "security": {"threats_detected": None, "source": "no_security_engine"},
+        "ai": {
+            "provider": "gemini" if settings.gemini_api_key else "N/A",
+            "model": settings.gemini_model,
+            "tier": settings.gemini_tier,
+        },
         "capabilities": {
             "street_view": "AVAILABLE_VIA_MAPS_URL",
             "device_tracking": "LOCAL_SENSOR_ONLY",

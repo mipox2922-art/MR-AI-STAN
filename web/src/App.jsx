@@ -8,6 +8,9 @@ import {
   register,
   planAgentWork,
   executeMission,
+  getTasks,
+  getMemories,
+  getActivity,
   reportMissionHandoff,
   getCurrentPage,
   browserNavigate,
@@ -18,7 +21,6 @@ import {
 } from "./api";
 import Chat from "./components/Chat";
 import Core from "./components/Core";
-import Activity from "./components/Activity";
 import BrowserHands from "./components/BrowserHands";
 import DeviceLab from "./components/DeviceLab";
 import CreativeStudio from "./components/CreativeStudio";
@@ -27,6 +29,7 @@ import SecurityHub from "./components/SecurityHub";
 import ToolBox from "./components/ToolBox";
 import WebIntelligence from "./components/WebIntelligence";
 import CommandPalette from "./components/CommandPalette";
+import DashboardHome from "./components/DashboardHome";
 
 const NAV = [
   ["dashboard", "⌂", "Dashboard"],
@@ -121,53 +124,6 @@ function AuthScreen({ onAuthenticated }) {
         </button>
       </section>
     </main>
-  );
-}
-
-function Metric({ label, value }) {
-  const number = Number(value);
-  const known = Number.isFinite(number);
-  return (
-    <div className="metric">
-      <div className="metric-head">
-        <span>{label}</span>
-        <strong>{known ? String(number) + "%" : "N/A"}</strong>
-      </div>
-      <div className="metric-bar">
-        {known && <span style={{ width: Math.max(0, Math.min(100, number)) + "%" }} />}
-      </div>
-    </div>
-  );
-}
-
-function Radar({ agents, findings = [], working }) {
-  const visible = findings.length ? findings.slice(0, 20) : agents.slice(0, 10).map(agent => ({
-    type: "agent",
-    label: agent.name
-  }));
-  return (
-    <div className="radar">
-      <div className={`radar-sweep ${working ? "radar-sweep-active" : ""}`} />
-      <div className="radar-grid grid-a" />
-      <div className="radar-grid grid-b" />
-      <div className="radar-cross vertical" />
-      <div className="radar-cross horizontal" />
-      {visible.map((agent, index) => {
-        const angle = (index / Math.max(1, visible.length)) * Math.PI * 2;
-        const radius = 26 + (index % 3) * 14;
-        const x = 50 + Math.cos(angle) * radius;
-        const y = 50 + Math.sin(angle) * radius;
-        return (
-          <span
-            key={agent.id || agent.label || index}
-            className="radar-dot"
-            title={agent.name || agent.label}
-            style={{ left: x + "%", top: y + "%" }}
-          />
-        );
-      })}
-      <div className="radar-core">MR</div>
-    </div>
   );
 }
 
@@ -331,6 +287,9 @@ function App() {
   const [system, setSystem] = useState(null);
   const [agents, setAgents] = useState([]);
   const [radarFindings, setRadarFindings] = useState([]);
+  const [tasks, setTasks] = useState([]);
+  const [memories, setMemories] = useState([]);
+  const [activities, setActivities] = useState([]);
   const [clock, setClock] = useState(new Date());
   const [paletteOpen, setPaletteOpen] = useState(false);
 
@@ -339,7 +298,13 @@ function App() {
   const refresh = useCallback(async () => {
     if (!getToken()) return;
     try {
-      const [status, fleet] = await Promise.all([getStatus(), getAgents()]);
+      const [status, fleet, taskRows, memoryRows, activityRows] = await Promise.all([
+        getStatus(),
+        getAgents(),
+        getTasks(),
+        getMemories(),
+        getActivity(),
+      ]);
       let radar = [];
       try {
         const result = await scanRadar();
@@ -349,6 +314,9 @@ function App() {
       }
       setSystem(status);
       setAgents(fleet);
+      setTasks(Array.isArray(taskRows) ? taskRows : []);
+      setMemories(Array.isArray(memoryRows) ? memoryRows : []);
+      setActivities(Array.isArray(activityRows) ? activityRows : []);
       setRadarFindings(radar);
     } catch (error) {
       if (/401|unauthorized/i.test(error.message)) {
@@ -524,65 +492,20 @@ function App() {
 
         <div className="content">
           {active === "dashboard" && (
-            <>
-              <section className="hero-grid">
-                <div className="panel core-panel">
-                  <div className="panel-head">
-                    <div>
-                      <span className="eyebrow">AI CORE</span>
-                      <h2>MR AI Presence</h2>
-                    </div>
-                    <span className="badge">{coreState}</span>
-                  </div>
-                  <div className="core-stage">
-                    <Core state={coreState} modActive={working} />
-                  </div>
-                  <p className="mission-line">
-                    {working ? "Executing verified operations and coordinating active agents." : "Ready for your next command. No fake task-completion claims."}
-                  </p>
-                </div>
-
-                <div className="panel">
-                  <div className="panel-head">
-                    <div>
-                      <span className="eyebrow">TELEMETRY</span>
-                      <h2>Real System State</h2>
-                    </div>
-                    <button className="mini-button" onClick={refresh}>REFRESH</button>
-                  </div>
-                  <Metric label="CPU" value={telemetry.cpu_percent} />
-                  <Metric label="MEMORY" value={telemetry.memory_percent} />
-                  <Metric label="STORAGE" value={telemetry.storage_percent} />
-                  <Metric label="GPU" value={telemetry.gpu?.utilization_percent} />
-                  <div className="stat-strip">
-                    <div><span>UPTIME</span><strong>{uptimeLabel}</strong></div>
-                    <div><span>GEMINI</span><strong>{services.gemini || "N/A"}</strong></div>
-                    <div><span>KIMI</span><strong>{services.kimi || "N/A"}</strong></div>
-                  </div>
-                </div>
-
-                <div className="panel radar-panel">
-                  <div className="panel-head">
-                    <div>
-                      <span className="eyebrow">LIVE RADAR</span>
-                      <h2>Agent Registry</h2>
-                    </div>
-                    <span className="badge">{agents.length} REGISTERED</span>
-                  </div>
-                  <Radar agents={agents} findings={radarFindings} working={working} />
-                  <p className="radar-note">Markers come from real local sensor findings when the device bridge is connected; otherwise registered agents are shown as the fallback view.</p>
-                </div>
-              </section>
-
-              <section className="split-grid">
-                <Chat
-                  onState={setCoreState}
-                  onModToggle={toggleMode}
-                  onPowerCommand={handlePowerCommand}
-                />
-                <Activity />
-              </section>
-            </>
+            <DashboardHome
+              system={system}
+              agents={agents}
+              radarFindings={radarFindings}
+              tasks={tasks}
+              memories={memories}
+              activities={activities}
+              coreState={coreState}
+              working={working}
+              onRefresh={refresh}
+              onState={setCoreState}
+              onModToggle={toggleMode}
+              onPowerCommand={handlePowerCommand}
+            />
           )}
 
           {active === "core" && (
@@ -601,7 +524,7 @@ function App() {
                 </div>
                 <div className="core-stage tall"><Core state={coreState} modActive={working} /></div>
               </div>
-              <Chat onState={setCoreState} onModToggle={toggleMode} />
+              <Chat onState={setCoreState} onModToggle={toggleMode} onPowerCommand={handlePowerCommand} />
             </section>
           )}
 
