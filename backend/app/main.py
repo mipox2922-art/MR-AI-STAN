@@ -5,9 +5,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from .config import settings
-from .database import Base, engine
+from .database import Base, SessionLocal, engine
+from .models import User
 from .realtime import manager
 from .scheduler import start_scheduler, stop_scheduler
+from .security import decode_access_token
 
 from .routers import (
     auth,
@@ -21,6 +23,7 @@ from .routers import (
     orchestration,
     integrations,
     scheduler,
+    notifications,
 )
 
 logger = logging.getLogger("mr_ai")
@@ -58,10 +61,13 @@ app.include_router(tools.router)
 app.include_router(orchestration.router)
 app.include_router(integrations.router)
 app.include_router(scheduler.router)
+app.include_router(notifications.router)
+
 
 @app.on_event("startup")
 async def startup_scheduler():
     start_scheduler()
+
 
 @app.on_event("shutdown")
 async def shutdown_scheduler():
@@ -87,22 +93,41 @@ def health():
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
-    await manager.connect(websocket)
+    token = websocket.query_params.get("token", "").strip()
+    if not token:
+        await websocket.close(code=4401, reason="Authentication required")
+        return
+
+    db = SessionLocal()
+    try:
+        payload = decode_access_token(token)
+        user_id = int(payload.get("sub"))
+        if not db.query(User).filter(User.id == user_id).first():
+            await websocket.close(code=4401, reason="User not found")
+            return
+    except (TypeError, ValueError, KeyError):
+        await websocket.close(code=4401, reason="Invalid authentication token")
+        return
+    finally:
+        db.close()
+
+    await manager.connect(websocket, user_id)
 
     try:
+        await websocket.send_json({
+            "event": "CONNECTED",
+            "data": {"user_id": user_id},
+        })
         while True:
-            await websocket.receive_text()
-
+            message = await websocket.receive_text()
+            if message.strip().casefold() in {"ping", "heartbeat"}:
+                await websocket.send_json({"event": "PONG", "data": {}})
     except WebSocketDisconnect:
         manager.disconnect(websocket)
-
     except Exception:
         manager.disconnect(websocket)
 
 
-# ==============================================================================
-# GLOBAL EXCEPTION HANDLER
-# ==============================================================================
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     logger.exception("Unhandled error on %s: %s", request.url.path, exc)
