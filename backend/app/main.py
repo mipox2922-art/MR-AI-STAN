@@ -18,6 +18,7 @@ from .routers import (
     agents,
     tools,
     orchestration,
+    integrations,
 )
 
 logger = logging.getLogger("mr_ai")
@@ -53,6 +54,7 @@ app.include_router(system.router)
 app.include_router(agents.router)
 app.include_router(tools.router)
 app.include_router(orchestration.router)
+app.include_router(integrations.router)
 
 
 @app.get("/")

@@ -99,6 +99,15 @@ def get_tool_registry() -> list[dict[str, Any]]:
             "description": "Primary AI provider. Uses the configured Gemini account and its available quota.",
         },
         {
+            "id": "gmail",
+            "name": "Gmail",
+            "category": "COMMUNICATION",
+            "status": "AVAILABLE" if settings.gmail_client_id and settings.gmail_client_secret and settings.gmail_redirect_uri else "NOT_CONFIGURED",
+            "mode": "OAUTH",
+            "free": True,
+            "description": "Least-privilege Gmail OAuth connector for mailbox search/read. User authorization is required.",
+        },
+        {
             "id": "kimi",
             "name": "Kimi Provider",
             "category": "AI",

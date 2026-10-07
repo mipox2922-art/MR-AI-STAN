@@ -20,6 +20,11 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:5173"
     searxng_url: str = ""
 
+    gmail_client_id: str = ""
+    gmail_client_secret: str = ""
+    gmail_redirect_uri: str = ""
+    gmail_scopes: str = "https://www.googleapis.com/auth/gmail.readonly"
+
     model_config = SettingsConfigDict(
         env_file=".env",
         extra="ignore",

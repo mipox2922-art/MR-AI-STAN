@@ -30,6 +30,7 @@ import ToolBox from "./components/ToolBox";
 import WebIntelligence from "./components/WebIntelligence";
 import CommandPalette from "./components/CommandPalette";
 import DashboardHome from "./components/DashboardHome";
+import GmailPanel from "./components/GmailPanel";
 import VoiceControl from "./components/VoiceControl";
 
 const NAV = [
@@ -43,6 +44,7 @@ const NAV = [
   ["security", "🛡", "Security"],
   ["tools", "⚙", "Toolbox"],
   ["web", "◎", "Web Intelligence"],
+  ["gmail", "✉", "Gmail"],
   ["tasks", "✓", "Tasks"],
   ["memory", "◇", "Memory"],
   ["system", "⌘", "System"],
@@ -559,6 +561,7 @@ function App() {
           {active === "device" && <DeviceLab />}
           {active === "creative" && <CreativeStudio />}
           {active === "web" && <WebIntelligence />}
+          {active === "gmail" && <GmailPanel />}
           {active === "map" && <TrackingMap />}
           {active === "security" && <SecurityHub />}
           {active === "tools" && <ToolBox />}

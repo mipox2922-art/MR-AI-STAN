@@ -63,3 +63,31 @@ Load unpacked
 
 Select:
 MR-AI-STAN/extension
+
+## Gmail connector
+
+The first Gmail integration uses server-side OAuth and the least-privilege `gmail.readonly` scope for mailbox search/read.
+
+Add these values to `backend/.env`:
+
+```env
+GMAIL_CLIENT_ID=
+GMAIL_CLIENT_SECRET=
+GMAIL_REDIRECT_URI=http://localhost:8000/integrations/gmail/callback
+GMAIL_SCOPES=https://www.googleapis.com/auth/gmail.readonly
+```
+
+For Codespaces, set `GMAIL_REDIRECT_URI` to the public HTTPS URL of the backend callback and register that exact URI in the Google OAuth client configuration.
+
+The browser never receives the Gmail refresh token. The backend stores the encrypted refresh token in the database and exchanges it for short-lived access tokens when mailbox operations run.
+
+Current connector routes:
+
+- `GET /integrations/gmail/status`
+- `GET /integrations/gmail/connect`
+- `GET /integrations/gmail/callback`
+- `GET /integrations/gmail/messages?q=...`
+- `GET /integrations/gmail/messages/{message_id}`
+- `DELETE /integrations/gmail`
+
+Sending/replying is intentionally not enabled in this tranche. High-impact mail actions will use the existing approval engine before execution.
