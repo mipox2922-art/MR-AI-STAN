@@ -1,6 +1,5 @@
 import Core from "./Core";
 import Chat from "./Chat";
-import VoiceControl from "./VoiceControl";
 
 function safePercent(value) {
   const number = Number(value);
@@ -312,7 +311,7 @@ export default function DashboardHome({
         </div>
         <div className="dashboard-state">
           <span>{working ? "WORKING MODE" : "NORMAL MODE"}</span>
-          <b>{system ? "ALL SYSTEMS LINKED" : "CONNECTING..."}</b>
+          <b>{system?.services?.ai_core === "ONLINE" && system?.services?.database === "ONLINE" ? "CORE OPERATIONAL" : "CHECK SYSTEM STATE"}</b>
         </div>
       </div>
 
@@ -384,12 +383,6 @@ export default function DashboardHome({
           <div className="voice-preview">
             <div className="voice-wave-line"><span /><span /><span /><span /><span /><span /><span /></div>
             <p>Command channel is connected to the shared AI core. Voice and text requests use the same operational routing.</p>
-            <VoiceControl onTranscript={(text) => {
-              if (/^(zima|lala|sleep|sleep mode|amka|wake|wake up|amka mr ai)$/i.test(text.trim())) {
-                const sleeping = /^(zima|lala|sleep|sleep mode)$/i.test(text.trim());
-                onPowerCommand?.(sleeping ? "sleep" : "wake");
-              }
-            }} />
           </div>
           <Chat onState={onState} onModToggle={onModToggle} onPowerCommand={onPowerCommand} />
         </Panel>
