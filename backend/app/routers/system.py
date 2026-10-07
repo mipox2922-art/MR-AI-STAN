@@ -37,16 +37,20 @@ def _gpu_status() -> dict:
         return {"status": "UNAVAILABLE", "utilization_percent": None, "memory_percent": None}
 
 def _service_status() -> dict:
+    gemini_configured = bool(settings.gemini_api_key)
+    kimi_configured = bool(settings.kimi_api_key)
+    ai_ready = gemini_configured or kimi_configured
+
     return {
-        "ai_core": "ONLINE",
+        "ai_core": "READY" if ai_ready else "NOT_CONFIGURED",
         "database": "ONLINE",
         "memory": "ONLINE",
         "web_app": "ONLINE",
         "agents": "ONLINE",
         "voice": "NOT_CONFIGURED",
         "extension": "NOT_CONNECTED",
-        "gemini": "ONLINE" if settings.gemini_api_key else "NOT_CONNECTED",
-        "kimi": "ONLINE" if settings.kimi_api_key else "NOT_CONNECTED",
+        "gemini": "CONFIGURED" if gemini_configured else "NOT_CONFIGURED",
+        "kimi": "CONFIGURED" if kimi_configured else "NOT_CONFIGURED",
     }
 
 @router.get('/status')
@@ -73,9 +77,10 @@ def system_status(current_user=Depends(get_current_user)):
         },
         "security": {"threats_detected": None, "source": "no_security_engine"},
         "ai": {
-            "provider": "gemini" if settings.gemini_api_key else "N/A",
-            "model": settings.gemini_model,
-            "tier": settings.gemini_tier,
+            "provider": "gemini" if settings.gemini_api_key else ("kimi" if settings.kimi_api_key else None),
+            "model": settings.gemini_model if settings.gemini_api_key else (settings.kimi_model if settings.kimi_api_key else None),
+            "tier": settings.gemini_tier if settings.gemini_api_key else ("KIMI_CONFIGURED" if settings.kimi_api_key else None),
+            "ready": bool(settings.gemini_api_key or settings.kimi_api_key),
         },
         "capabilities": {
             "street_view": "AVAILABLE_VIA_MAPS_URL",
