@@ -7,21 +7,22 @@ from sqlalchemy.orm import Session
 
 from .core.gateway import execute
 from .core.intent import classify
+from .core.permissions import create_approval
 from .models import Task
 from .realtime import manager
 
 logger = logging.getLogger("mr_ai.task_runner")
 
-TERMINAL_STATUSES = {"COMPLETED", "FAILED"}
-HAND_STATUSES = {"GMAIL_SEND", "GMAIL_SEARCH", "BROWSER_NAVIGATE", "FILE_DELETE", "SYSTEM_SHUTDOWN"}
+HAND_STATUSES = {
+    "GMAIL_SEND",
+    "GMAIL_SEARCH",
+    "BROWSER_NAVIGATE",
+    "FILE_DELETE",
+    "SYSTEM_SHUTDOWN",
+}
+
 
 async def run_pending_tasks(db: Session, limit: int = 5) -> int:
-    """Process durable tasks that can be executed by verified backend hands.
-
-    Tasks requiring a browser/device/local hand are left waiting instead of
-    being reported as completed. High-risk intents are surfaced as approval
-    requests by the normal orchestration permission boundary.
-    """
     rows = (
         db.query(Task)
         .filter(Task.status == "PENDING")
@@ -33,7 +34,8 @@ async def run_pending_tasks(db: Session, limit: int = 5) -> int:
     processed = 0
 
     for task in rows:
-        # Claim before doing I/O so the same process does not execute a task twice.
+        task_id = task.id
+        user_id = task.user_id
         task.status = "RUNNING"
         task.progress = max(task.progress or 0, 10)
         db.commit()
@@ -53,36 +55,70 @@ async def run_pending_tasks(db: Session, limit: int = 5) -> int:
             db.commit()
             await manager.broadcast(
                 "TASK_WAITING",
-                {"task_id": task.id, "status": task.status, "reason": task.error},
-                user_id=task.user_id,
+                {"task_id": task_id, "status": task.status, "reason": task.error},
+                user_id=user_id,
             )
             processed += 1
             continue
 
-        if intent.name == "CHAT" or not intent.executable or intent.risk in {"HIGH", "CRITICAL"}:
-            task.status = "WAITING_FOR_HAND" if intent.risk not in {"HIGH", "CRITICAL"} else "WAITING_APPROVAL"
-            task.progress = min(95, max(task.progress or 0, 20))
-            reason = (
-                "No verified automatic execution hand exists for this command."
-                if task.status == "WAITING_FOR_HAND"
-                else "Explicit approval is required before this task can execute."
+        if intent.risk in {"HIGH", "CRITICAL"}:
+            approval = create_approval(
+                db,
+                user_id,
+                intent.name,
+                json.dumps(
+                    {
+                        "task_id": task_id,
+                        "intent": intent.name,
+                        "parameters": intent.parameters,
+                    },
+                    ensure_ascii=False,
+                ),
             )
-            task.error = reason
+            task.status = "WAITING_APPROVAL"
+            task.progress = min(95, max(task.progress or 0, 20))
+            task.error = "Explicit approval is required before this scheduled task can proceed."
             task.result = json.dumps(
-                {"intent": intent.name, "risk": intent.risk, "reason": reason},
+                {
+                    "intent": intent.name,
+                    "approval_id": approval.id,
+                    "reason": task.error,
+                },
                 ensure_ascii=False,
             )
             db.commit()
             await manager.broadcast(
                 "TASK_WAITING",
-                {"task_id": task.id, "status": task.status, "reason": reason},
-                user_id=task.user_id,
+                {
+                    "task_id": task_id,
+                    "status": task.status,
+                    "approval_id": approval.id,
+                    "reason": task.error,
+                },
+                user_id=user_id,
+            )
+            processed += 1
+            continue
+
+        if intent.name == "CHAT" or not intent.executable:
+            task.status = "WAITING_FOR_HAND"
+            task.progress = min(95, max(task.progress or 0, 20))
+            task.error = "No verified automatic execution hand exists for this command."
+            task.result = json.dumps(
+                {"intent": intent.name, "reason": task.error},
+                ensure_ascii=False,
+            )
+            db.commit()
+            await manager.broadcast(
+                "TASK_WAITING",
+                {"task_id": task_id, "status": task.status, "reason": task.error},
+                user_id=user_id,
             )
             processed += 1
             continue
 
         try:
-            result = await execute(intent, task.user_id, db)
+            result = await execute(intent, user_id, db)
             status = str(result.get("status", "FAILED")).upper()
 
             if status == "COMPLETED":
@@ -93,7 +129,11 @@ async def run_pending_tasks(db: Session, limit: int = 5) -> int:
             elif status in {"NOT_CONNECTED", "WAITING_FOR_HAND", "UNSUPPORTED"}:
                 task.status = "WAITING_FOR_HAND"
                 task.progress = min(95, max(task.progress or 0, 30))
-                task.error = result.get("reason") or result.get("message") or "Required execution hand is unavailable."
+                task.error = (
+                    result.get("reason")
+                    or result.get("message")
+                    or "Required execution hand is unavailable."
+                )
                 task.result = json.dumps(result, ensure_ascii=False, default=str)
             else:
                 task.status = "FAILED"
@@ -104,18 +144,18 @@ async def run_pending_tasks(db: Session, limit: int = 5) -> int:
             await manager.broadcast(
                 "TASK_UPDATED",
                 {
-                    "task_id": task.id,
+                    "task_id": task_id,
                     "status": task.status,
                     "progress": task.progress,
                     "result": task.result,
                     "error": task.error,
                 },
-                user_id=task.user_id,
+                user_id=user_id,
             )
             processed += 1
         except Exception as exc:
             db.rollback()
-            task = db.query(Task).filter(Task.id == task.id).first()
+            task = db.query(Task).filter(Task.id == task_id, Task.user_id == user_id).first()
             if task:
                 task.status = "FAILED"
                 task.progress = min(95, max(task.progress or 0, 20))
@@ -124,14 +164,14 @@ async def run_pending_tasks(db: Session, limit: int = 5) -> int:
                 await manager.broadcast(
                     "TASK_UPDATED",
                     {
-                        "task_id": task.id,
+                        "task_id": task_id,
                         "status": task.status,
                         "progress": task.progress,
                         "error": task.error,
                     },
-                    user_id=task.user_id,
+                    user_id=user_id,
                 )
-            logger.exception("Task runner failed for task %s", getattr(task, "id", "?"))
+            logger.exception("Task runner failed for task %s", task_id)
             processed += 1
 
     return processed
