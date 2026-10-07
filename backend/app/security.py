@@ -4,10 +4,10 @@ from typing import Optional
 from jose import JWTError, jwt
 from pwdlib import PasswordHash
 
+from .config import settings
 
-SECRET_KEY = "MR_AI_STAN_SECRET_KEY_CHANGE_IN_PRODUCTION"
+
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24
 
 password_hash = PasswordHash.recommended()
 
@@ -32,16 +32,15 @@ def create_access_token(
 
     if expires_delta is None:
         expires_delta = timedelta(
-            minutes=ACCESS_TOKEN_EXPIRE_MINUTES
+            minutes=settings.access_token_expire_minutes
         )
 
     expire = datetime.now(timezone.utc) + expires_delta
-
     to_encode["exp"] = expire
 
     return jwt.encode(
         to_encode,
-        SECRET_KEY,
+        settings.secret_key,
         algorithm=ALGORITHM,
     )
 
@@ -57,7 +56,7 @@ def decode_access_token(token: str) -> dict:
     try:
         return jwt.decode(
             token,
-            SECRET_KEY,
+            settings.secret_key,
             algorithms=[ALGORITHM],
         )
     except JWTError as exc:
