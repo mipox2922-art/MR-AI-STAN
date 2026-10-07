@@ -55,6 +55,13 @@ def system_status(current_user=Depends(get_current_user)):
     disk = psutil.disk_usage('/')
     net = psutil.net_io_counters()
     return {
+        "organization": {
+            "owner": "Boss Ferisi",
+            "manager": "MR AI",
+            "workspace": "MOG343",
+            "crew": "Agent Team",
+            "model_role": "Digital Chief of Staff",
+        },
         "services": _service_status(),
         "telemetry": {
             "cpu_percent": round(psutil.cpu_percent(interval=0.05), 1),
@@ -65,4 +72,9 @@ def system_status(current_user=Depends(get_current_user)):
             "uptime_seconds": max(0, int(time.time() - psutil.boot_time())),
         },
         "security": {"threats_detected": None, "source": "no_security_engine"},
+        "capabilities": {
+            "street_view": "AVAILABLE_VIA_MAPS_URL",
+            "device_tracking": "LOCAL_SENSOR_ONLY",
+            "gemini_tier": settings.gemini_tier,
+        },
     }
