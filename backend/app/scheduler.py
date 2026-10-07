@@ -8,11 +8,11 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from ..database import SessionLocal, get_db
-from ..dependencies import get_current_user
-from ..models import ActivityLog, Notification, ScheduledJob, Task
-from ..schemas import ScheduleCreate, ScheduleUpdate
-from ..task_runner import run_pending_tasks
+from .database import SessionLocal, get_db
+from .dependencies import get_current_user
+from .models import ActivityLog, Notification, ScheduledJob, Task
+from .schemas import ScheduleCreate, ScheduleUpdate
+from .task_runner import run_pending_tasks
 
 router = APIRouter(prefix="/scheduler", tags=["Scheduler"])
 
