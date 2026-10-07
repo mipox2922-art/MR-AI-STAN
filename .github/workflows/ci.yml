@@ -21,12 +21,14 @@ jobs:
       - name: Run backend tests
         env:
           SECRET_KEY: ci-test-secret
+          PYTHONPATH: backend
         run: |
           cd backend
           pytest -q
       - name: Import FastAPI app
         env:
           SECRET_KEY: ci-test-secret
+          PYTHONPATH: backend
         run: |
           cd backend
           python -c "from app.main import app; print(app.title); print(len(app.routes), \"routes loaded\")"
