@@ -5,7 +5,6 @@ import hashlib
 import json
 import secrets
 from datetime import datetime, timedelta, timezone
-from email.utils import parsedate_to_datetime
 from typing import Any
 from urllib.parse import urlencode
 
@@ -326,11 +325,36 @@ async def list_messages(
         "/messages",
         params={"q": query[:500], "maxResults": limit},
     )
+    summaries = []
+    for message in response.get("messages", [])[:limit]:
+        try:
+            metadata = await _gmail_get(
+                db,
+                user_id,
+                f"/messages/{message.get('id')}",
+                params={
+                    "format": "metadata",
+                    "metadataHeaders": ["Subject", "From", "To", "Date"],
+                },
+            )
+            summaries.append(_normalize_message(metadata))
+        except GmailConnectorError:
+            summaries.append({
+                "id": message.get("id"),
+                "thread_id": message.get("threadId"),
+                "snippet": "",
+                "subject": "",
+                "from": "",
+                "to": "",
+                "date": "",
+                "labels": [],
+            })
+
     return {
         "status": "COMPLETED",
         "query": query[:500],
         "result_size_estimate": response.get("resultSizeEstimate", 0),
-        "messages": response.get("messages", []),
+        "messages": summaries,
         "next_page_token": response.get("nextPageToken"),
     }
 
