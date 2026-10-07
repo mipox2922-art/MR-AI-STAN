@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { createSchedule, deleteSchedule, getSchedules, updateSchedule } from "../api";
+import { createSchedule, deleteSchedule, getSchedules, runScheduleNow, updateSchedule } from "../api";
 
 function displayDate(value) {
   if (!value) return "N/A";
@@ -87,6 +87,17 @@ export default function SchedulerPanel() {
     }
   }
 
+  async function runNow(job) {
+    setStatus("QUEUING NOW...");
+    try {
+      await runScheduleNow(job.id);
+      setStatus("SCHEDULE QUEUED");
+      await load();
+    } catch (error) {
+      setStatus("RUN NOW FAILED / " + error.message);
+    }
+  }
+
   async function remove(job) {
     setStatus("DELETING...");
     try {
@@ -141,6 +152,7 @@ export default function SchedulerPanel() {
                   {job.status === "ACTIVE" ? "PAUSE" : "RESUME"}
                 </button>
               )}
+              <button className="mini-button" onClick={() => runNow(job)}>RUN NOW</button>
               <button className="ghost-button" onClick={() => remove(job)}>DELETE</button>
             </div>
           </article>
