@@ -58,7 +58,7 @@ async function request(path, options = {}) {
   return data;
 }
 
-export async function register(username, password, email) {
+export async function register(username, password) {
   const data = await request("/auth/register", {
     method: "POST",
     body: JSON.stringify({ username, password })
