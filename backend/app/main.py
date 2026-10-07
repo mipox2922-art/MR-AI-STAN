@@ -7,6 +7,7 @@ from fastapi.responses import JSONResponse
 from .config import settings
 from .database import Base, engine
 from .realtime import manager
+from .scheduler import start_scheduler, stop_scheduler
 
 from .routers import (
     auth,
@@ -19,6 +20,7 @@ from .routers import (
     tools,
     orchestration,
     integrations,
+    scheduler,
 )
 
 logger = logging.getLogger("mr_ai")
@@ -55,6 +57,15 @@ app.include_router(agents.router)
 app.include_router(tools.router)
 app.include_router(orchestration.router)
 app.include_router(integrations.router)
+app.include_router(scheduler.router)
+
+@app.on_event("startup")
+async def startup_scheduler():
+    start_scheduler()
+
+@app.on_event("shutdown")
+async def shutdown_scheduler():
+    await stop_scheduler()
 
 
 @app.get("/")

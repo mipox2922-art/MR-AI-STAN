@@ -53,3 +53,18 @@ class TaskUpdate(BaseModel):
     progress: int | None = None
     result: str | None = None
     error: str | None = None
+
+
+class ScheduleCreate(BaseModel):
+    title: str
+    command: str
+    run_at: datetime
+    interval_minutes: int | None = None
+
+
+class ScheduleUpdate(BaseModel):
+    title: str | None = None
+    command: str | None = None
+    run_at: datetime | None = None
+    interval_minutes: int | None = None
+    status: str | None = None

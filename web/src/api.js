@@ -296,6 +296,31 @@ export function browserNavigate(url) {
 }
 
 
+
+export function getSchedules() {
+  return request("/scheduler");
+}
+
+export function createSchedule({ title, command, run_at, interval_minutes = null }) {
+  return request("/scheduler", {
+    method: "POST",
+    body: JSON.stringify({ title, command, run_at, interval_minutes }),
+  });
+}
+
+export function updateSchedule(scheduleId, payload) {
+  return request(`/scheduler/${scheduleId}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function deleteSchedule(scheduleId) {
+  return request(`/scheduler/${scheduleId}`, {
+    method: "DELETE",
+  });
+}
+
 export function getAgents() {
   return request("/agents");
 }

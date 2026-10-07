@@ -135,6 +135,13 @@ async def dispatch_tool(
         db.commit()
         return {"status": "COMPLETED", "route": route, "result": result}
 
+    if tool_id == "scheduler":
+        return {
+            "status": "WAITING_FOR_PARAMETERS",
+            "route": route,
+            "message": "Scheduler selected. Use the /scheduler endpoint with title, command and run_at; an incomplete chat command will not create a schedule.",
+        }
+
     if tool_id == "searxng":
         result = await _search_searxng(command)
         db.add(ActivityLog(
