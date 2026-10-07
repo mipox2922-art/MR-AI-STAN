@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { dispatchTool } from "../api";
+import { dispatchTool, searchToolWeb } from "../api";
 import Core from "./Core";
 import Chat from "./Chat";
 
@@ -272,16 +272,9 @@ function WebResearch() {
 
     setStatus("SEARCHING");
     try {
-      const data = await dispatchTool(value);
-      if (data?.route?.tool !== "searxng") {
-        setResults([]);
-        setStatus(String(data?.status || "NO_SEARCH_ROUTE").toUpperCase());
-        return;
-      }
-
-      const searchResult = data.result || {};
-      setResults(Array.isArray(searchResult.results) ? searchResult.results.slice(0, 4) : []);
-      setStatus(String(searchResult.status || data.status || "COMPLETED").toUpperCase());
+      const data = await searchToolWeb(value);
+      setResults(Array.isArray(data?.results) ? data.results.slice(0, 4) : []);
+      setStatus(String(data?.status || "UNKNOWN").toUpperCase());
     } catch (error) {
       setResults([]);
       setStatus(error.message);
