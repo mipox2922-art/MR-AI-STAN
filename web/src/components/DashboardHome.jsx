@@ -1,367 +1,292 @@
+import { useMemo, useState } from "react";
+import { dispatchTool } from "../api";
 import Core from "./Core";
 import Chat from "./Chat";
-import DashboardWorldMap from "./DashboardWorldMap";
 
-function safePercent(value) {
-  const number = Number(value);
-  return Number.isFinite(number) ? Math.max(0, Math.min(100, number)) : null;
+function pct(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? Math.max(0, Math.min(100, n)) : null;
 }
 
 function formatUptime(seconds) {
-  const number = Number(seconds);
-  if (!Number.isFinite(number)) return "N/A";
-  const days = Math.floor(number / 86400);
-  const hours = Math.floor((number % 86400) / 3600);
-  const minutes = Math.floor((number % 3600) / 60);
-  return `${days}d ${String(hours).padStart(2, "0")}h ${String(minutes).padStart(2, "0")}m`;
+  const n = Number(seconds);
+  if (!Number.isFinite(n)) return "N/A";
+  const d = Math.floor(n / 86400);
+  const h = Math.floor((n % 86400) / 3600);
+  const m = Math.floor((n % 3600) / 60);
+  return `${d}d ${String(h).padStart(2, "0")}h ${String(m).padStart(2, "0")}m`;
 }
 
 function formatTime(value) {
   if (!value) return "--";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "--";
-  return date.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
-}
-
-function MetricBar({ label, value }) {
-  const percent = safePercent(value);
-  return (
-    <div className="hud-metric">
-      <div className="hud-metric-head">
-        <span>{label}</span>
-        <strong>{percent === null ? "N/A" : `${percent}%`}</strong>
-      </div>
-      <div className="hud-track">
-        <span style={percent === null ? undefined : { width: `${percent}%` }} />
-      </div>
-    </div>
-  );
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? "--" : d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
 }
 
 function Panel({ eyebrow, title, badge, children, className = "", action }) {
   return (
-    <section className={`hud-panel ${className}`}>
-      <div className="hud-panel-head">
+    <section className={`cc-panel ${className}`}>
+      <header className="cc-panel-head">
         <div>
-          {eyebrow && <span className="hud-eyebrow">{eyebrow}</span>}
+          <span className="cc-eyebrow">{eyebrow}</span>
           <h2>{title}</h2>
         </div>
-        <div className="hud-panel-actions">
+        <div className="cc-panel-actions">
           {action}
-          {badge && <span className="hud-badge">{badge}</span>}
+          {badge && <span className="cc-badge">{badge}</span>}
         </div>
-      </div>
+      </header>
       {children}
     </section>
   );
 }
 
-function CurrentProfile({ telemetry }) {
-  const metrics = [
-    ["CPU", telemetry?.cpu_percent],
-    ["MEMORY", telemetry?.memory_percent],
-    ["NETWORK", null],
-    ["STORAGE", telemetry?.storage_percent],
-    ["GPU", telemetry?.gpu?.utilization_percent],
-  ];
-
+function Metric({ label, value }) {
+  const valuePct = pct(value);
   return (
-    <div className="profile-card">
-      {metrics.map(([label, value]) => (
-        <MetricBar key={label} label={label} value={value} />
-      ))}
-      <div className="profile-note">
-        NETWORK bytes: {Number.isFinite(Number(telemetry?.network?.bytes_sent)) ? telemetry.network.bytes_sent.toLocaleString() : "N/A"} sent ·{" "}
-        {Number.isFinite(Number(telemetry?.network?.bytes_received)) ? telemetry.network.bytes_received.toLocaleString() : "N/A"} received
+    <div className="cc-metric">
+      <div className="cc-metric-top">
+        <span>{label}</span>
+        <strong>{valuePct === null ? "N/A" : `${valuePct}%`}</strong>
+      </div>
+      <div className="cc-meter">
+        <i style={valuePct === null ? undefined : { width: `${valuePct}%` }} />
       </div>
     </div>
   );
 }
 
+function SystemStatus({ telemetry, onRefresh }) {
+  return (
+    <div className="cc-system-status">
+      <Metric label="CPU USAGE" value={telemetry?.cpu_percent} />
+      <Metric label="MEMORY" value={telemetry?.memory_percent} />
+      <Metric label="NETWORK" value={null} />
+      <Metric label="STORAGE" value={telemetry?.storage_percent} />
+      <Metric label="GPU" value={telemetry?.gpu?.utilization_percent} />
+      <div className="cc-system-footer">
+        <span>NETWORK BYTES</span>
+        <strong>
+          {Number.isFinite(Number(telemetry?.network?.bytes_sent)) ? telemetry.network.bytes_sent.toLocaleString() : "N/A"}
+          {" "}↑{" "}
+          {Number.isFinite(Number(telemetry?.network?.bytes_received)) ? telemetry.network.bytes_received.toLocaleString() : "N/A"} ↓
+        </strong>
+      </div>
+      <button className="cc-inline-button" onClick={onRefresh}>REFRESH TELEMETRY</button>
+    </div>
+  );
+}
+
 function MissionOverview({ tasks = [] }) {
-  const active = tasks.filter(task => !["COMPLETED", "FAILED"].includes(String(task.status || "").toUpperCase()));
-  const completed = tasks.filter(task => String(task.status || "").toUpperCase() === "COMPLETED").length;
-  const latest = active[0] || tasks[0];
+  const active = tasks.filter(t => !["COMPLETED", "FAILED"].includes(String(t.status || "").toUpperCase()));
+  const completed = tasks.filter(t => String(t.status || "").toUpperCase() === "COMPLETED").length;
+  const values = active.slice(0, 8).map(t => pct(t.progress)).filter(v => v !== null);
+  const chart = values.length
+    ? values.map((v, i) => {
+        const x = values.length === 1 ? 8 : 8 + (i / (values.length - 1)) * 84;
+        const y = 45 - v * 0.36;
+        return `${x.toFixed(1)},${y.toFixed(1)}`;
+      }).join(" ")
+    : "";
+  const focus = active[0]?.title || tasks[0]?.title || "NO ACTIVE MISSION";
 
   return (
-    <div className="mission-overview">
-      <div className="mission-copy">
-        <p>Execute, coordinate and verify assigned operations with evidence from the real MR AI runtime.</p>
+    <div className="cc-mission">
+      <div className="cc-mission-copy">
+        <p>Execute, monitor and verify assigned operations with evidence from the MR AI runtime.</p>
         <span>CURRENT FOCUS</span>
-        <strong>{latest?.title || "No active mission"}</strong>
+        <strong>{focus}</strong>
       </div>
-      <div className="mission-chart" aria-label="Current task progress profile">
-        {active.slice(0, 7).map(task => {
-          const progress = safePercent(task.progress);
-          return (
-            <div className="mission-chart-row" key={task.id}>
-              <small>{String(task.title || "Task").slice(0, 22)}</small>
-              <div className="hud-track">
-                <span style={progress === null ? undefined : { width: `${progress}%` }} />
-              </div>
-              <b>{progress === null ? "N/A" : `${progress}%`}</b>
-            </div>
-          );
-        })}
-        {active.length === 0 && <div className="hud-empty">NO ACTIVE OPERATIONS</div>}
+      <div className="cc-mission-graph">
+        <div className="cc-graph-grid" />
+        <svg viewBox="0 0 100 50" preserveAspectRatio="none" aria-label="Task progress history">
+          {chart && <polyline points={chart} fill="none" stroke="var(--accent)" strokeWidth="1.2" />}
+          {values.map((v, i) => {
+            const x = values.length === 1 ? 8 : 8 + (i / (values.length - 1)) * 84;
+            const y = 45 - v * 0.36;
+            return <circle key={i} cx={x} cy={y} r="1.35" fill="var(--accent)" />;
+          })}
+        </svg>
+        {!chart && <span className="cc-chart-empty">WAITING FOR TASK DATA</span>}
+        <div className="cc-chart-axis"><span>00</span><span>04</span><span>08</span><span>12</span><span>16</span><span>20</span><span>24</span></div>
       </div>
-      <div className="mission-stats">
+      <div className="cc-mission-stats">
         <div><span>ACTIVE</span><strong>{active.length}</strong></div>
-        <div><span>COMPLETED</span><strong>{completed}</strong></div>
+        <div><span>DONE</span><strong>{completed}</strong></div>
         <div><span>TOTAL</span><strong>{tasks.length}</strong></div>
       </div>
     </div>
   );
 }
 
-const capabilityItems = [
-  ["◉", "AI CHAT", "MR AI Core"],
-  ["⌁", "TELEMETRY", "Local system"],
-  ["↗", "BROWSER", "Browser Hands"],
-  ["⌖", "DEVICES", "Device Bridge"],
-  ["◎", "RESEARCH", "Web intelligence"],
-  ["◇", "MEMORY", "User memory"],
-  ["✉", "GMAIL", "OAuth mail"],
-];
-
-function Capabilities({ services = {}, gmailStatus = null }) {
-  const extension = services.extension || "NOT_CONNECTED";
+function Radar({ findings = [] }) {
+  const points = findings.slice(0, 12);
+  const contactLabel = points.length ? `${points.length} CONTACTS` : "NO CONTACTS";
   return (
-    <div className="capability-grid">
-      {capabilityItems.map(([icon, label, source]) => {
-        const status =
-          label === "BROWSER"
-            ? extension
-            : label === "RESEARCH"
-              ? "AVAILABLE"
-              : label === "DEVICES"
-                ? "LOCAL SENSOR"
-                : label === "MEMORY"
-                  ? services.memory || "ONLINE"
-                  : "ONLINE";
-
-        return (
-          <div className="capability-item" key={label}>
-            <div className="capability-icon">{icon}</div>
-            <strong>{label}</strong>
-            <small>{source}</small>
-            <span>{status}</span>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-function ActivityList({ activities = [] }) {
-  return (
-    <div className="hud-list">
-      {activities.slice(0, 5).map(item => (
-        <div className="hud-list-row" key={item.id}>
-          <span className="list-icon">◈</span>
-          <div>
-            <strong>{item.action || "ACTIVITY"}</strong>
-            <small>{item.details || "Verified runtime event"}</small>
-          </div>
-          <time>{formatTime(item.created_at || item.timestamp)}</time>
-        </div>
-      ))}
-      {activities.length === 0 && <div className="hud-empty">NO VERIFIED ACTIVITY YET</div>}
-    </div>
-  );
-}
-
-function TargetRadar({ findings = [] }) {
-  const visible = findings.slice(0, 8);
-  return (
-    <div className="target-radar-wrap">
-      <div className="target-radar">
-        <div className="target-radar-ring ring-a" />
-        <div className="target-radar-ring ring-b" />
-        <div className="target-radar-ring ring-c" />
-        <div className="target-radar-cross cross-v" />
-        <div className="target-radar-cross cross-h" />
-        <div className="target-radar-sweep" />
-        <div className="target-radar-core">MR</div>
-        {visible.map((finding, index) => {
-          const angle = (index / Math.max(1, visible.length)) * Math.PI * 2;
-          const radius = 28 + (index % 3) * 10;
+    <div className="cc-radar-wrap">
+      <div className="cc-radar">
+        <div className="cc-radar-grid" />
+        <div className="cc-radar-sweep" />
+        <div className="cc-radar-core">MR</div>
+        {points.map((finding, index) => {
+          const angle = (index / Math.max(1, points.length)) * Math.PI * 2 - Math.PI / 2;
+          const radius = 28 + (index % 3) * 9;
           return (
             <span
-              className="target-radar-dot"
               key={finding.id || finding.address || finding.label || index}
-              style={{
-                left: `${50 + Math.cos(angle) * radius}%`,
-                top: `${50 + Math.sin(angle) * radius}%`,
-              }}
-              title={finding.label || finding.address || finding.type || "Sensor finding"}
+              className="cc-radar-dot"
+              style={{ left: `${50 + Math.cos(angle) * radius}%`, top: `${50 + Math.sin(angle) * radius}%` }}
+              title={finding.label || finding.address || finding.type || "Sensor contact"}
             />
           );
         })}
       </div>
-      <div className="target-meta">
-        <div><span>TARGET</span><strong>{findings.length ? "ONLINE" : "NO SENSOR CONTACT"}</strong></div>
-        <div><span>COORDINATES</span><strong>GPS NOT ASSUMED</strong></div>
-        <div><span>CONTACTS</span><strong>{findings.length}</strong></div>
-        <div><span>DIRECTION</span><strong>UNKNOWN</strong></div>
+      <div className="cc-radar-readout">
+        <div><span>GLOBAL SCAN</span><strong>{findings.length ? "ACTIVE" : "STANDBY"}</strong></div>
+        <div><span>CONTACTS</span><strong>{contactLabel}</strong></div>
+        <div><span>SOURCE</span><strong>{findings.length ? "AUTHORIZED SENSORS" : "NO SENSOR DATA"}</strong></div>
       </div>
     </div>
   );
 }
 
-function TelemetryAnalytics({ history = [] }) {
-  const metrics = [
-    ["CPU", "cpu_percent"],
-    ["MEM", "memory_percent"],
-    ["DISK", "storage_percent"],
-    ["GPU", "gpu"],
-  ];
+function HolographicWorldMap({ onOpenMap }) {
+  const [position, setPosition] = useState(null);
+  const [accuracy, setAccuracy] = useState(null);
+  const [status, setStatus] = useState("READY");
 
-  function numericValue(sample, key) {
-    const value = key === "gpu" ? sample?.gpu?.utilization_percent : sample?.[key];
-    return Number.isFinite(Number(value)) ? Number(value) : null;
+  function locate() {
+    if (!navigator.geolocation) {
+      setStatus("NOT_SUPPORTED");
+      return;
+    }
+    setStatus("REQUESTING...");
+    navigator.geolocation.getCurrentPosition(
+      current => {
+        setPosition({ lat: current.coords.latitude, lon: current.coords.longitude });
+        setAccuracy(current.coords.accuracy);
+        setStatus("LOCATION VERIFIED");
+      },
+      error => {
+        setStatus(error.code === error.PERMISSION_DENIED ? "PERMISSION DENIED" : "LOCATION ERROR");
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 }
+    );
   }
 
-  function pointsFor(key) {
-    if (!history.length) return "";
-    const values = history.map(sample => numericValue(sample, key));
-    const usable = values.filter(value => value !== null);
-    if (!usable.length) return "";
-    const fallback = usable[usable.length - 1];
-
-    return values.map((value, index) => {
-      const current = value === null ? fallback : value;
-      const x = history.length === 1 ? 50 : (index / (history.length - 1)) * 100;
-      const y = 46 - Math.max(0, Math.min(100, current)) * 0.4;
-      return `${x.toFixed(2)},${y.toFixed(2)}`;
-    }).join(" ");
-  }
-
-  const latest = history[history.length - 1];
+  const marker = position ? (
+    <g className="cc-globe-marker" transform={`translate(${84 + (position.lon / 180) * 150} ${130 - (position.lat / 90) * 48})`}>
+      <circle r="4" />
+      <circle r="9" className="pulse-ring" />
+    </g>
+  ) : null;
 
   return (
-    <div className="telemetry-analytics">
-      <div className="analytics-chart">
-        <div className="analytics-gridline g25" />
-        <div className="analytics-gridline g50" />
-        <div className="analytics-gridline g75" />
-        <div className="analytics-axis-labels">
-          <span>100</span><span>75</span><span>50</span><span>25</span><span>0</span>
-        </div>
-        <svg viewBox="0 0 100 50" preserveAspectRatio="none" role="img" aria-label="Recent real telemetry history">
-          {metrics.map(([label, key], index) => {
-            const points = pointsFor(key);
-            return points ? (
-              <polyline
-                key={label}
-                points={points}
-                fill="none"
-                stroke="var(--accent)"
-                strokeWidth={index === 0 ? "1.15" : "0.8"}
-                strokeOpacity={String(1 - index * 0.16)}
-                strokeDasharray={index === 0 ? "0" : index === 1 ? "none" : "2 1"}
-              />
-            ) : null;
-          })}
+    <div className="cc-world-map">
+      <div className="cc-map-toolbar">
+        <button className="cc-inline-button" onClick={locate}>LOCATE DEVICE</button>
+        <button className="cc-inline-button" onClick={onOpenMap}>OPEN LIVE MAP</button>
+        <span className="cc-map-state">{status}{accuracy != null ? ` · ±${Math.round(accuracy)}m` : ""}</span>
+      </div>
+      <div className="cc-globe-stage">
+        <div className="cc-globe-halo" />
+        <svg className="cc-globe-svg" viewBox="0 0 420 260" role="img" aria-label="MR AI holographic world map">
+          <ellipse cx="210" cy="130" rx="156" ry="102" className="globe-shell" />
+          <ellipse cx="210" cy="130" rx="156" ry="46" className="globe-line" />
+          <ellipse cx="210" cy="130" rx="112" ry="102" className="globe-line" />
+          <ellipse cx="210" cy="130" rx="58" ry="102" className="globe-line" />
+          <ellipse cx="210" cy="130" rx="25" ry="102" className="globe-line" />
+          <path d="M54 130 H366 M92 82 Q210 112 328 82 M92 178 Q210 148 328 178" className="globe-line" />
+          <path d="M111 94 C95 81 83 70 77 54 C91 46 108 54 119 68 L137 80 L126 96 Z" className="land-shape" />
+          <path d="M128 118 L151 111 L167 129 L158 151 L146 174 L139 154 L128 143 L122 128 Z" className="land-shape" />
+          <path d="M179 72 L201 60 L222 67 L235 78 L225 92 L205 88 L190 99 L176 91 Z" className="land-shape" />
+          <path d="M225 103 L248 96 L265 105 L284 106 L301 118 L291 130 L271 125 L258 136 L240 126 L228 134 L215 121 Z" className="land-shape" />
+          <path d="M300 153 L320 146 L341 158 L337 174 L319 179 L304 168 Z" className="land-shape" />
+          <path d="M196 145 L215 145 L223 162 L218 181 L205 194 L197 178 L184 170 L188 155 Z" className="land-shape" />
+          {marker}
         </svg>
-        {!history.length && <div className="analytics-empty">COLLECTING TELEMETRY...</div>}
+        <div className="cc-map-center-label"><span>MR AI</span><strong>LIVE WORLD VIEW</strong></div>
       </div>
-
-      <div className="analytics-legend">
-        {metrics.map(([label, key]) => {
-          const value = numericValue(latest, key);
-          return (
-            <div key={label}>
-              <span>{label}</span>
-              <strong>{value === null ? "N/A" : `${Math.round(value)}%`}</strong>
-            </div>
-          );
-        })}
+      <div className="cc-map-readout">
+        <div><span>STATUS</span><strong>{status}</strong></div>
+        <div><span>LAT</span><strong>{position ? position.lat.toFixed(4) : "N/A"}</strong></div>
+        <div><span>LON</span><strong>{position ? position.lon.toFixed(4) : "N/A"}</strong></div>
       </div>
-
-      <p className="analytics-note">
-        {history.length < 2
-          ? "History buffer is warming up from live system polls."
-          : `${history.length} verified telemetry samples in memory.`}
-      </p>
     </div>
+  );
+}
+
+function WebResearch() {
+  const items = [
+    ["⌕", "Global Technology Trends", "Latest AI and technology intelligence"],
+    ["◌", "Cybersecurity News", "Threats, controls and protection"],
+    ["▥", "Market Analysis", "Financial and business intelligence"],
+    ["◈", "Science & Innovation", "New research and breakthroughs"],
+  ];
+  return (
+    <div className="cc-research">
+      <div className="cc-research-search">SEARCH INFORMATION... <span>›</span></div>
+      {items.map(([icon, title, subtitle]) => (
+        <div className="cc-research-item" key={title}>
+          <span className="cc-research-icon">{icon}</span>
+          <div><strong>{title}</strong><small>{subtitle}</small></div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function QuickCommands() {
+  const commands = [
+    ["SCAN SYSTEM", "scan my system status"],
+    ["ANALYZE DATA", "analyze my current system data"],
+    ["WEB RESEARCH", "research the latest technology trends"],
+    ["GENERATE REPORT", "generate a concise executive report of my current system"],
+    ["SECURITY CHECK", "run a security status check"],
+    ["OPTIMIZE", "identify safe optimization opportunities"],
+  ];
+  const [state, setState] = useState("READY");
+
+  async function run(command) {
+    setState(`RUNNING · ${command[0]}`);
+    try {
+      const result = await dispatchTool(command[1]);
+      setState(`${command[0]} · ${String(result?.status || "ROUTED").toUpperCase()}`);
+    } catch (error) {
+      setState(`${command[0]} · ERROR: ${error.message}`);
+    }
+  }
+
+  return (
+    <section className="cc-quick">
+      <div className="cc-quick-head">
+        <span className="cc-eyebrow">QUICK COMMANDS</span>
+        <strong>{state}</strong>
+      </div>
+      <div className="cc-quick-grid">
+        {commands.map(command => (
+          <button key={command[0]} onClick={() => run(command)}>{command[0]}</button>
+        ))}
+      </div>
+    </section>
   );
 }
 
 function ActiveTasks({ tasks = [] }) {
-  const visible = tasks.slice(0, 5);
+  const active = tasks.filter(t => !["COMPLETED", "FAILED"].includes(String(t.status || "").toUpperCase())).slice(0, 4);
   return (
-    <div className="task-list">
-      {visible.map((task, index) => {
-        const progress = safePercent(task.progress);
-        const status = String(task.status || "PENDING").toUpperCase();
+    <div className="cc-task-list">
+      {active.map((task, index) => {
+        const value = pct(task.progress);
         return (
-          <div className="task-row" key={task.id}>
-            <span className="task-number">{String(index + 1).padStart(2, "0")}</span>
-            <div className="task-main">
-              <strong>{task.title || "Untitled task"}</strong>
-              <div className="hud-track"><span style={progress === null ? undefined : { width: `${progress}%` }} /></div>
-            </div>
-            <span className={`task-status status-${status.toLowerCase()}`}>{status}</span>
-            <b>{progress === null ? "N/A" : `${progress}%`}</b>
+          <div className="cc-task" key={task.id}>
+            <span>{String(index + 1).padStart(2, "0")}</span>
+            <div><strong>{task.title || "Untitled task"}</strong><div className="cc-meter"><i style={value == null ? undefined : { width: `${value}%` }} /></div></div>
+            <b>{value == null ? "N/A" : `${value}%`}</b>
           </div>
         );
       })}
-      {visible.length === 0 && <div className="hud-empty">NO TASKS RECORDED</div>}
-    </div>
-  );
-}
-
-function MemoryBank({ memories = [] }) {
-  const latest = memories[0];
-  return (
-    <div className="memory-bank">
-      <div className="memory-visual">◇</div>
-      <div className="memory-data">
-        <div><span>TOTAL MEMORIES</span><strong>{memories.length.toLocaleString()}</strong></div>
-        <div><span>RECENT RECORDS</span><strong>{Math.min(memories.length, 10)}</strong></div>
-        <div><span>LAST KEY</span><strong>{latest?.key || "N/A"}</strong></div>
-        <div><span>STATE</span><strong>{memories.length ? "STORED" : "EMPTY"}</strong></div>
-      </div>
-    </div>
-  );
-}
-
-function Architecture() {
-  return (
-    <div className="architecture">
-      <div className="architecture-side left">
-        <span>SENSOR INPUT</span>
-        <span>DATA PROCESSING</span>
-        <span>ML ENGINE</span>
-      </div>
-      <div className="architecture-core">MR AI<br /><small>CORE</small></div>
-      <div className="architecture-side right">
-        <span>DECISION ENGINE</span>
-        <span>ACTION MODULE</span>
-        <span>FEEDBACK LOOP</span>
-      </div>
-    </div>
-  );
-}
-
-function Communication({ services = {}, gmailStatus = null }) {
-  const rows = [
-    ["SESSION", "AUTHENTICATED"],
-    ["BACKEND", services.ai_core || "N/A"],
-    ["DATABASE", services.database || "N/A"],
-    ["GEMINI", services.gemini || "N/A"],
-    ["BROWSER", services.extension || "N/A"],
-    ["GMAIL", gmailStatus?.status || "N/A"],
-  ];
-  return (
-    <div className="communication">
-      <div className="communication-globe">◎</div>
-      <div className="communication-list">
-        {rows.map(([label, value]) => (
-          <div key={label}><span>{label}</span><strong>{value}</strong></div>
-        ))}
-      </div>
+      {!active.length && <span className="cc-empty">NO ACTIVE TASKS</span>}
     </div>
   );
 }
@@ -373,46 +298,50 @@ export default function DashboardHome({
   tasks = [],
   memories = [],
   activities = [],
-  telemetryHistory = [],
-  gmailStatus = null,
   coreState = "IDLE",
   working = false,
   onRefresh,
   onState,
   onModToggle,
   onPowerCommand,
+  onOpenMap,
 }) {
   const telemetry = system?.telemetry || {};
   const services = system?.services || {};
+  const uptime = formatUptime(telemetry.uptime_seconds);
+  const activeCount = tasks.filter(t => !["COMPLETED", "FAILED"].includes(String(t.status || "").toUpperCase())).length;
+  const lastActivity = activities[0];
+
+  const topReadout = useMemo(() => ({
+    model: system?.ai?.model || "N/A",
+    tier: system?.ai?.tier || "N/A",
+    status: services.ai_core || "N/A",
+    uptime,
+    active: activeCount,
+  }), [system, services.ai_core, uptime, activeCount]);
 
   return (
-    <div className="command-dashboard">
-      <div className="dashboard-brandline">
-        <div>
-          <span className="hud-eyebrow">MOG343 // MR AI STAN</span>
-          <h2>JARVIS AI</h2>
-          <p>DIGITAL CHIEF OF STAFF</p>
-        </div>
-        <div className="dashboard-state">
-          <span>{working ? "WORKING MODE" : "NORMAL MODE"}</span>
-          <b>{system?.services?.ai_core === "ONLINE" && system?.services?.database === "ONLINE" ? "CORE OPERATIONAL" : "CHECK SYSTEM STATE"}</b>
-        </div>
+    <div className={`command-center-reference ${working ? "cc-working" : "cc-normal"}`}>
+      <div className="cc-titlebar">
+        <div className="cc-logo">MR AI</div>
+        <div className="cc-title">MR AI COMMAND CENTER</div>
+        <div className="cc-clock-state"><span>{working ? "WORKING MODE" : "NORMAL MODE"}</span><strong>{topReadout.status === "ONLINE" ? "● ONLINE" : topReadout.status}</strong></div>
       </div>
 
-      <div className="dashboard-grid grid-top">
-        <Panel eyebrow="SYSTEM STATUS" title="System Status" action={<button className="hud-mini-button" onClick={onRefresh}>REFRESH</button>}>
-          <CurrentProfile telemetry={telemetry} />
+      <div className="cc-top-grid">
+        <Panel eyebrow="SYSTEM STATUS" title="System Status">
+          <SystemStatus telemetry={telemetry} onRefresh={onRefresh} />
         </Panel>
 
         <Panel eyebrow="AI CORE STATUS" title="AI Core Status" badge={coreState}>
-          <div className="core-status-layout">
-            <div className="core-status-copy">
-              <div><span>AI MODEL</span><strong>{system?.ai?.model || "N/A"}</strong></div>
-              <div><span>AI TIER</span><strong>{system?.ai?.tier || "N/A"}</strong></div>
-              <div><span>UPTIME</span><strong>{formatUptime(telemetry.uptime_seconds)}</strong></div>
-              <div><span>STATUS</span><strong>{services.ai_core || "N/A"}</strong></div>
-              <div><span>RESPONSE TIME</span><strong>N/A</strong></div>
-              <div><span>LEARNING RATE</span><strong>N/A</strong></div>
+          <div className="cc-core-status">
+            <div className="cc-core-readout">
+              <div><span>AI MODEL</span><strong>{topReadout.model}</strong></div>
+              <div><span>AI TIER</span><strong>{topReadout.tier}</strong></div>
+              <div><span>RESPONSE</span><strong>LIVE</strong></div>
+              <div><span>UPTIME</span><strong>{topReadout.uptime}</strong></div>
+              <div><span>STATUS</span><strong>{topReadout.status}</strong></div>
+              <div><span>TASKS</span><strong>{topReadout.active}</strong></div>
             </div>
             <Core state={coreState} modActive={working} />
           </div>
@@ -423,105 +352,39 @@ export default function DashboardHome({
         </Panel>
       </div>
 
-      <div className="dashboard-grid grid-middle">
-        <Panel eyebrow="REAL-TIME ANALYTICS" title="Live Metrics">
-          <TelemetryAnalytics history={telemetryHistory} />
-          <div className="metric-profile-chart">
-            {[
-              ["CPU", telemetry.cpu_percent],
-              ["RAM", telemetry.memory_percent],
-              ["DISK", telemetry.storage_percent],
-              ["GPU", telemetry.gpu?.utilization_percent],
-            ].map(([label, value]) => {
-              const percent = safePercent(value);
-              return (
-                <div className="profile-bar" key={label}>
-                  <span>{label}</span>
-                  <div className="hud-track"><i style={percent === null ? undefined : { height: `${Math.max(8, percent)}%` }} /></div>
-                  <b>{percent === null ? "N/A" : `${percent}%`}</b>
-                </div>
-              );
-            })}
-          </div>
-          <div className="profile-caption">
-            <span>REAL LOCAL TELEMETRY</span>
-            <strong>NO FABRICATED HISTORY</strong>
-          </div>
+      <div className="cc-main-grid">
+        <Panel eyebrow="RADAR SCAN" title="Radar Scan" badge={`${radarFindings.length} CONTACTS`}>
+          <Radar findings={radarFindings} />
         </Panel>
 
-        <Panel eyebrow="AI CORE" title="MR AI Presence" className="core-dashboard-panel">
-          <div className="core-dashboard-stage">
-            <Core state={coreState} modActive={working} />
-          </div>
+        <Panel eyebrow="GLOBAL NETWORK" title="World Monitoring">
+          <HolographicWorldMap onOpenMap={onOpenMap} />
         </Panel>
 
-        <Panel eyebrow="CAPABILITIES" title="Platform Capabilities">
-          <Capabilities services={services} gmailStatus={gmailStatus} />
-        </Panel>
-      </div>
-
-      <section className="jarvis-signature-panel">
-        <div className="signature-core-mark">MR</div>
-        <div className="signature-copy">
-          <span className="hud-eyebrow">COMMAND CENTER IDENTITY</span>
-          <h2>JARVIS AI</h2>
-          <p>VERSIONED RUNTIME · DIGITAL CHIEF OF STAFF · MOG343 OPERATIONS</p>
-        </div>
-        <div className="signature-status">
-          <span>CORE STATUS</span>
-          <strong>{system?.services?.ai_core || "N/A"}</strong>
-          <small>{working ? "ACTIVE EXECUTION" : "STANDBY / READY"}</small>
-        </div>
-      </section>
-
-      <div className="dashboard-grid grid-lower">
-        <Panel eyebrow="ACTIVE TASKS" title="Active Tasks" badge={`${tasks.length} TOTAL`}>
-          <ActiveTasks tasks={tasks} />
-        </Panel>
-
-        <Panel eyebrow="VOICE INTERACTION" title="MR AI Chat" className="dashboard-chat-panel">
-          <div className="voice-preview">
-            <div className="voice-wave-line"><span /><span /><span /><span /><span /><span /><span /></div>
-            <p>Command channel is connected to the shared AI core. Voice and text requests use the same operational routing.</p>
-          </div>
+        <Panel eyebrow="MR AI CHAT" title="MR AI Chat" className="cc-chat-panel">
           <Chat onState={onState} onModToggle={onModToggle} onPowerCommand={onPowerCommand} />
         </Panel>
 
-        <Panel eyebrow="TARGET ACQUISITION" title="Target Radar" badge={`${radarFindings.length} CONTACTS`}>
-          <TargetRadar findings={radarFindings} />
+        <Panel eyebrow="WEB RESEARCH" title="Web Research">
+          <WebResearch />
         </Panel>
       </div>
 
-      <div className="dashboard-grid grid-map">
-        <Panel eyebrow="WORLD MAP" title="Authorized World Map">
-          <DashboardWorldMap />
-        </Panel>
+      <QuickCommands />
+
+      <div className="cc-bottom-strip">
+        <div><span>AGENTS</span><strong>{agents.length}</strong></div>
+        <div><span>MEMORY</span><strong>{memories.length}</strong></div>
+        <div><span>LAST ACTIVITY</span><strong>{lastActivity ? `${lastActivity.action || "EVENT"} · ${formatTime(lastActivity.created_at || lastActivity.timestamp)}` : "NONE"}</strong></div>
+        <div><span>BROWSER</span><strong>{services.extension || "NOT_CONNECTED"}</strong></div>
+        <div><span>GMAIL</span><strong>{services.gmail || "CHECK"}</strong></div>
       </div>
 
-      <div className="dashboard-grid grid-bottom">
-        <Panel eyebrow="MEMORY BANK" title="Memory Bank">
-          <MemoryBank memories={memories} />
-          <button className="hud-wide-button">OPEN MEMORY</button>
-        </Panel>
-
-        <Panel eyebrow="SYSTEM ARCHITECTURE" title="System Architecture">
-          <Architecture />
-        </Panel>
-
-        <Panel eyebrow="RECENT ACTIVITIES" title="Recent Activities">
-          <ActivityList activities={activities} />
-        </Panel>
-
-        <Panel eyebrow="COMMUNICATIONS" title="Communications">
-          <Communication services={services} gmailStatus={gmailStatus} />
-        </Panel>
-      </div>
-
-      <div className="dashboard-footerline">
+      <div className="cc-footerline">
         <span>OWNER // BOSS FERISI</span>
         <span>MANAGER // MR AI</span>
         <span>WORKSPACE // MOG343</span>
-        <span>CREW // {agents.length} REGISTERED AGENTS</span>
+        <span>AUTHORIZED RUNTIME DATA ONLY</span>
       </div>
     </div>
   );

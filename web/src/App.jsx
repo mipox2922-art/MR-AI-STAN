@@ -546,6 +546,7 @@ function App() {
               onState={setCoreState}
               onModToggle={toggleMode}
               onPowerCommand={handlePowerCommand}
+              onOpenMap={() => setActive("map")}
             />
           )}
 
