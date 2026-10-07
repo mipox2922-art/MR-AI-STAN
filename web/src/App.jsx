@@ -72,7 +72,6 @@ function AuthScreen({ onAuthenticated }) {
   const [mode, setMode] = useState("login");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [email, setEmail] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -84,7 +83,7 @@ function AuthScreen({ onAuthenticated }) {
       const result =
         mode === "login"
           ? await login(username.trim(), password)
-          : await register(username.trim(), password, email.trim());
+          : await register(username.trim(), password);
       onAuthenticated(result);
     } catch (err) {
       setError(err.message);
@@ -106,13 +105,6 @@ function AuthScreen({ onAuthenticated }) {
             Username
             <input value={username} onChange={e => setUsername(e.target.value)} autoComplete="username" required />
           </label>
-
-          {mode === "register" && (
-            <label>
-              Email
-              <input value={email} onChange={e => setEmail(e.target.value)} type="email" autoComplete="email" required />
-            </label>
-          )}
 
           <label>
             Password
