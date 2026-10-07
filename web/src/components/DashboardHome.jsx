@@ -121,9 +121,10 @@ const capabilityItems = [
   ["⌖", "DEVICES", "Device Bridge"],
   ["◎", "RESEARCH", "Web intelligence"],
   ["◇", "MEMORY", "User memory"],
+  ["✉", "GMAIL", "OAuth mail"],
 ];
 
-function Capabilities({ services = {} }) {
+function Capabilities({ services = {}, gmailStatus = null }) {
   const extension = services.extension || "NOT_CONNECTED";
   return (
     <div className="capability-grid">
@@ -265,13 +266,14 @@ function Architecture() {
   );
 }
 
-function Communication({ services = {} }) {
+function Communication({ services = {}, gmailStatus = null }) {
   const rows = [
     ["SESSION", "AUTHENTICATED"],
     ["BACKEND", services.ai_core || "N/A"],
     ["DATABASE", services.database || "N/A"],
     ["GEMINI", services.gemini || "N/A"],
     ["BROWSER", services.extension || "N/A"],
+    ["GMAIL", gmailStatus?.status || "N/A"],
   ];
   return (
     <div className="communication">
@@ -292,6 +294,7 @@ export default function DashboardHome({
   tasks = [],
   memories = [],
   activities = [],
+  gmailStatus = null,
   coreState = "IDLE",
   working = false,
   onRefresh,
@@ -372,7 +375,7 @@ export default function DashboardHome({
         </Panel>
 
         <Panel eyebrow="CAPABILITIES" title="Platform Capabilities">
-          <Capabilities services={services} />
+          <Capabilities services={services} gmailStatus={gmailStatus} />
         </Panel>
       </div>
 
@@ -415,7 +418,7 @@ export default function DashboardHome({
         </Panel>
 
         <Panel eyebrow="COMMUNICATIONS" title="Communications">
-          <Communication services={services} />
+          <Communication services={services} gmailStatus={gmailStatus} />
         </Panel>
       </div>
 
