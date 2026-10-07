@@ -44,6 +44,20 @@ const NAV = [
   ["system", "⌘", "System"],
 ];
 
+function SleepOverlay({ onWake }) {
+  return (
+    <div className="sleep-overlay" role="dialog" aria-label="MR AI Sleep Mode">
+      <div className="sleep-card">
+        <div className="sleep-orb">MR</div>
+        <span className="eyebrow">MOG343 // MR AI STAN</span>
+        <h1>SLEEP MODE</h1>
+        <p>Non-essential monitoring and active work are paused. The Command Center is waiting for a wake action.</p>
+        <button className="primary-button" onClick={onWake}>WAKE MR AI</button>
+      </div>
+    </div>
+  );
+}
+
 function AuthScreen({ onAuthenticated }) {
   const [mode, setMode] = useState("login");
   const [username, setUsername] = useState("");
@@ -309,8 +323,11 @@ function AgentsPanel({ agents, onPlan }) {
 function App() {
   const [token, setTokenState] = useState(getToken());
   const [active, setActive] = useState("dashboard");
-  const [mode, setMode] = useState("normal");
-  const [coreState, setCoreState] = useState("IDLE");
+  const [mode, setMode] = useState(() => localStorage.getItem("mr_ai_mode") || "normal");
+  const [coreState, setCoreState] = useState(() => {
+    const saved = localStorage.getItem("mr_ai_mode");
+    return saved === "sleep" ? "SLEEPING" : saved === "working" ? "WORKING" : "IDLE";
+  });
   const [system, setSystem] = useState(null);
   const [agents, setAgents] = useState([]);
   const [radarFindings, setRadarFindings] = useState([]);
@@ -343,11 +360,9 @@ function App() {
 
   useEffect(() => {
     if (!authenticated) return undefined;
-    refresh();
-    const timer = setInterval(refresh, 5000);
+    if (mode !== "sleep") refresh();
+    const timer = mode === "sleep" ? null : setInterval(refresh, 5000);
     const clockTimer = setInterval(() => setClock(new Date()), 1000);
-    const savedMode = localStorage.getItem("mr_ai_mode");
-    if (savedMode === "working") setMode("working");
 
     const onShortcut = event => {
       if (event.ctrlKey && event.shiftKey && event.key.toLowerCase() === "m") {
@@ -372,12 +387,12 @@ function App() {
     window.addEventListener("keydown", onCommandPalette);
 
     return () => {
-      clearInterval(timer);
+      if (timer) clearInterval(timer);
       clearInterval(clockTimer);
       window.removeEventListener("keydown", onShortcut);
       window.removeEventListener("keydown", onCommandPalette);
     };
-  }, [authenticated, refresh]);
+  }, [authenticated, refresh, mode]);
 
   const telemetry = system?.telemetry || {};
   const services = system?.services || {};
@@ -407,19 +422,43 @@ function App() {
   }
 
   const working = mode === "working";
+  const sleeping = mode === "sleep";
+
+  function setOperationalMode(nextMode) {
+    const next = ["normal", "working", "sleep"].includes(nextMode)
+      ? nextMode
+      : "normal";
+    localStorage.setItem("mr_ai_mode", next);
+    setMode(next);
+    setCoreState(
+      next === "sleep"
+        ? "SLEEPING"
+        : next === "working"
+          ? "WORKING"
+          : "IDLE"
+    );
+  }
 
   function toggleMode(nextWorking) {
     const next =
       typeof nextWorking === "boolean"
         ? nextWorking
         : mode !== "working";
-    localStorage.setItem("mr_ai_mode", next ? "working" : "normal");
-    setMode(next ? "working" : "normal");
-    setCoreState(next ? "WORKING" : "IDLE");
+    setOperationalMode(next ? "working" : "normal");
+  }
+
+  function handlePowerCommand(command) {
+    if (command === "sleep") {
+      setOperationalMode("sleep");
+      return;
+    }
+    if (command === "wake") {
+      setOperationalMode("normal");
+    }
   }
 
   return (
-    <div className={`app-shell ${working ? "mode-working" : ""}`}>
+    <div className={`app-shell ${working ? "mode-working" : ""} ${sleeping ? "mode-sleep" : ""}`}>
       <aside className="sidebar">
         <div className="brand">
           <div className="brand-mark">MR AI</div>
@@ -458,6 +497,8 @@ function App() {
         onToggleMode={() => toggleMode()}
       />
 
+      {sleeping && <SleepOverlay onWake={() => setOperationalMode("normal")} />}
+
       <main className="main-area">
         <header className="topbar">
           <div>
@@ -470,8 +511,8 @@ function App() {
               <span>{clock.toLocaleDateString("sw-TZ", { weekday: "short", day: "2-digit", month: "short", year: "numeric" })}</span>
             </div>
             <div className="mode-indicator">
-              <span className="mode-label">{working ? "WORKING MODE" : "NORMAL MODE"}</span>
-              <span className="live-dot">LIVE</span>
+              <span className="mode-label">{sleeping ? "SLEEP MODE" : working ? "WORKING MODE" : "NORMAL MODE"}</span>
+              <span className="live-dot">{sleeping ? "PAUSED" : "LIVE"}</span>
             </div>
           </div>
         </header>
@@ -532,6 +573,7 @@ function App() {
                 <Chat
                   onState={setCoreState}
                   onModToggle={toggleMode}
+                  onPowerCommand={handlePowerCommand}
                 />
                 <Activity />
               </section>
