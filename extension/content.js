@@ -14,9 +14,7 @@
       throw new Error("A CSS selector is required.");
     }
     const element = document.querySelector(selector);
-    if (!element) {
-      throw new Error(`Element not found: ${selector}`);
-    }
+    if (!element) throw new Error(`Element not found: ${selector}`);
     return element;
   }
 
@@ -64,7 +62,28 @@
       case "TYPE": {
         const element = resolveTarget(payload.selector);
         const value = String(payload.value ?? "");
-        if (!("value" in element)) throw new Error("Target element does not expose a writable value.");
+
+        if (element.isContentEditable) {
+          element.focus();
+          document.execCommand?.("selectAll", false);
+          element.textContent = value;
+          element.dispatchEvent(new InputEvent("input", {
+            bubbles: true,
+            inputType: "insertText",
+            data: value
+          }));
+          element.dispatchEvent(new Event("change", { bubbles: true }));
+          return {
+            verified: element.textContent === value,
+            action,
+            element: describeElement(element),
+            valueLength: value.length
+          };
+        }
+
+        if (!("value" in element)) {
+          throw new Error("Target element does not expose a writable value.");
+        }
 
         element.focus();
         setNativeValue(element, value);
@@ -114,7 +133,7 @@
         }
 
         const target = url.toString();
-        window.location.assign(target);
+        setTimeout(() => window.location.assign(target), 50);
         return { verified: true, action, target, note: "Navigation started." };
       }
 
@@ -133,6 +152,8 @@
         const endX = startX + dx;
         const endY = startY + dy;
 
+        element.dispatchEvent(new Event("dragstart", { bubbles: true, cancelable: true }));
+
         for (const [type, x, y] of [
           ["pointerdown", startX, startY],
           ["mousedown", startX, startY],
@@ -141,16 +162,19 @@
           ["pointerup", endX, endY],
           ["mouseup", endX, endY]
         ]) {
-          element.dispatchEvent(new MouseEvent(type, {
+          const EventCtor = type.startsWith("pointer") && typeof PointerEvent !== "undefined"
+            ? PointerEvent
+            : MouseEvent;
+          element.dispatchEvent(new EventCtor(type, {
             bubbles: true,
             cancelable: true,
             clientX: x,
             clientY: y,
-            buttons: type.includes("up") ? 0 : 1
+            buttons: type.includes("up") ? 0 : 1,
+            pointerId: 1
           }));
         }
 
-        element.dispatchEvent(new Event("dragstart", { bubbles: true, cancelable: true }));
         element.dispatchEvent(new Event("dragend", { bubbles: true, cancelable: true }));
 
         return {
@@ -159,7 +183,7 @@
           element: describeElement(element),
           start: { x: Math.round(startX), y: Math.round(startY) },
           end: { x: Math.round(endX), y: Math.round(endY) },
-          note: "Synthetic pointer/mouse drag events dispatched; site-specific implementations may require Playwright."
+          note: "Synthetic pointer/mouse drag events dispatched; complex site-specific DnD may require Playwright."
         };
       }
 
@@ -168,34 +192,28 @@
     }
   }
 
-  function respond(requestId, ok, result, error = "") {
-    window.postMessage({
-      source: "mr-ai-stan",
-      type: "MR_AI_BROWSER_RESULT",
-      requestId,
-      ok,
-      result,
-      error
-    }, "*");
-  }
-
-  window.addEventListener("message", async event => {
-    if (event.source !== window) return;
-    const message = event.data;
-    if (!message || message.source !== "mr-ai-stan") return;
-    if (message.type !== "MR_AI_BROWSER_ACTION") return;
-
-    try {
-      const result = await performAction(message.action, message);
-      respond(message.requestId, true, result);
-    } catch (error) {
-      respond(message.requestId, false, null, error instanceof Error ? error.message : String(error));
-    }
-  });
-
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    if (message?.type !== "GET_PAGE_DATA") return false;
-    sendResponse(pageData());
+    if (message?.type === "GET_PAGE_DATA") {
+      sendResponse(pageData());
+      return true;
+    }
+
+    if (message?.type !== "MR_AI_BROWSER_ACTION") return false;
+
+    performAction(message.action, message)
+      .then(result => sendResponse({ ok: true, result }))
+      .catch(error => sendResponse({
+        ok: false,
+        error: error instanceof Error ? error.message : String(error)
+      }));
+
     return true;
   });
+
+  // Expose the extension ID to the MR AI web app through shared DOM state.
+  // The web app only uses this value to initiate externally_connectable messaging.
+  const root = document.documentElement;
+  if (root && !root.dataset.mrAiExtensionId) {
+    root.dataset.mrAiExtensionId = chrome.runtime.id;
+  }
 })();
