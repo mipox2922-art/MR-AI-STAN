@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   browserClick,
   browserDrag,
   browserNavigate,
   browserScroll,
   browserType,
+  getBrowserHandsStatus,
   getCurrentPage
 } from "../api";
 
@@ -15,14 +16,28 @@ export default function BrowserHands() {
   const [dx, setDx] = useState("120");
   const [dy, setDy] = useState("0");
   const [page, setPage] = useState(null);
-  const [message, setMessage] = useState("READY");
+  const [message, setMessage] = useState("CHECKING EXTENSION...");
+  const [extensionReady, setExtensionReady] = useState(false);
+
+  useEffect(() => {
+    getBrowserHandsStatus()
+      .then(status => {
+        setExtensionReady(status.installed);
+        setMessage(status.installed
+          ? "EXTENSION CONNECTED // CONTROL TAB TRACKED"
+          : "EXTENSION NOT DETECTED");
+      })
+      .catch(() => setMessage("EXTENSION STATUS UNKNOWN"));
+  }, []);
 
   async function run(label, fn) {
     setMessage(label + "...");
     try {
       const result = await fn();
-      setMessage(label + " ✓ VERIFIED");
-      if (result?.text) setPage(result);
+      setMessage(result?.verified === false
+        ? label + " ✕ NOT VERIFIED"
+        : label + " ✓ VERIFIED");
+      if (result?.page?.text) setPage(result.page);
     } catch (error) {
       setMessage(label + " ✕ " + error.message);
     }
@@ -31,6 +46,12 @@ export default function BrowserHands() {
   return (
     <section className="tool-panel">
       <div className="panel-title">BROWSER HANDS — AUTHORIZED PAGE CONTROL</div>
+
+      <div className="tool-status">
+        {extensionReady
+          ? "EXTENSION ONLINE // TARGET = LAST NON-MR-AI TAB"
+          : "INSTALL/RELOAD THE MR AI BROWSER EXTENSION"}
+      </div>
 
       <div className="tool-grid">
         <button onClick={() => run("READ PAGE", getCurrentPage)}>READ PAGE</button>
