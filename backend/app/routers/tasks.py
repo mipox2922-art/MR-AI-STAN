@@ -26,7 +26,6 @@ async def create_task(
     )
 
     db.add(task)
-
     db.add(
         ActivityLog(
             user_id=current_user.id,
@@ -39,8 +38,9 @@ async def create_task(
     db.refresh(task)
 
     await manager.broadcast(
-        "TASK_STARTED",
+        "TASK_CREATED",
         {"task_id": task.id},
+        user_id=current_user.id,
     )
 
     return task
@@ -79,7 +79,6 @@ async def update_task(
         raise HTTPException(404, "Task not found")
 
     updates = data.model_dump(exclude_unset=True)
-
     for key, value in updates.items():
         setattr(task, key, value)
 
@@ -95,17 +94,22 @@ async def update_task(
     db.refresh(task)
 
     if task.status == "COMPLETED":
-        await manager.broadcast(
-            "TASK_COMPLETED",
-            {"task_id": task.id},
-        )
+        event = "TASK_COMPLETED"
+    elif task.status in {"FAILED", "WAITING_FOR_HAND", "WAITING_APPROVAL"}:
+        event = "TASK_WAITING"
     else:
-        await manager.broadcast(
-            "TASK_PROGRESS",
-            {
-                "task_id": task.id,
-                "progress": task.progress,
-            },
-        )
+        event = "TASK_PROGRESS"
+
+    await manager.broadcast(
+        event,
+        {
+            "task_id": task.id,
+            "status": task.status,
+            "progress": task.progress,
+            "result": task.result,
+            "error": task.error,
+        },
+        user_id=current_user.id,
+    )
 
     return task
