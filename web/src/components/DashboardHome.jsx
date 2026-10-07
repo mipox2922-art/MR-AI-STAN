@@ -460,6 +460,20 @@ export default function DashboardHome({
         </Panel>
       </div>
 
+      <section className="jarvis-signature-panel">
+        <div className="signature-core-mark">MR</div>
+        <div className="signature-copy">
+          <span className="hud-eyebrow">COMMAND CENTER IDENTITY</span>
+          <h2>JARVIS AI</h2>
+          <p>VERSIONED RUNTIME · DIGITAL CHIEF OF STAFF · MOG343 OPERATIONS</p>
+        </div>
+        <div className="signature-status">
+          <span>CORE STATUS</span>
+          <strong>{system?.services?.ai_core || "N/A"}</strong>
+          <small>{working ? "ACTIVE EXECUTION" : "STANDBY / READY"}</small>
+        </div>
+      </section>
+
       <div className="dashboard-grid grid-lower">
         <Panel eyebrow="ACTIVE TASKS" title="Active Tasks" badge={`${tasks.length} TOTAL`}>
           <ActiveTasks tasks={tasks} />
