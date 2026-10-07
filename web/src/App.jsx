@@ -30,6 +30,7 @@ import ToolBox from "./components/ToolBox";
 import WebIntelligence from "./components/WebIntelligence";
 import CommandPalette from "./components/CommandPalette";
 import DashboardHome from "./components/DashboardHome";
+import VoiceControl from "./components/VoiceControl";
 
 const NAV = [
   ["dashboard", "⌂", "Dashboard"],
@@ -290,6 +291,7 @@ function App() {
   const [tasks, setTasks] = useState([]);
   const [memories, setMemories] = useState([]);
   const [activities, setActivities] = useState([]);
+  const [voiceTranscript, setVoiceTranscript] = useState("");
   const [clock, setClock] = useState(new Date());
   const [paletteOpen, setPaletteOpen] = useState(false);
 
@@ -449,6 +451,30 @@ function App() {
             </button>
           ))}
         </nav>
+
+        <div className="sidebar-voice">
+          <div className="sidebar-voice-head">
+            <span className="eyebrow">VOICE COMMAND</span>
+            <span className="voice-state-dot">●</span>
+          </div>
+          <div className="sidebar-wave" aria-hidden="true">
+            {Array.from({ length: 13 }).map((_, index) => <span key={index} />)}
+          </div>
+          <div className="sidebar-voice-quote">
+            <strong>{voiceTranscript ? `"${voiceTranscript}"` : '"Hey Ferisi"'}</strong>
+            <span>{voiceTranscript ? "Command received." : "I’m at your service."}</span>
+          </div>
+          <VoiceControl
+            onTranscript={text => {
+              setVoiceTranscript(text);
+              if (/^(zima|lala|sleep|sleep mode)$/i.test(text.trim())) {
+                handlePowerCommand("sleep");
+              } else if (/^(amka|wake|wake up|amka mr ai)$/i.test(text.trim())) {
+                handlePowerCommand("wake");
+              }
+            }}
+          />
+        </div>
 
         <div className="sidebar-footer">
           <button className={working ? "danger-button" : "primary-button"} onClick={() => toggleMode(!working)}>
