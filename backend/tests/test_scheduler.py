@@ -6,6 +6,7 @@ from sqlalchemy.orm import sessionmaker
 from app.database import Base
 from app.models import Notification, ScheduledJob, Task
 from app.scheduler import run_due_jobs
+from app.routers.scheduler import run_schedule_now
 
 
 def make_db():
@@ -67,3 +68,27 @@ def test_recurring_schedule_advances_to_next_future_run():
     assert refreshed.status == "ACTIVE"
     assert refreshed.next_run_at == now + timedelta(hours=1)
     assert refreshed.last_run_at == now
+
+
+
+def test_run_schedule_now_moves_next_run_to_now():
+    db = make_db()
+    now = datetime.utcnow()
+    job = ScheduledJob(
+        user_id=7,
+        title="Immediate briefing",
+        command="prepare briefing",
+        status="PAUSED",
+        run_at=now + timedelta(hours=1),
+        next_run_at=None,
+    )
+    db.add(job)
+    db.commit()
+    db.refresh(job)
+
+    result = run_schedule_now(job.id, type("User", (), {"id": 7})(), db)
+
+    assert result["status"] == "ACTIVE"
+    assert result["next_run_at"] is not None
+    refreshed = db.query(ScheduledJob).one()
+    assert refreshed.status == "ACTIVE"
