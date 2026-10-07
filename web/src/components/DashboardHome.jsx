@@ -450,6 +450,11 @@ export default function DashboardHome({
 
         <Panel eyebrow="CAPABILITIES" title="Platform Capabilities">
           <Capabilities services={services} />
+          <div className="dashboard-signature">
+            <strong>JARVIS AI</strong>
+            <span>MR AI STAN · DIGITAL CHIEF OF STAFF</span>
+            <b>{coreState}</b>
+          </div>
         </Panel>
       </div>
 
