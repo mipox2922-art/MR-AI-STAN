@@ -2957,3 +2957,38 @@ button:disabled {
   line-height: 1.45;
 }
 
+
+.dashboard-signature {
+  margin-top: 9px;
+  padding: 10px 8px 6px;
+  border-top: 1px solid var(--line);
+  text-align: center;
+}
+
+.dashboard-signature strong {
+  display: block;
+  color: var(--accent);
+  font-size: clamp(22px, 2.6vw, 34px);
+  line-height: 1;
+  letter-spacing: 3px;
+  text-shadow: 0 0 18px var(--accent);
+}
+
+.dashboard-signature span,
+.dashboard-signature b {
+  display: block;
+  margin-top: 5px;
+}
+
+.dashboard-signature span {
+  color: var(--muted);
+  font-size: 6px;
+  letter-spacing: 1.3px;
+}
+
+.dashboard-signature b {
+  color: #62ff9a;
+  font-size: 7px;
+  letter-spacing: 1px;
+}
+
