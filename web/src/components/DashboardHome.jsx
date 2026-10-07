@@ -56,20 +56,63 @@ function Metric({ label, value }) {
   );
 }
 
-function SystemStatus({ telemetry, onRefresh }) {
+function formatBytes(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return "N/A";
+  if (n >= 1024 ** 3) return `${(n / 1024 ** 3).toFixed(2)} GB`;
+  if (n >= 1024 ** 2) return `${(n / 1024 ** 2).toFixed(2)} MB`;
+  if (n >= 1024) return `${(n / 1024).toFixed(1)} KB`;
+  return `${Math.round(n)} B`;
+}
+
+function formatRate(bytesPerSecond) {
+  if (!Number.isFinite(bytesPerSecond) || bytesPerSecond < 0) return "WAITING";
+  return `${formatBytes(bytesPerSecond)}/s`;
+}
+
+function NetworkMetric({ telemetry, telemetryHistory = [] }) {
+  const currentSent = Number(telemetry?.network?.bytes_sent);
+  const currentReceived = Number(telemetry?.network?.bytes_received);
+  const previous = telemetryHistory.length > 1 ? telemetryHistory[telemetryHistory.length - 2] : null;
+  const elapsedSeconds = previous?.captured_at
+    ? Math.max(0.1, (Date.now() - Number(previous.captured_at)) / 1000)
+    : null;
+
+  const txRate = previous && elapsedSeconds && Number.isFinite(currentSent) && Number.isFinite(Number(previous.network?.bytes_sent))
+    ? Math.max(0, currentSent - Number(previous.network.bytes_sent)) / elapsedSeconds
+    : null;
+  const rxRate = previous && elapsedSeconds && Number.isFinite(currentReceived) && Number.isFinite(Number(previous.network?.bytes_received))
+    ? Math.max(0, currentReceived - Number(previous.network.bytes_received)) / elapsedSeconds
+    : null;
+
+  return (
+    <div className="cc-metric cc-network-metric">
+      <div className="cc-metric-top">
+        <span>NETWORK</span>
+        <strong>{txRate === null && rxRate === null ? "WAITING" : "LIVE"}</strong>
+      </div>
+      <div className="cc-network-rates">
+        <span>TX {formatRate(txRate)}</span>
+        <span>RX {formatRate(rxRate)}</span>
+      </div>
+    </div>
+  );
+}
+
+function SystemStatus({ telemetry, telemetryHistory, onRefresh }) {
   return (
     <div className="cc-system-status">
       <Metric label="CPU USAGE" value={telemetry?.cpu_percent} />
       <Metric label="MEMORY" value={telemetry?.memory_percent} />
-      <Metric label="NETWORK" value={null} />
+      <NetworkMetric telemetry={telemetry} telemetryHistory={telemetryHistory} />
       <Metric label="STORAGE" value={telemetry?.storage_percent} />
       <Metric label="GPU" value={telemetry?.gpu?.utilization_percent} />
       <div className="cc-system-footer">
-        <span>NETWORK BYTES</span>
+        <span>NETWORK TOTAL</span>
         <strong>
-          {Number.isFinite(Number(telemetry?.network?.bytes_sent)) ? telemetry.network.bytes_sent.toLocaleString() : "N/A"}
-          {" "}↑{" "}
-          {Number.isFinite(Number(telemetry?.network?.bytes_received)) ? telemetry.network.bytes_received.toLocaleString() : "N/A"} ↓
+          TX {Number.isFinite(Number(telemetry?.network?.bytes_sent)) ? formatBytes(telemetry.network.bytes_sent) : "N/A"}
+          {" · "}
+          RX {Number.isFinite(Number(telemetry?.network?.bytes_received)) ? formatBytes(telemetry.network.bytes_received) : "N/A"}
         </strong>
       </div>
       <button className="cc-inline-button" onClick={onRefresh}>REFRESH TELEMETRY</button>
@@ -301,6 +344,7 @@ export default function DashboardHome({
   coreState = "IDLE",
   working = false,
   onRefresh,
+  telemetryHistory = [],
   onState,
   onModToggle,
   onPowerCommand,
@@ -330,7 +374,7 @@ export default function DashboardHome({
 
       <div className="cc-top-grid">
         <Panel eyebrow="SYSTEM STATUS" title="System Status">
-          <SystemStatus telemetry={telemetry} onRefresh={onRefresh} />
+          <SystemStatus telemetry={telemetry} telemetryHistory={telemetryHistory} onRefresh={onRefresh} />
         </Panel>
 
         <Panel eyebrow="AI CORE STATUS" title="AI Core Status" badge={coreState}>
