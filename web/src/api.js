@@ -117,6 +117,10 @@ export function getStatus() {
   return request("/system/status");
 }
 
+export function getChatHistory() {
+  return request("/ai/history");
+}
+
 export function getActivity() {
   return request("/activity");
 }
