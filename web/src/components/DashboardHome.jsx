@@ -261,21 +261,58 @@ function HolographicWorldMap({ onOpenMap }) {
 }
 
 function WebResearch() {
-  const items = [
-    ["⌕", "Global Technology Trends", "Latest AI and technology intelligence"],
-    ["◌", "Cybersecurity News", "Threats, controls and protection"],
-    ["▥", "Market Analysis", "Financial and business intelligence"],
-    ["◈", "Science & Innovation", "New research and breakthroughs"],
-  ];
+  const [query, setQuery] = useState("");
+  const [status, setStatus] = useState("READY");
+  const [results, setResults] = useState([]);
+
+  async function runSearch(event) {
+    event?.preventDefault();
+    const value = query.trim();
+    if (!value) return;
+
+    setStatus("SEARCHING");
+    try {
+      const data = await dispatchTool(value);
+      if (data?.route?.tool !== "searxng") {
+        setResults([]);
+        setStatus(String(data?.status || "NO_SEARCH_ROUTE").toUpperCase());
+        return;
+      }
+
+      const searchResult = data.result || {};
+      setResults(Array.isArray(searchResult.results) ? searchResult.results.slice(0, 4) : []);
+      setStatus(String(searchResult.status || data.status || "COMPLETED").toUpperCase());
+    } catch (error) {
+      setResults([]);
+      setStatus(error.message);
+    }
+  }
+
   return (
     <div className="cc-research">
-      <div className="cc-research-search">SEARCH INFORMATION... <span>›</span></div>
-      {items.map(([icon, title, subtitle]) => (
-        <div className="cc-research-item" key={title}>
-          <span className="cc-research-icon">{icon}</span>
-          <div><strong>{title}</strong><small>{subtitle}</small></div>
+      <form className="cc-research-search" onSubmit={runSearch}>
+        <input
+          value={query}
+          onChange={event => setQuery(event.target.value)}
+          placeholder="SEARCH THE WEB..."
+          aria-label="Web research query"
+        />
+        <button type="submit" aria-label="Search">›</button>
+      </form>
+      <div className="cc-research-status">{status}</div>
+      {results.length > 0 ? results.map((result, index) => (
+        <article className="cc-research-item" key={result.url || index}>
+          <span className="cc-research-icon">◎</span>
+          <div>
+            <a href={result.url} target="_blank" rel="noreferrer"><strong>{result.title || result.url}</strong></a>
+            <small>{result.content || result.engine || "WEB SOURCE"}</small>
+          </div>
+        </article>
+      )) : (
+        <div className="cc-research-empty">
+          {status === "READY" ? "ENTER A QUERY TO START VERIFIED WEB RESEARCH." : "NO VERIFIED RESULTS."}
         </div>
-      ))}
+      )}
     </div>
   );
 }
@@ -363,7 +400,7 @@ export default function DashboardHome({
   const topReadout = useMemo(() => ({
     model: system?.ai?.model || "N/A",
     tier: system?.ai?.tier || "N/A",
-    status: services.ai_core || "N/A",
+    status: services.ai_core || "NOT_CONFIGURED",
     uptime,
     active: activeCount,
   }), [system, services.ai_core, uptime, activeCount]);
@@ -392,7 +429,7 @@ export default function DashboardHome({
             <div className="cc-core-readout">
               <div><span>AI MODEL</span><strong>{topReadout.model}</strong></div>
               <div><span>AI TIER</span><strong>{topReadout.tier}</strong></div>
-              <div><span>RESPONSE</span><strong>LIVE</strong></div>
+              <div><span>AI RUNTIME</span><strong>{system?.ai?.ready ? "READY" : "NOT READY"}</strong></div>
               <div><span>UPTIME</span><strong>{topReadout.uptime}</strong></div>
               <div><span>STATUS</span><strong>{topReadout.status}</strong></div>
               <div><span>TASKS</span><strong>{topReadout.active}</strong></div>
