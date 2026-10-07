@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   getAgents,
   getStatus,
@@ -302,11 +302,17 @@ function App() {
   const [voiceTranscript, setVoiceTranscript] = useState("");
   const [clock, setClock] = useState(new Date());
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [connectionState, setConnectionState] = useState("CONNECTING");
+  const [lastRefreshAt, setLastRefreshAt] = useState(null);
+  const refreshInFlight = useRef(false);
 
   const authenticated = Boolean(token);
 
   const refresh = useCallback(async () => {
-    if (!getToken()) return;
+    if (!getToken() || refreshInFlight.current) return;
+    refreshInFlight.current = true;
+    setConnectionState(current => current === "ONLINE" ? current : "CONNECTING");
+
     try {
       const results = await Promise.allSettled([
         getStatus(),
@@ -328,39 +334,56 @@ function App() {
       }
 
       const [statusResult, fleetResult, taskResult, memoryResult, activityResult, gmailResult] = results;
-      const status = statusResult.status === "fulfilled" ? statusResult.value : null;
-      const fleet = fleetResult.status === "fulfilled" ? fleetResult.value : [];
-      const taskRows = taskResult.status === "fulfilled" ? taskResult.value : [];
-      const memoryRows = memoryResult.status === "fulfilled" ? memoryResult.value : [];
-      const activityRows = activityResult.status === "fulfilled" ? activityResult.value : [];
-      const mailState = gmailResult.status === "fulfilled" ? gmailResult.value : { status: "UNAVAILABLE" };
 
-      if (status) {
+      if (statusResult.status === "fulfilled") {
+        const status = statusResult.value;
         setSystem(status);
+        setConnectionState("ONLINE");
         setTelemetryHistory(history => [
           ...history,
           { ...(status.telemetry || {}), captured_at: Date.now() }
         ].slice(-24));
+      } else {
+        setConnectionState("DEGRADED");
       }
-      setAgents(Array.isArray(fleet) ? fleet : []);
-      setTasks(Array.isArray(taskRows) ? taskRows : []);
-      setMemories(Array.isArray(memoryRows) ? memoryRows : []);
-      setActivities(Array.isArray(activityRows) ? activityRows : []);
-      setGmailStatus(mailState);
 
-      let radar = [];
+      if (fleetResult.status === "fulfilled") {
+        const fleet = fleetResult.value;
+        setAgents(Array.isArray(fleet) ? fleet : []);
+      }
+      if (taskResult.status === "fulfilled") {
+        const taskRows = taskResult.value;
+        setTasks(Array.isArray(taskRows) ? taskRows : []);
+      }
+      if (memoryResult.status === "fulfilled") {
+        const memoryRows = memoryResult.value;
+        setMemories(Array.isArray(memoryRows) ? memoryRows : []);
+      }
+      if (activityResult.status === "fulfilled") {
+        const activityRows = activityResult.value;
+        setActivities(Array.isArray(activityRows) ? activityRows : []);
+      }
+      if (gmailResult.status === "fulfilled") {
+        setGmailStatus(gmailResult.value);
+      }
+
       try {
         const result = await scanRadar();
-        radar = result.findings || [];
+        setRadarFindings(Array.isArray(result?.findings) ? result.findings : []);
       } catch {
-        radar = [];
+        // Preserve the last verified radar snapshot during bridge outages.
       }
-      setRadarFindings(radar);
+
+      setLastRefreshAt(Date.now());
     } catch (error) {
-      if (/401|unauthorized/i.test(error.message)) {
-        localStorage.removeItem("mr_ai_token");
+      if (error?.status === 401 || /401|unauthorized/i.test(error?.message || "")) {
+        clearToken();
         setTokenState(null);
+      } else {
+        setConnectionState(current => current === "ONLINE" ? "DEGRADED" : "OFFLINE");
       }
+    } finally {
+      refreshInFlight.current = false;
     }
   }, []);
 
@@ -402,13 +425,6 @@ function App() {
 
   const telemetry = system?.telemetry || {};
   const services = system?.services || {};
-  const uptime = telemetry.uptime_seconds;
-  const uptimeLabel = useMemo(() => {
-    if (!Number.isFinite(uptime)) return "N/A";
-    const days = Math.floor(uptime / 86400);
-    const hours = Math.floor((uptime % 86400) / 3600);
-    return days + "d " + String(hours).padStart(2, "0") + "h";
-  }, [uptime]);
 
   function authenticate(result) {
     setTokenState(result.access_token);
@@ -556,6 +572,8 @@ function App() {
           {active === "dashboard" && (
             <DashboardHome
               system={system}
+              connectionState={connectionState}
+              lastRefreshAt={lastRefreshAt}
               telemetryHistory={telemetryHistory}
               gmailStatus={gmailStatus}
               agents={agents}
