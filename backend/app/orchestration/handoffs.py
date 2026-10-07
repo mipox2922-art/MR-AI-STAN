@@ -6,10 +6,26 @@ from urllib.parse import quote_plus
 
 
 _URL_RE = re.compile(r"https?://[^\s]+", re.IGNORECASE)
+_CLICK_RE = re.compile(r"^(?:bonyeza|click)\s+(?:(?:element|selector)\s+)?(.+)$", re.IGNORECASE)
+_TYPE_RE = re.compile(r"^(?:andika|type|weka|jaza)\s+(?:kwenye|into)?\s*(\S+)\s*[:=]\s*(.+)$", re.IGNORECASE)
+_SCROLL_RE = re.compile(r"^(?:scroll|sogeza)(?:\s+(up|down|juu|chini))?(?:\s+(\d+))?$", re.IGNORECASE)
+_DRAG_RE = re.compile(r"^drag\s+(\S+)\s+(-?\d+)\s+(-?\d+)$", re.IGNORECASE)
+
+
+def _is_high_risk_browser_request(value: str) -> bool:
+    risky_terms = (
+        "submit", "send", "tuma", "delete", "futa", "remove", "checkout",
+        "purchase", "buy", "pay", "login", "log in", "sign in",
+    )
+    return any(term in value.casefold() for term in risky_terms)
 
 
 def build_browser_handoff(request: str) -> dict[str, Any] | None:
-    """Translate explicit low-risk web intents into Browser Hands operations."""
+    """Translate explicit browser intents into authorized Browser Hands operations.
+
+    The parser only creates low-risk handoffs. Potentially consequential operations
+    such as submit/send/delete/purchase/login stay outside automatic handoff.
+    """
     value = request.strip()
     lower = value.casefold()
 
@@ -28,6 +44,50 @@ def build_browser_handoff(request: str) -> dict[str, Any] | None:
             "action": "NAVIGATE",
             "payload": {"url": url},
             "reason": "Explicit HTTP(S) navigation request.",
+        }
+
+    click = _CLICK_RE.match(value)
+    if click and not _is_high_risk_browser_request(value):
+        selector = click.group(1).strip()
+        if selector.startswith(("#", ".", "[", "button", "input", "a", "textarea", "select")):
+            return {
+                "action": "CLICK",
+                "payload": {"selector": selector},
+                "reason": "Explicit low-risk selector-based browser click.",
+            }
+
+    typed = _TYPE_RE.match(value)
+    if typed and not _is_high_risk_browser_request(value):
+        selector, text = typed.groups()
+        return {
+            "action": "TYPE",
+            "payload": {"selector": selector.strip(), "value": text.strip()},
+            "reason": "Explicit low-risk selector-based text entry.",
+        }
+
+    scrolled = _SCROLL_RE.match(value)
+    if scrolled:
+        direction, amount = scrolled.groups()
+        pixels = int(amount or 700)
+        if direction and direction.casefold() in {"up", "juu"}:
+            pixels = -pixels
+        return {
+            "action": "SCROLL",
+            "payload": {"amount": pixels},
+            "reason": "Explicit browser scroll request.",
+        }
+
+    dragged = _DRAG_RE.match(value)
+    if dragged and not _is_high_risk_browser_request(value):
+        selector, dx, dy = dragged.groups()
+        return {
+            "action": "DRAG",
+            "payload": {
+                "selector": selector,
+                "dx": int(dx),
+                "dy": int(dy),
+            },
+            "reason": "Explicit selector-based browser drag request.",
         }
 
     search_words = ("tafuta", "search", "research", "jua kuhusu", "nipe taarifa")

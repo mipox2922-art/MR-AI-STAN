@@ -29,19 +29,19 @@ def get_tool_registry() -> list[dict[str, Any]]:
             "id": "browser_hands",
             "name": "Browser Hands",
             "category": "BROWSER",
-            "status": "READY",
+            "status": "AVAILABLE",
             "mode": "LOCAL",
             "free": True,
-            "description": "Authorized page read, click, type, scroll, navigate and drag through the Chrome extension.",
+            "description": "Available through the installed Chrome extension; connection state is verified when a browser action is requested.",
         },
         {
             "id": "device_bridge",
             "name": "Device Bridge",
             "category": "DEVICE",
-            "status": "READY",
+            "status": "AVAILABLE",
             "mode": "LOCAL",
             "free": True,
-            "description": "Local bridge for authorized Android, Fastboot, Wi-Fi and BLE operations.",
+            "description": "Local bridge capability; becomes operational when the protected bridge is running and paired.",
         },
         {
             "id": "openstreetmap",
@@ -51,6 +51,24 @@ def get_tool_registry() -> list[dict[str, Any]]:
             "mode": "WEB",
             "free": True,
             "description": "Open geographic map used by the Tracking Map panel.",
+        },
+        {
+            "id": "street_view",
+            "name": "Street View",
+            "category": "MAP",
+            "status": "AVAILABLE",
+            "mode": "WEB_URL",
+            "free": True,
+            "description": "Available as a coordinate-based Maps URL; coverage depends on the target location.",
+        },
+        {
+            "id": "device_tracking",
+            "name": "Local Device Tracking",
+            "category": "DEVICE",
+            "status": "AVAILABLE",
+            "mode": "LOCAL_SENSOR",
+            "free": True,
+            "description": "Available through the local bridge; results require real Wi-Fi, BLE or authorized Android sensor evidence.",
         },
         {
             "id": "browser_speech",
@@ -76,8 +94,9 @@ def get_tool_registry() -> list[dict[str, Any]]:
             "category": "AI",
             "status": "CONNECTED" if settings.gemini_api_key else "NOT_CONNECTED",
             "mode": "CLOUD",
-            "free": False,
-            "description": "Primary AI provider. Availability depends on the configured API account.",
+            "free": True,
+            "tier": settings.gemini_tier,
+            "description": "Primary AI provider. Uses the configured Gemini account and its available quota.",
         },
         {
             "id": "kimi",
@@ -150,6 +169,11 @@ def registry_summary() -> dict[str, Any]:
     return {
         "total": len(tools),
         "ready": sum(tool["status"] in {"READY", "CONNECTED"} for tool in tools),
+        "available": sum(tool["status"] == "AVAILABLE" for tool in tools),
+        "status_counts": {
+            status: sum(tool["status"] == status for tool in tools)
+            for status in sorted({tool["status"] for tool in tools})
+        },
         "optional": sum(str(tool["status"]).startswith("OPTIONAL") for tool in tools),
         "not_connected": sum(tool["status"] == "NOT_CONNECTED" for tool in tools),
         "tools": tools,

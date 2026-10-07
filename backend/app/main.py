@@ -17,6 +17,7 @@ from .routers import (
     system,
     agents,
     tools,
+    orchestration,
 )
 
 logger = logging.getLogger("mr_ai")

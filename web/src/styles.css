@@ -58,6 +58,65 @@ button:disabled {
   background-size: 36px 36px;
 }
 
+.app-shell.mode-sleep {
+  --accent: #718087;
+  --accent-strong: #4e5a60;
+  --line: rgba(113,128,135,.10);
+  background: #020405;
+}
+
+.mode-sleep .main-area,
+.mode-sleep .sidebar {
+  opacity: .16;
+  pointer-events: none;
+  filter: saturate(.1);
+}
+
+.sleep-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  background: rgba(1,3,4,.94);
+  backdrop-filter: blur(10px);
+}
+
+.sleep-card {
+  width: min(430px, calc(100vw - 32px));
+  padding: 34px;
+  border: 1px solid rgba(113,128,135,.24);
+  background: rgba(4,8,10,.96);
+  text-align: center;
+  box-shadow: 0 0 60px rgba(0,0,0,.65);
+}
+
+.sleep-orb {
+  width: 84px;
+  height: 84px;
+  margin: 0 auto 18px;
+  border: 1px solid rgba(113,128,135,.35);
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: #718087;
+  letter-spacing: 4px;
+  font-weight: 900;
+  font-size: 20px;
+  box-shadow: 0 0 28px rgba(113,128,135,.10);
+}
+
+.sleep-card h1 {
+  margin: 10px 0;
+  letter-spacing: 5px;
+}
+
+.sleep-card p {
+  color: #688087;
+  line-height: 1.6;
+  margin: 0 0 22px;
+}
+
 .sidebar {
   padding: 22px 14px;
   border-right: 1px solid var(--line);

@@ -89,6 +89,26 @@ def require_token(authorization: str | None = Header(default=None)) -> None:
     if authorization != f"Bearer {TOKEN}":
         raise HTTPException(401, "Invalid bridge token")
 
+def _estimate_ble_distance(rssi: int | None) -> dict:
+    """Return a noisy proximity estimate from BLE RSSI, never a precise location."""
+    if not isinstance(rssi, (int, float)):
+        return {
+            "distance_estimate_m": None,
+            "distance_confidence": 0,
+            "direction": "UNKNOWN",
+        }
+
+    tx_power = -59
+    path_loss = 2.0
+    distance = 10 ** ((tx_power - float(rssi)) / (10 * path_loss))
+    confidence = max(20, min(70, round(70 - abs(float(rssi) - tx_power) * 1.2)))
+    return {
+        "distance_estimate_m": round(max(0.1, min(distance, 100.0)), 1),
+        "distance_confidence": confidence,
+        "direction": "UNKNOWN",
+    }
+
+
 def run(cmd: list[str], timeout: int = 20) -> str:
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
@@ -286,6 +306,9 @@ async def radar_scan():
                 "type": "bluetooth",
                 "label": device.get("name") or device.get("address") or "BLE device",
                 "signal": device.get("rssi"),
+                "distance_estimate_m": device.get("distance_estimate_m"),
+                "distance_confidence": device.get("distance_confidence"),
+                "direction": device.get("direction", "UNKNOWN"),
                 "source": "BLE",
             })
     except HTTPException:
@@ -349,7 +372,12 @@ async def bluetooth_scan():
         raise HTTPException(503, f"Bluetooth scan failed: {type(exc).__name__}: {exc}") from exc
     return {
         "devices": [
-            {"name": device.name or "", "address": device.address, "rssi": getattr(device, "rssi", None)}
+            {
+                "name": device.name or "",
+                "address": device.address,
+                "rssi": getattr(device, "rssi", None),
+                **_estimate_ble_distance(getattr(device, "rssi", None)),
+            }
             for device in devices
         ]
     }

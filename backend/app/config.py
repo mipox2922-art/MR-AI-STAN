@@ -10,6 +10,7 @@ class Settings(BaseSettings):
 
     gemini_api_key: str = ""
     gemini_model: str = "gemini-2.5-flash"
+    gemini_tier: str = "FREE"
 
     kimi_api_key: str = ""
     kimi_model: str = "kimi-k2"

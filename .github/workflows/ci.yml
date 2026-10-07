@@ -21,12 +21,14 @@ jobs:
       - name: Run backend tests
         env:
           SECRET_KEY: ci-test-secret
+          PYTHONPATH: ${{ github.workspace }}/backend
         run: |
           cd backend
           pytest -q
       - name: Import FastAPI app
         env:
           SECRET_KEY: ci-test-secret
+          PYTHONPATH: ${{ github.workspace }}/backend
         run: |
           cd backend
           python -c "from app.main import app; print(app.title); print(len(app.routes), \"routes loaded\")"
@@ -46,6 +48,19 @@ jobs:
       - name: Build frontend
         working-directory: web
         run: npm run build
+
+  extension:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Validate extension JavaScript
+        run: |
+          node --check extension/background.js
+          node --check extension/content.js
+          node --check extension/popup.js
 
   device_bridge:
     runs-on: ubuntu-latest

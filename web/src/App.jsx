@@ -11,6 +11,10 @@ import {
   reportMissionHandoff,
   getCurrentPage,
   browserNavigate,
+  browserClick,
+  browserType,
+  browserScroll,
+  browserDrag,
 } from "./api";
 import Chat from "./components/Chat";
 import Core from "./components/Core";
@@ -39,6 +43,20 @@ const NAV = [
   ["memory", "◇", "Memory"],
   ["system", "⌘", "System"],
 ];
+
+function SleepOverlay({ onWake }) {
+  return (
+    <div className="sleep-overlay" role="dialog" aria-label="MR AI Sleep Mode">
+      <div className="sleep-card">
+        <div className="sleep-orb">MR</div>
+        <span className="eyebrow">MOG343 // MR AI STAN</span>
+        <h1>SLEEP MODE</h1>
+        <p>Non-essential monitoring and active work are paused. The Command Center is waiting for a wake action.</p>
+        <button className="primary-button" onClick={onWake}>WAKE MR AI</button>
+      </div>
+    </div>
+  );
+}
 
 function AuthScreen({ onAuthenticated }) {
   const [mode, setMode] = useState("login");
@@ -187,13 +205,39 @@ function AgentsPanel({ agents, onPlan }) {
           handoff: handoffStep.handoff,
         });
 
+        const action = handoffStep.handoff.action;
+        const payload = handoffStep.handoff.payload || {};
         let evidence;
-        if (handoffStep.handoff.action === "NAVIGATE") {
-          evidence = await browserNavigate(handoffStep.handoff.payload.url);
-        } else if (handoffStep.handoff.action === "GET_PAGE_DATA") {
-          evidence = await getCurrentPage();
-        } else {
-          throw new Error("Unsupported browser handoff action");
+
+        switch (action) {
+          case "NAVIGATE":
+            evidence = await browserNavigate(payload.url);
+            break;
+          case "GET_PAGE_DATA":
+            evidence = await getCurrentPage();
+            break;
+          case "CLICK":
+            evidence = await browserClick(payload.selector);
+            break;
+          case "TYPE":
+            evidence = await browserType(payload.selector, payload.value);
+            break;
+          case "SCROLL":
+            evidence = await browserScroll(Number(payload.amount || 700));
+            break;
+          case "DRAG":
+            evidence = await browserDrag(
+              payload.selector,
+              Number(payload.dx || 0),
+              Number(payload.dy || 0)
+            );
+            break;
+          default:
+            throw new Error(`Unsupported browser handoff action: ${action}`);
+        }
+
+        if (evidence?.verified === false) {
+          throw new Error("Browser handoff returned an unverified result.");
         }
 
         const verified = await reportMissionHandoff(
@@ -202,7 +246,7 @@ function AgentsPanel({ agents, onPlan }) {
           {
             agent: handoffStep.agent,
             tool: "browser_hands",
-            action: handoffStep.handoff.action,
+            action,
             result: evidence,
           }
         );
@@ -279,8 +323,11 @@ function AgentsPanel({ agents, onPlan }) {
 function App() {
   const [token, setTokenState] = useState(getToken());
   const [active, setActive] = useState("dashboard");
-  const [mode, setMode] = useState("normal");
-  const [coreState, setCoreState] = useState("IDLE");
+  const [mode, setMode] = useState(() => localStorage.getItem("mr_ai_mode") || "normal");
+  const [coreState, setCoreState] = useState(() => {
+    const saved = localStorage.getItem("mr_ai_mode");
+    return saved === "sleep" ? "SLEEPING" : saved === "working" ? "WORKING" : "IDLE";
+  });
   const [system, setSystem] = useState(null);
   const [agents, setAgents] = useState([]);
   const [radarFindings, setRadarFindings] = useState([]);
@@ -313,11 +360,9 @@ function App() {
 
   useEffect(() => {
     if (!authenticated) return undefined;
-    refresh();
-    const timer = setInterval(refresh, 5000);
+    if (mode !== "sleep") refresh();
+    const timer = mode === "sleep" ? null : setInterval(refresh, 5000);
     const clockTimer = setInterval(() => setClock(new Date()), 1000);
-    const savedMode = localStorage.getItem("mr_ai_mode");
-    if (savedMode === "working") setMode("working");
 
     const onShortcut = event => {
       if (event.ctrlKey && event.shiftKey && event.key.toLowerCase() === "m") {
@@ -342,12 +387,12 @@ function App() {
     window.addEventListener("keydown", onCommandPalette);
 
     return () => {
-      clearInterval(timer);
+      if (timer) clearInterval(timer);
       clearInterval(clockTimer);
       window.removeEventListener("keydown", onShortcut);
       window.removeEventListener("keydown", onCommandPalette);
     };
-  }, [authenticated, refresh]);
+  }, [authenticated, refresh, mode]);
 
   const telemetry = system?.telemetry || {};
   const services = system?.services || {};
@@ -377,19 +422,43 @@ function App() {
   }
 
   const working = mode === "working";
+  const sleeping = mode === "sleep";
+
+  function setOperationalMode(nextMode) {
+    const next = ["normal", "working", "sleep"].includes(nextMode)
+      ? nextMode
+      : "normal";
+    localStorage.setItem("mr_ai_mode", next);
+    setMode(next);
+    setCoreState(
+      next === "sleep"
+        ? "SLEEPING"
+        : next === "working"
+          ? "WORKING"
+          : "IDLE"
+    );
+  }
 
   function toggleMode(nextWorking) {
     const next =
       typeof nextWorking === "boolean"
         ? nextWorking
         : mode !== "working";
-    localStorage.setItem("mr_ai_mode", next ? "working" : "normal");
-    setMode(next ? "working" : "normal");
-    setCoreState(next ? "WORKING" : "IDLE");
+    setOperationalMode(next ? "working" : "normal");
+  }
+
+  function handlePowerCommand(command) {
+    if (command === "sleep") {
+      setOperationalMode("sleep");
+      return;
+    }
+    if (command === "wake") {
+      setOperationalMode("normal");
+    }
   }
 
   return (
-    <div className={`app-shell ${working ? "mode-working" : ""}`}>
+    <div className={`app-shell ${working ? "mode-working" : ""} ${sleeping ? "mode-sleep" : ""}`}>
       <aside className="sidebar">
         <div className="brand">
           <div className="brand-mark">MR AI</div>
@@ -400,7 +469,8 @@ function App() {
           <Core state={coreState} modActive={working} />
           <div>
             <strong>BOSS FERISI</strong>
-            <span>CHIEF OF STAFF</span>
+            <span>OWNER // COMMANDER</span>
+            <small>MR AI MANAGER · MOG343 OPERATIONS</small>
           </div>
         </div>
 
@@ -416,6 +486,11 @@ function App() {
           <button className={working ? "danger-button" : "primary-button"} onClick={() => toggleMode(!working)}>
             {working ? "NORMAL MODE" : "WORKING MODE"}
           </button>
+          {!sleeping && (
+            <button className="ghost-button" onClick={() => setOperationalMode("sleep")}>
+              SLEEP SYSTEM
+            </button>
+          )}
           <button className="ghost-button" onClick={logout}>DISCONNECT SESSION</button>
         </div>
       </aside>
@@ -427,10 +502,12 @@ function App() {
         onToggleMode={() => toggleMode()}
       />
 
+      {sleeping && <SleepOverlay onWake={() => setOperationalMode("normal")} />}
+
       <main className="main-area">
         <header className="topbar">
           <div>
-            <span className="eyebrow">MR AI STAN</span>
+            <span className="eyebrow">MOG343 // MR AI STAN</span>
             <h1>{NAV.find(item => item[0] === active)?.[2] || "Command Center"}</h1>
           </div>
           <div className="top-status">
@@ -439,8 +516,8 @@ function App() {
               <span>{clock.toLocaleDateString("sw-TZ", { weekday: "short", day: "2-digit", month: "short", year: "numeric" })}</span>
             </div>
             <div className="mode-indicator">
-              <span className="mode-label">{working ? "WORKING MODE" : "NORMAL MODE"}</span>
-              <span className="live-dot">LIVE</span>
+              <span className="mode-label">{sleeping ? "SLEEP MODE" : working ? "WORKING MODE" : "NORMAL MODE"}</span>
+              <span className="live-dot">{sleeping ? "PAUSED" : "LIVE"}</span>
             </div>
           </div>
         </header>
@@ -501,6 +578,7 @@ function App() {
                 <Chat
                   onState={setCoreState}
                   onModToggle={toggleMode}
+                  onPowerCommand={handlePowerCommand}
                 />
                 <Activity />
               </section>

@@ -201,36 +201,53 @@ export function flashFirmware({ serial, partition, image_path, sha256, confirm }
 
 
 
+function getBrowserExtensionId() {
+  const configured = import.meta.env.VITE_MR_AI_EXTENSION_ID;
+  if (configured) return configured;
+
+  const discovered = document.documentElement?.dataset?.mrAiExtensionId;
+  return discovered || "";
+}
+
+export async function getBrowserHandsStatus() {
+  const extensionId = getBrowserExtensionId();
+  return {
+    installed: Boolean(extensionId),
+    extensionId: extensionId || null,
+    targetTab: extensionId ? "controlled_non_mr_ai_tab" : "unknown"
+  };
+}
+
 export function browserAction(action, payload = {}) {
-  return new Promise((resolve, reject) => {
-    const requestId = `mr-ai-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const extensionId = getBrowserExtensionId();
 
-    const timeout = window.setTimeout(() => {
-      window.removeEventListener("message", handler);
-      reject(new Error("MR AI Browser Hands not responding. Is the extension installed on this page?"));
-    }, 10000);
+  if (!extensionId) {
+    return Promise.reject(
+      new Error(
+        "MR AI Browser Hands extension not detected. Reload the MR AI page after installing/reloading the extension."
+      )
+    );
+  }
 
-    function handler(event) {
-      if (event.source !== window) return;
-      const message = event.data;
-      if (!message || message.source !== "mr-ai-stan") return;
-      if (message.type !== "MR_AI_BROWSER_RESULT" || message.requestId !== requestId) return;
+  const requestId = `mr-ai-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
-      window.clearTimeout(timeout);
-      window.removeEventListener("message", handler);
-
-      if (message.ok) resolve(message.result);
-      else reject(new Error(message.error || "Browser action failed"));
-    }
-
-    window.addEventListener("message", handler);
-    window.postMessage({
-      source: "mr-ai-stan",
+  return Promise.race([
+    globalThis.chrome.runtime.sendMessage(extensionId, {
       type: "MR_AI_BROWSER_ACTION",
       requestId,
       action,
       ...payload
-    }, "*");
+    }),
+    new Promise((_, reject) => {
+      window.setTimeout(() => {
+        reject(new Error("MR AI Browser Hands did not respond within 15 seconds."));
+      }, 15000);
+    })
+  ]).then(message => {
+    if (!message?.ok) {
+      throw new Error(message?.error || "Browser action failed");
+    }
+    return message.result;
   });
 }
 
