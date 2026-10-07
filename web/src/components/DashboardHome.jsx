@@ -1,5 +1,6 @@
 import Core from "./Core";
 import Chat from "./Chat";
+import DashboardWorldMap from "./DashboardWorldMap";
 
 function safePercent(value) {
   const number = Number(value);
@@ -390,6 +391,12 @@ export default function DashboardHome({
 
         <Panel eyebrow="TARGET ACQUISITION" title="Target Radar" badge={`${radarFindings.length} CONTACTS`}>
           <TargetRadar findings={radarFindings} />
+        </Panel>
+      </div>
+
+      <div className="dashboard-grid grid-map">
+        <Panel eyebrow="WORLD MAP" title="Authorized World Map">
+          <DashboardWorldMap />
         </Panel>
       </div>
 
