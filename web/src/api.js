@@ -53,7 +53,7 @@ async function request(path, options = {}) {
 export async function register(username, password, email) {
   const data = await request("/auth/register", {
     method: "POST",
-    body: JSON.stringify({ username, password, email: email || username + "@mrai.local" })
+    body: JSON.stringify({ username, password })
   });
 
   setToken(data.access_token);
