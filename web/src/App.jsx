@@ -11,6 +11,10 @@ import {
   reportMissionHandoff,
   getCurrentPage,
   browserNavigate,
+  browserClick,
+  browserType,
+  browserScroll,
+  browserDrag,
 } from "./api";
 import Chat from "./components/Chat";
 import Core from "./components/Core";
@@ -187,13 +191,39 @@ function AgentsPanel({ agents, onPlan }) {
           handoff: handoffStep.handoff,
         });
 
+        const action = handoffStep.handoff.action;
+        const payload = handoffStep.handoff.payload || {};
         let evidence;
-        if (handoffStep.handoff.action === "NAVIGATE") {
-          evidence = await browserNavigate(handoffStep.handoff.payload.url);
-        } else if (handoffStep.handoff.action === "GET_PAGE_DATA") {
-          evidence = await getCurrentPage();
-        } else {
-          throw new Error("Unsupported browser handoff action");
+
+        switch (action) {
+          case "NAVIGATE":
+            evidence = await browserNavigate(payload.url);
+            break;
+          case "GET_PAGE_DATA":
+            evidence = await getCurrentPage();
+            break;
+          case "CLICK":
+            evidence = await browserClick(payload.selector);
+            break;
+          case "TYPE":
+            evidence = await browserType(payload.selector, payload.value);
+            break;
+          case "SCROLL":
+            evidence = await browserScroll(Number(payload.amount || 700));
+            break;
+          case "DRAG":
+            evidence = await browserDrag(
+              payload.selector,
+              Number(payload.dx || 0),
+              Number(payload.dy || 0)
+            );
+            break;
+          default:
+            throw new Error(`Unsupported browser handoff action: ${action}`);
+        }
+
+        if (evidence?.verified === false) {
+          throw new Error("Browser handoff returned an unverified result.");
         }
 
         const verified = await reportMissionHandoff(
@@ -202,7 +232,7 @@ function AgentsPanel({ agents, onPlan }) {
           {
             agent: handoffStep.agent,
             tool: "browser_hands",
-            action: handoffStep.handoff.action,
+            action,
             result: evidence,
           }
         );
