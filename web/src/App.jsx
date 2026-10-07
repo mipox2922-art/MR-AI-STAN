@@ -291,6 +291,7 @@ function App() {
   const [tasks, setTasks] = useState([]);
   const [memories, setMemories] = useState([]);
   const [activities, setActivities] = useState([]);
+  const [telemetryHistory, setTelemetryHistory] = useState([]);
   const [voiceTranscript, setVoiceTranscript] = useState("");
   const [clock, setClock] = useState(new Date());
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -315,6 +316,10 @@ function App() {
         radar = [];
       }
       setSystem(status);
+      setTelemetryHistory(history => [
+        ...history,
+        { ...(status.telemetry || {}), captured_at: Date.now() }
+      ].slice(-24));
       setAgents(fleet);
       setTasks(Array.isArray(taskRows) ? taskRows : []);
       setMemories(Array.isArray(memoryRows) ? memoryRows : []);
@@ -520,6 +525,7 @@ function App() {
           {active === "dashboard" && (
             <DashboardHome
               system={system}
+              telemetryHistory={telemetryHistory}
               agents={agents}
               radarFindings={radarFindings}
               tasks={tasks}
