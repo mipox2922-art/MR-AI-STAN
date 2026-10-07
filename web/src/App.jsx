@@ -3,6 +3,7 @@ import {
   getAgents,
   getStatus,
   getToken,
+  clearToken,
   scanRadar,
   login,
   register,
@@ -315,6 +316,16 @@ function App() {
         getActivity(),
         getGmailStatus(),
       ]);
+
+      const unauthorized = results.some(
+        result => result.status === "rejected" && result.reason?.status === 401
+      );
+
+      if (unauthorized) {
+        clearToken();
+        setTokenState(null);
+        return;
+      }
 
       const [statusResult, fleetResult, taskResult, memoryResult, activityResult, gmailResult] = results;
       const status = statusResult.status === "fulfilled" ? statusResult.value : null;
