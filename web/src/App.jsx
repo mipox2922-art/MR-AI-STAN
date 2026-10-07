@@ -400,7 +400,8 @@ function App() {
           <Core state={coreState} modActive={working} />
           <div>
             <strong>BOSS FERISI</strong>
-            <span>CHIEF OF STAFF</span>
+            <span>OWNER // COMMANDER</span>
+            <small>MR AI MANAGER · MOG343 OPERATIONS</small>
           </div>
         </div>
 
@@ -430,7 +431,7 @@ function App() {
       <main className="main-area">
         <header className="topbar">
           <div>
-            <span className="eyebrow">MR AI STAN</span>
+            <span className="eyebrow">MOG343 // MR AI STAN</span>
             <h1>{NAV.find(item => item[0] === active)?.[2] || "Command Center"}</h1>
           </div>
           <div className="top-status">
