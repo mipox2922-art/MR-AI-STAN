@@ -3475,6 +3475,8 @@ button:disabled {
 .cc-system-status { display:grid; gap:8px; align-content:start; }
 .cc-metric { display:grid; gap:4px; }
 .cc-metric-top { display:flex; justify-content:space-between; gap:8px; }
+.cc-network-rates { display:flex; justify-content:space-between; gap:10px; color:#9ab4b8; font-size:7px; font-weight:800; text-transform:uppercase; letter-spacing:.04em; padding-top:2px; }
+.cc-network-metric { min-height:34px; }
 .cc-metric-top span { color:#7f9ca0; font-size:7px; font-weight:800; }
 .cc-metric-top strong { color:var(--accent); font-size:8px; }
 .cc-meter { height:5px; border:1px solid rgba(0,243,255,.13); background:rgba(255,255,255,.02); overflow:hidden; }
