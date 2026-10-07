@@ -486,6 +486,11 @@ function App() {
           <button className={working ? "danger-button" : "primary-button"} onClick={() => toggleMode(!working)}>
             {working ? "NORMAL MODE" : "WORKING MODE"}
           </button>
+          {!sleeping && (
+            <button className="ghost-button" onClick={() => setOperationalMode("sleep")}>
+              SLEEP SYSTEM
+            </button>
+          )}
           <button className="ghost-button" onClick={logout}>DISCONNECT SESSION</button>
         </div>
       </aside>
