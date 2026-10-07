@@ -307,7 +307,7 @@ function App() {
   const refresh = useCallback(async () => {
     if (!getToken()) return;
     try {
-      const [status, fleet, taskRows, memoryRows, activityRows, mailState] = await Promise.all([
+      const results = await Promise.allSettled([
         getStatus(),
         getAgents(),
         getTasks(),
@@ -315,6 +315,28 @@ function App() {
         getActivity(),
         getGmailStatus(),
       ]);
+
+      const [statusResult, fleetResult, taskResult, memoryResult, activityResult, gmailResult] = results;
+      const status = statusResult.status === "fulfilled" ? statusResult.value : null;
+      const fleet = fleetResult.status === "fulfilled" ? fleetResult.value : [];
+      const taskRows = taskResult.status === "fulfilled" ? taskResult.value : [];
+      const memoryRows = memoryResult.status === "fulfilled" ? memoryResult.value : [];
+      const activityRows = activityResult.status === "fulfilled" ? activityResult.value : [];
+      const mailState = gmailResult.status === "fulfilled" ? gmailResult.value : { status: "UNAVAILABLE" };
+
+      if (status) {
+        setSystem(status);
+        setTelemetryHistory(history => [
+          ...history,
+          { ...(status.telemetry || {}), captured_at: Date.now() }
+        ].slice(-24));
+      }
+      setAgents(Array.isArray(fleet) ? fleet : []);
+      setTasks(Array.isArray(taskRows) ? taskRows : []);
+      setMemories(Array.isArray(memoryRows) ? memoryRows : []);
+      setActivities(Array.isArray(activityRows) ? activityRows : []);
+      setGmailStatus(mailState);
+
       let radar = [];
       try {
         const result = await scanRadar();
@@ -322,16 +344,6 @@ function App() {
       } catch {
         radar = [];
       }
-      setSystem(status);
-      setTelemetryHistory(history => [
-        ...history,
-        { ...(status.telemetry || {}), captured_at: Date.now() }
-      ].slice(-24));
-      setAgents(fleet);
-      setTasks(Array.isArray(taskRows) ? taskRows : []);
-      setMemories(Array.isArray(memoryRows) ? memoryRows : []);
-      setActivities(Array.isArray(activityRows) ? activityRows : []);
-      setGmailStatus(mailState);
       setRadarFindings(radar);
     } catch (error) {
       if (/401|unauthorized/i.test(error.message)) {
