@@ -432,6 +432,13 @@ export function dispatchTool(command) {
   });
 }
 
+export function routeTool(command) {
+  return request("/tools/route", {
+    method: "POST",
+    body: JSON.stringify({ command }),
+  });
+}
+
 
 export function getExecutiveBriefing() {
   return request("/agents/briefing");
