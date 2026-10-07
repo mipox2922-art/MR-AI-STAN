@@ -30,7 +30,6 @@ import ToolBox from "./components/ToolBox";
 import WebIntelligence from "./components/WebIntelligence";
 import CommandPalette from "./components/CommandPalette";
 import DashboardHome from "./components/DashboardHome";
-import GmailPanel from "./components/GmailPanel";
 import VoiceControl from "./components/VoiceControl";
 
 const NAV = [
@@ -44,7 +43,6 @@ const NAV = [
   ["security", "🛡", "Security"],
   ["tools", "⚙", "Toolbox"],
   ["web", "◎", "Web Intelligence"],
-  ["gmail", "✉", "Gmail"],
   ["tasks", "✓", "Tasks"],
   ["memory", "◇", "Memory"],
   ["system", "⌘", "System"],
@@ -293,6 +291,7 @@ function App() {
   const [tasks, setTasks] = useState([]);
   const [memories, setMemories] = useState([]);
   const [activities, setActivities] = useState([]);
+  const [telemetryHistory, setTelemetryHistory] = useState([]);
   const [voiceTranscript, setVoiceTranscript] = useState("");
   const [clock, setClock] = useState(new Date());
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -317,6 +316,10 @@ function App() {
         radar = [];
       }
       setSystem(status);
+      setTelemetryHistory(history => [
+        ...history,
+        { ...(status.telemetry || {}), captured_at: Date.now() }
+      ].slice(-24));
       setAgents(fleet);
       setTasks(Array.isArray(taskRows) ? taskRows : []);
       setMemories(Array.isArray(memoryRows) ? memoryRows : []);
@@ -522,6 +525,7 @@ function App() {
           {active === "dashboard" && (
             <DashboardHome
               system={system}
+              telemetryHistory={telemetryHistory}
               agents={agents}
               radarFindings={radarFindings}
               tasks={tasks}
@@ -561,7 +565,6 @@ function App() {
           {active === "device" && <DeviceLab />}
           {active === "creative" && <CreativeStudio />}
           {active === "web" && <WebIntelligence />}
-          {active === "gmail" && <GmailPanel />}
           {active === "map" && <TrackingMap />}
           {active === "security" && <SecurityHub />}
           {active === "tools" && <ToolBox />}
