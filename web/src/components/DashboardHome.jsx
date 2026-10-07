@@ -99,7 +99,8 @@ function NetworkMetric({ telemetry, telemetryHistory = [] }) {
   );
 }
 
-function SystemStatus({ telemetry, telemetryHistory, onRefresh }) {
+function SystemStatus({ telemetry, telemetryHistory, connectionState, lastRefreshAt, onRefresh }) {
+  const refreshLabel = lastRefreshAt ? new Date(lastRefreshAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit" }) : "WAITING";
   return (
     <div className="cc-system-status">
       <Metric label="CPU USAGE" value={telemetry?.cpu_percent} />
@@ -108,7 +109,7 @@ function SystemStatus({ telemetry, telemetryHistory, onRefresh }) {
       <Metric label="STORAGE" value={telemetry?.storage_percent} />
       <Metric label="GPU" value={telemetry?.gpu?.utilization_percent} />
       <div className="cc-system-footer">
-        <span>NETWORK TOTAL</span>
+        <span>RUNTIME · {connectionState || "CONNECTING"} · {refreshLabel}</span>
         <strong>
           TX {Number.isFinite(Number(telemetry?.network?.bytes_sent)) ? formatBytes(telemetry.network.bytes_sent) : "N/A"}
           {" · "}
@@ -336,11 +337,14 @@ function ActiveTasks({ tasks = [] }) {
 
 export default function DashboardHome({
   system,
+  connectionState = "CONNECTING",
+  lastRefreshAt = null,
   agents = [],
   radarFindings = [],
   tasks = [],
   memories = [],
   activities = [],
+  gmailStatus = null,
   coreState = "IDLE",
   working = false,
   onRefresh,
@@ -369,12 +373,18 @@ export default function DashboardHome({
       <div className="cc-titlebar">
         <div className="cc-logo">MR AI</div>
         <div className="cc-title">MR AI COMMAND CENTER</div>
-        <div className="cc-clock-state"><span>{working ? "WORKING MODE" : "NORMAL MODE"}</span><strong>{topReadout.status === "ONLINE" ? "● ONLINE" : topReadout.status}</strong></div>
+        <div className="cc-clock-state"><span>{working ? "WORKING MODE" : "NORMAL MODE"}</span><strong>{connectionState === "ONLINE" ? "● ONLINE" : connectionState}</strong></div>
       </div>
 
       <div className="cc-top-grid">
         <Panel eyebrow="SYSTEM STATUS" title="System Status">
-          <SystemStatus telemetry={telemetry} telemetryHistory={telemetryHistory} onRefresh={onRefresh} />
+          <SystemStatus
+            telemetry={telemetry}
+            telemetryHistory={telemetryHistory}
+            connectionState={connectionState}
+            lastRefreshAt={lastRefreshAt}
+            onRefresh={onRefresh}
+          />
         </Panel>
 
         <Panel eyebrow="AI CORE STATUS" title="AI Core Status" badge={coreState}>
@@ -421,7 +431,7 @@ export default function DashboardHome({
         <div><span>MEMORY</span><strong>{memories.length}</strong></div>
         <div><span>LAST ACTIVITY</span><strong>{lastActivity ? `${lastActivity.action || "EVENT"} · ${formatTime(lastActivity.created_at || lastActivity.timestamp)}` : "NONE"}</strong></div>
         <div><span>BROWSER</span><strong>{services.extension || "NOT_CONNECTED"}</strong></div>
-        <div><span>GMAIL</span><strong>{services.gmail || "CHECK"}</strong></div>
+        <div><span>GMAIL</span><strong>{gmailStatus?.status || services.gmail || "NOT_CONNECTED"}</strong></div>
       </div>
 
       <div className="cc-footerline">
