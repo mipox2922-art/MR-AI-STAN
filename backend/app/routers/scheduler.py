@@ -154,6 +154,40 @@ def update_schedule(
     return _serialize(job)
 
 
+@router.post("/{schedule_id}/run-now")
+def run_schedule_now(
+    schedule_id: int,
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    job = (
+        db.query(ScheduledJob)
+        .filter(
+            ScheduledJob.id == schedule_id,
+            ScheduledJob.user_id == current_user.id,
+        )
+        .first()
+    )
+
+    if not job:
+        raise HTTPException(404, "Schedule not found")
+
+    job.status = "ACTIVE"
+    job.next_run_at = datetime.utcnow()
+
+    db.add(
+        ActivityLog(
+            user_id=current_user.id,
+            action="SCHEDULE_RUN_NOW",
+            details=f"Schedule {schedule_id}",
+        )
+    )
+    db.commit()
+    db.refresh(job)
+
+    return _serialize(job)
+
+
 @router.delete("/{schedule_id}")
 def delete_schedule(
     schedule_id: int,
