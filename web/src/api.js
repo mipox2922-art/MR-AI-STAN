@@ -20,6 +20,14 @@ export function clearToken() {
   localStorage.removeItem("mr_ai_token");
 }
 
+class ApiError extends Error {
+  constructor(message, status) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+  }
+}
+
 async function request(path, options = {}) {
   const token = getToken();
 
@@ -37,14 +45,14 @@ async function request(path, options = {}) {
     headers
   });
 
-  const data = await response.json();
+  const data = await response.json().catch(() => ({}));
 
   if (!response.ok) {
     if (response.status === 401) {
       clearToken();
     }
 
-    throw new Error(data.detail || "Request failed");
+    throw new ApiError(data.detail || `Request failed (${response.status})`, response.status);
   }
 
   return data;
