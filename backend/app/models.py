@@ -97,6 +97,26 @@ class Agent(Base):
     enabled = Column(Boolean, default=True)
 
 
+class ScheduledJob(Base):
+    __tablename__ = "scheduled_jobs"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, nullable=False, index=True)
+    title = Column(String(255), nullable=False)
+    command = Column(Text, nullable=False)
+    status = Column(String(30), default="ACTIVE", nullable=False)
+    run_at = Column(DateTime, nullable=False)
+    interval_minutes = Column(Integer, nullable=True)
+    last_run_at = Column(DateTime, nullable=True)
+    next_run_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(
+        DateTime,
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow,
+    )
+
+
 class Notification(Base):
     __tablename__ = "notifications"
 
