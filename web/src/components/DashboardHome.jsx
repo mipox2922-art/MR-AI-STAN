@@ -227,6 +227,7 @@ function TelemetryAnalytics({ history = [] }) {
     const usable = values.filter(value => value !== null);
     if (!usable.length) return "";
     const fallback = usable[usable.length - 1];
+
     return values.map((value, index) => {
       const current = value === null ? fallback : value;
       const x = history.length === 1 ? 50 : (index / (history.length - 1)) * 100;
@@ -243,7 +244,9 @@ function TelemetryAnalytics({ history = [] }) {
         <div className="analytics-gridline g25" />
         <div className="analytics-gridline g50" />
         <div className="analytics-gridline g75" />
-        <div className="analytics-axis-labels"><span>100</span><span>75</span><span>50</span><span>25</span><span>0</span></div>
+        <div className="analytics-axis-labels">
+          <span>100</span><span>75</span><span>50</span><span>25</span><span>0</span>
+        </div>
         <svg viewBox="0 0 100 50" preserveAspectRatio="none" role="img" aria-label="Recent real telemetry history">
           {metrics.map(([label, key], index) => {
             const points = pointsFor(key);
@@ -274,6 +277,7 @@ function TelemetryAnalytics({ history = [] }) {
           );
         })}
       </div>
+
       <p className="analytics-note">
         {history.length < 2
           ? "History buffer is warming up from live system polls."
@@ -450,11 +454,6 @@ export default function DashboardHome({
 
         <Panel eyebrow="CAPABILITIES" title="Platform Capabilities">
           <Capabilities services={services} />
-          <div className="dashboard-signature">
-            <strong>JARVIS AI</strong>
-            <span>MR AI STAN · DIGITAL CHIEF OF STAFF</span>
-            <b>{coreState}</b>
-          </div>
         </Panel>
       </div>
 
