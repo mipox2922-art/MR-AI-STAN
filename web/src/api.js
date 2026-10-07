@@ -321,6 +321,32 @@ export function deleteSchedule(scheduleId) {
   });
 }
 
+export function runScheduleNow(scheduleId) {
+  return request(`/scheduler/${scheduleId}/run-now`, {
+    method: "POST",
+  });
+}
+
+export function getNotifications(unreadOnly = false, limit = 50) {
+  const params = new URLSearchParams({
+    unread_only: String(unreadOnly),
+    limit: String(limit),
+  });
+  return request("/notifications?" + params.toString());
+}
+
+export function markNotificationRead(notificationId) {
+  return request(`/notifications/${notificationId}/read`, {
+    method: "POST",
+  });
+}
+
+export function markAllNotificationsRead() {
+  return request("/notifications/read-all", {
+    method: "POST",
+  });
+}
+
 export function getAgents() {
   return request("/agents");
 }
