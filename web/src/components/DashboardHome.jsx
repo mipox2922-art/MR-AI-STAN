@@ -78,6 +78,57 @@ function CurrentProfile({ telemetry }) {
   );
 }
 
+function AnalyticsChart({ history = [] }) {
+  const series = [
+    ["CPU", "cpu"],
+    ["RAM", "memory"],
+    ["DISK", "storage"],
+    ["GPU", "gpu"],
+  ];
+  const width = 520;
+  const height = 165;
+  const padding = { left: 18, right: 8, top: 12, bottom: 20 };
+
+  function points(key) {
+    const usableWidth = width - padding.left - padding.right;
+    const usableHeight = height - padding.top - padding.bottom;
+    return history.map((sample, index) => {
+      const value = safePercent(sample?.[key]) ?? 0;
+      const x = padding.left + (history.length <= 1 ? usableWidth / 2 : index / (history.length - 1) * usableWidth);
+      const y = padding.top + (100 - value) / 100 * usableHeight;
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    }).join(" ");
+  }
+
+  return (
+    <div className="analytics-chart">
+      <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Live telemetry history">
+        {[0,25,50,75,100].map(level => {
+          const y = padding.top + (100 - level) / 100 * (height - padding.top - padding.bottom);
+          return (
+            <g key={level}>
+              <line x1={padding.left} x2={width - padding.right} y1={y} y2={y} className="analytics-grid-line" />
+              <text x="2" y={y + 3} className="analytics-axis-label">{level}</text>
+            </g>
+          );
+        })}
+        {series.map(([label, key], index) => (
+          <polyline
+            key={key}
+            points={points(key)}
+            className={`analytics-line analytics-line-${index}`}
+            fill="none"
+          />
+        ))}
+      </svg>
+      <div className="analytics-legend">
+        {series.map(([label], index) => <span key={label}><i className={`legend-mark analytics-line-${index}`} />{label}</span>)}
+      </div>
+      {history.length < 2 && <div className="analytics-empty">COLLECTING LIVE SAMPLES...</div>}
+    </div>
+  );
+}
+
 function MissionOverview({ tasks = [] }) {
   const active = tasks.filter(task => !["COMPLETED", "FAILED"].includes(String(task.status || "").toUpperCase()));
   const completed = tasks.filter(task => String(task.status || "").toUpperCase() === "COMPLETED").length;
@@ -292,6 +343,7 @@ export default function DashboardHome({
   tasks = [],
   memories = [],
   activities = [],
+  telemetryHistory = [],
   coreState = "IDLE",
   working = false,
   onRefresh,
@@ -341,27 +393,11 @@ export default function DashboardHome({
       </div>
 
       <div className="dashboard-grid grid-middle">
-        <Panel eyebrow="CURRENT SYSTEM PROFILE" title="Live Metrics">
-          <div className="metric-profile-chart">
-            {[
-              ["CPU", telemetry.cpu_percent],
-              ["RAM", telemetry.memory_percent],
-              ["DISK", telemetry.storage_percent],
-              ["GPU", telemetry.gpu?.utilization_percent],
-            ].map(([label, value]) => {
-              const percent = safePercent(value);
-              return (
-                <div className="profile-bar" key={label}>
-                  <span>{label}</span>
-                  <div className="hud-track"><i style={percent === null ? undefined : { height: `${Math.max(8, percent)}%` }} /></div>
-                  <b>{percent === null ? "N/A" : `${percent}%`}</b>
-                </div>
-              );
-            })}
-          </div>
+        <Panel eyebrow="REAL-TIME ANALYTICS" title="Live Telemetry Stream">
+          <AnalyticsChart history={telemetryHistory} />
           <div className="profile-caption">
-            <span>REAL LOCAL TELEMETRY</span>
-            <strong>NO FABRICATED HISTORY</strong>
+            <span>LOCAL SNAPSHOTS · {telemetryHistory.length}</span>
+            <strong>LIVE RUNTIME DATA</strong>
           </div>
         </Panel>
 
