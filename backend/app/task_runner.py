@@ -25,7 +25,7 @@ HAND_STATUSES = {
 async def run_pending_tasks(db: Session, limit: int = 5) -> int:
     rows = (
         db.query(Task)
-        .filter(Task.status == "PENDING")
+        .filter(Task.status == "PENDING", Task.agent == "scheduler")
         .order_by(Task.id.asc())
         .limit(max(1, min(limit, 20)))
         .all()
