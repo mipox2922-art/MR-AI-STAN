@@ -9,7 +9,7 @@ ROUTES = (
     (("system", "mfumo", "cpu", "ram", "storage", "disk", "network", "uptime", "hali ya pc"), "orchestrator"),
     (("job", "jobs", "kazi", "ajira", "remote"), "jobs"),
     (("gmail", "email", "barua pepe", "mail"), "gmail"),
-    (("youtube", "instagram", "website", "browser", "peruzi", "tafuta mtandaoni", "soma ukurasa", "read page", "fungua"), "browser"),
+    (("youtube", "instagram", "website", "browser", "peruzi", "tafuta mtandaoni", "soma ukurasa", "read page", "fungua", "bonyeza", "click", "andika", "type", "weka", "jaza", "scroll", "sogeza", "drag"), "browser"),
     (("bango", "poster", "banner", "graphic", "design", "logo"), "creative"),
     (("simu", "android", "adb", "fastboot", "bluetooth", "usb", "flash"), "device"),
     (("security", "usalama", "scan", "vulnerability", "port", "malware"), "security"),
