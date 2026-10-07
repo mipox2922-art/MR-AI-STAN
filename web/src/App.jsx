@@ -21,7 +21,6 @@ import {
 } from "./api";
 import Chat from "./components/Chat";
 import Core from "./components/Core";
-import Activity from "./components/Activity";
 import BrowserHands from "./components/BrowserHands";
 import DeviceLab from "./components/DeviceLab";
 import CreativeStudio from "./components/CreativeStudio";
@@ -125,53 +124,6 @@ function AuthScreen({ onAuthenticated }) {
         </button>
       </section>
     </main>
-  );
-}
-
-function Metric({ label, value }) {
-  const number = Number(value);
-  const known = Number.isFinite(number);
-  return (
-    <div className="metric">
-      <div className="metric-head">
-        <span>{label}</span>
-        <strong>{known ? String(number) + "%" : "N/A"}</strong>
-      </div>
-      <div className="metric-bar">
-        {known && <span style={{ width: Math.max(0, Math.min(100, number)) + "%" }} />}
-      </div>
-    </div>
-  );
-}
-
-function Radar({ agents, findings = [], working }) {
-  const visible = findings.length ? findings.slice(0, 20) : agents.slice(0, 10).map(agent => ({
-    type: "agent",
-    label: agent.name
-  }));
-  return (
-    <div className="radar">
-      <div className={`radar-sweep ${working ? "radar-sweep-active" : ""}`} />
-      <div className="radar-grid grid-a" />
-      <div className="radar-grid grid-b" />
-      <div className="radar-cross vertical" />
-      <div className="radar-cross horizontal" />
-      {visible.map((agent, index) => {
-        const angle = (index / Math.max(1, visible.length)) * Math.PI * 2;
-        const radius = 26 + (index % 3) * 14;
-        const x = 50 + Math.cos(angle) * radius;
-        const y = 50 + Math.sin(angle) * radius;
-        return (
-          <span
-            key={agent.id || agent.label || index}
-            className="radar-dot"
-            title={agent.name || agent.label}
-            style={{ left: x + "%", top: y + "%" }}
-          />
-        );
-      })}
-      <div className="radar-core">MR</div>
-    </div>
   );
 }
 
