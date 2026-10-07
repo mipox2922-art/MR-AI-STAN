@@ -208,6 +208,81 @@ function TargetRadar({ findings = [] }) {
   );
 }
 
+function TelemetryAnalytics({ history = [] }) {
+  const metrics = [
+    ["CPU", "cpu_percent"],
+    ["MEM", "memory_percent"],
+    ["DISK", "storage_percent"],
+    ["GPU", "gpu"],
+  ];
+
+  function numericValue(sample, key) {
+    const value = key === "gpu" ? sample?.gpu?.utilization_percent : sample?.[key];
+    return Number.isFinite(Number(value)) ? Number(value) : null;
+  }
+
+  function pointsFor(key) {
+    if (!history.length) return "";
+    const values = history.map(sample => numericValue(sample, key));
+    const usable = values.filter(value => value !== null);
+    if (!usable.length) return "";
+    const fallback = usable[usable.length - 1];
+    return values.map((value, index) => {
+      const current = value === null ? fallback : value;
+      const x = history.length === 1 ? 50 : (index / (history.length - 1)) * 100;
+      const y = 46 - Math.max(0, Math.min(100, current)) * 0.4;
+      return `${x.toFixed(2)},${y.toFixed(2)}`;
+    }).join(" ");
+  }
+
+  const latest = history[history.length - 1];
+
+  return (
+    <div className="telemetry-analytics">
+      <div className="analytics-chart">
+        <div className="analytics-gridline g25" />
+        <div className="analytics-gridline g50" />
+        <div className="analytics-gridline g75" />
+        <div className="analytics-axis-labels"><span>100</span><span>75</span><span>50</span><span>25</span><span>0</span></div>
+        <svg viewBox="0 0 100 50" preserveAspectRatio="none" role="img" aria-label="Recent real telemetry history">
+          {metrics.map(([label, key], index) => {
+            const points = pointsFor(key);
+            return points ? (
+              <polyline
+                key={label}
+                points={points}
+                fill="none"
+                stroke="var(--accent)"
+                strokeWidth={index === 0 ? "1.15" : "0.8"}
+                strokeOpacity={String(1 - index * 0.16)}
+                strokeDasharray={index === 0 ? "0" : index === 1 ? "none" : "2 1"}
+              />
+            ) : null;
+          })}
+        </svg>
+        {!history.length && <div className="analytics-empty">COLLECTING TELEMETRY...</div>}
+      </div>
+
+      <div className="analytics-legend">
+        {metrics.map(([label, key]) => {
+          const value = numericValue(latest, key);
+          return (
+            <div key={label}>
+              <span>{label}</span>
+              <strong>{value === null ? "N/A" : `${Math.round(value)}%`}</strong>
+            </div>
+          );
+        })}
+      </div>
+      <p className="analytics-note">
+        {history.length < 2
+          ? "History buffer is warming up from live system polls."
+          : `${history.length} verified telemetry samples in memory.`}
+      </p>
+    </div>
+  );
+}
+
 function ActiveTasks({ tasks = [] }) {
   const visible = tasks.slice(0, 5);
   return (
@@ -291,6 +366,7 @@ export default function DashboardHome({
   radarFindings = [],
   tasks = [],
   memories = [],
+  telemetryHistory = [],
   activities = [],
   coreState = "IDLE",
   working = false,
@@ -341,7 +417,8 @@ export default function DashboardHome({
       </div>
 
       <div className="dashboard-grid grid-middle">
-        <Panel eyebrow="CURRENT SYSTEM PROFILE" title="Live Metrics">
+        <Panel eyebrow="REAL-TIME ANALYTICS" title="Live Metrics">
+          <TelemetryAnalytics history={telemetryHistory} />
           <div className="metric-profile-chart">
             {[
               ["CPU", telemetry.cpu_percent],
