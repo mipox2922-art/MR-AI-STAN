@@ -58,6 +58,7 @@ def test_scheduler_worker_does_not_process_manual_tasks():
 
 
 def test_scheduler_worker_creates_approval_for_high_risk_task():
+
     db = make_db()
     task = Task(
         user_id=1,
@@ -78,3 +79,24 @@ def test_scheduler_worker_creates_approval_for_high_risk_task():
     approval = db.query(ApprovalRequest).one()
     assert approval.status == "PENDING"
     assert '"task_id": 1' in approval.payload
+
+
+def test_high_risk_external_action_requires_approval_before_hand():
+    db = make_db()
+    task = Task(
+        user_id=1,
+        title="[SCHEDULED] Send email",
+        description="send email",
+        status="PENDING",
+        priority="NORMAL",
+        agent="scheduler",
+    )
+    db.add(task)
+    db.commit()
+
+    processed = __import__("asyncio").run(run_pending_tasks(db))
+
+    assert processed == 1
+    refreshed = db.query(Task).one()
+    assert refreshed.status == "WAITING_APPROVAL"
+    assert db.query(ApprovalRequest).count() == 1

@@ -14,11 +14,8 @@ from .realtime import manager
 logger = logging.getLogger("mr_ai.task_runner")
 
 HAND_STATUSES = {
-    "GMAIL_SEND",
     "GMAIL_SEARCH",
     "BROWSER_NAVIGATE",
-    "FILE_DELETE",
-    "SYSTEM_SHUTDOWN",
 }
 
 
