@@ -26,26 +26,27 @@ export default function Chat({ onState, onModToggle, onPowerCommand }) {
     return false;
   }
 
-  function handlePowerCommand(text) {
+  function getPowerCommand(text) {
     const value = text.trim().toLowerCase();
-    if (/^(zima|lala|sleep|sleep mode)$/.test(value)) {
-      onPowerCommand?.("sleep");
-      return true;
-    }
-    if (/^(amka|wake|wake up|amka mr ai)$/.test(value)) {
-      onPowerCommand?.("wake");
-      return true;
-    }
-    return false;
+    if (/^(zima|lala|sleep|sleep mode)$/.test(value)) return "sleep";
+    if (/^(amka|wake|wake up|amka mr ai)$/.test(value)) return "wake";
+    return null;
+  }
+
+  function handlePowerCommand(text) {
+    const command = getPowerCommand(text);
+    if (!command) return false;
+    onPowerCommand?.(command);
+    return true;
   }
 
   function isGreeting(value) {
     return /^(mr\s*ai|mr ai[,! ]*(habari|mambo|vipi|hello|hi|niaje)?|habari( mr ai)?|mambo( mr ai)?|vipi( mr ai)?|niaje( mr ai)?|good morning( mr ai)?|good evening( mr ai)?)\W*$/i.test(value.trim());
   }
 
-  async function send() {
-    if (!message.trim()) return;
-    const text = message.trim();
+  async function send(overrideText = null) {
+    const text = String(overrideText ?? message).trim();
+    if (!text) return;
 
     // Power commands control the local MR AI mode and are not sent to the model.
     if (handlePowerCommand(text)) {
@@ -195,7 +196,12 @@ export default function Chat({ onState, onModToggle, onPowerCommand }) {
           }}
           placeholder="Mwambie MR AI kazi... (au sema 'zima', 'amka', au 'mod on')"
         />
-        <VoiceControl onTranscript={(text) => setMessage(text)} />
+        <VoiceControl
+          onTranscript={(text) => {
+            setMessage(text);
+            if (getPowerCommand(text)) send(text);
+          }}
+        />
         <button onClick={send}>
           SEND
         </button>
