@@ -323,7 +323,8 @@ export default function DashboardHome({
         <Panel eyebrow="AI CORE STATUS" title="AI Core Status" badge={coreState}>
           <div className="core-status-layout">
             <div className="core-status-copy">
-              <div><span>AI MODEL</span><strong>{system?.capabilities?.gemini_tier ? `GEMINI // ${system.capabilities.gemini_tier}` : "GEMINI // CONFIGURED"}</strong></div>
+              <div><span>AI MODEL</span><strong>{system?.ai?.model || "N/A"}</strong></div>
+              <div><span>AI TIER</span><strong>{system?.ai?.tier || "N/A"}</strong></div>
               <div><span>UPTIME</span><strong>{formatUptime(telemetry.uptime_seconds)}</strong></div>
               <div><span>STATUS</span><strong>{services.ai_core || "N/A"}</strong></div>
               <div><span>RESPONSE TIME</span><strong>N/A</strong></div>
