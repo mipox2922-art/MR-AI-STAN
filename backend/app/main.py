@@ -28,6 +28,15 @@ from .routers import (
 
 logger = logging.getLogger("mr_ai")
 
+if settings.secret_key in {
+    "",
+    "CHANGE_ME_TO_A_LONG_RANDOM_SECRET",
+    "CHANGE_THIS_SECRET_KEY",
+}:
+    raise RuntimeError(
+        "SECRET_KEY is not configured. Run start.sh or set a strong SECRET_KEY in backend/.env."
+    )
+
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(

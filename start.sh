@@ -154,6 +154,17 @@ if [[ ! -f "$BACKEND_DIR/.env" ]]; then
   info "Created backend/.env from backend/.env.example"
 fi
 
+CURRENT_SECRET="$(sed -n 's/^SECRET_KEY=//p' "$BACKEND_DIR/.env" | head -n 1)"
+if [[ -z "$CURRENT_SECRET" || "$CURRENT_SECRET" == "CHANGE_ME_TO_A_LONG_RANDOM_SECRET" || "$CURRENT_SECRET" == "CHANGE_THIS_SECRET_KEY" ]]; then
+  GENERATED_SECRET="$("$PYTHON" -c 'import secrets; print(secrets.token_urlsafe(48))')"
+  if grep -q '^SECRET_KEY=' "$BACKEND_DIR/.env"; then
+    sed -i "s/^SECRET_KEY=.*/SECRET_KEY=$GENERATED_SECRET/" "$BACKEND_DIR/.env"
+  else
+    printf '\nSECRET_KEY=%s\n' "$GENERATED_SECRET" >> "$BACKEND_DIR/.env"
+  fi
+  info "Generated a private local JWT signing key."
+fi
+
 info "Installing backend dependencies"
 "$PYTHON" -m pip install --disable-pip-version-check -q -r "$BACKEND_DIR/requirements.txt"
 
