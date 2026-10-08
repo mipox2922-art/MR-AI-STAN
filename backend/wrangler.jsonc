@@ -4,14 +4,7 @@
   "main": "worker.py",
   "compatibility_date": "2026-10-08",
   "compatibility_flags": [
-    "python_workers",
-    "nodejs_compat"
-  ],
-  "hyperdrive": [
-    {
-      "binding": "HYPERDRIVE",
-      "id": "REPLACE_WITH_HYPERDRIVE_ID"
-    }
+    "python_workers"
   ],
   "vars": {
     "CORS_ORIGINS": "https://mr-ai-stan.pages.dev",
@@ -19,7 +12,8 @@
   },
   "secrets": {
     "required": [
-      "SECRET_KEY"
+      "SECRET_KEY",
+      "DATABASE_URL"
     ]
   },
   "triggers": {
