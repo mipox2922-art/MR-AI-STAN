@@ -149,7 +149,19 @@ fi
 
 PYTHON="$BACKEND_DIR/.venv/bin/python"
 
-if [[ ! -f "$BACKEND_DIR/.env" ]]; then
+if [[ -n "${DATABASE_URL:-}" ]]; then
+  info "Using DATABASE_URL from the Codespace environment."
+  if [[ -f "$BACKEND_DIR/.env" ]]; then
+    if grep -q '^DATABASE_URL=' "$BACKEND_DIR/.env"; then
+      sed -i "s|^DATABASE_URL=.*|DATABASE_URL=$DATABASE_URL|" "$BACKEND_DIR/.env"
+    else
+      printf '\nDATABASE_URL=%s\n' "$DATABASE_URL" >> "$BACKEND_DIR/.env"
+    fi
+  else
+    cp "$BACKEND_DIR/.env.example" "$BACKEND_DIR/.env"
+    sed -i "s|^DATABASE_URL=.*|DATABASE_URL=$DATABASE_URL|" "$BACKEND_DIR/.env"
+  fi
+elif [[ ! -f "$BACKEND_DIR/.env" ]]; then
   cp "$BACKEND_DIR/.env.example" "$BACKEND_DIR/.env"
   info "Created backend/.env from backend/.env.example"
 fi
