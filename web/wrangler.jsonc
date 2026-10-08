@@ -1,0 +1,15 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "mr-ai-stan",
+  "pages_build_output_dir": "./dist",
+  "compatibility_date": "2026-10-08",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "services": [
+    {
+      "binding": "MR_AI_API",
+      "service": "mr-ai-stan-api"
+    }
+  ]
+}
