@@ -5,6 +5,7 @@ class Settings(BaseSettings):
     app_name: str = "MR AI — Digital Chief of Staff"
     secret_key: str = "CHANGE_THIS_SECRET_KEY"
     access_token_expire_minutes: int = 60 * 24
+    serverless_mode: bool = False
 
     database_url: str = "sqlite:///./mr_ai.db"
 
