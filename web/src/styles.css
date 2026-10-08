@@ -3808,3 +3808,154 @@ button:disabled {
 @media (max-width:820px) {
   .cc-radar-controls { grid-template-columns:repeat(2,minmax(0,1fr)); }
 }
+
+
+/* Reference-matched command header */
+.cc-brand-lockup {
+  display:flex;
+  align-items:center;
+  gap:11px;
+  min-width:0;
+}
+.cc-brand-lockup .cc-logo { white-space:nowrap; }
+.cc-brand-lockup .cc-title {
+  text-align:left;
+  padding-left:11px;
+  border-left:1px solid rgba(0,243,255,.16);
+}
+.cc-mode-chip {
+  justify-self:center;
+  display:flex;
+  align-items:center;
+  gap:7px;
+  min-height:28px;
+  padding:0 11px;
+  border:1px solid var(--line);
+  color:var(--accent);
+  background:rgba(0,243,255,.025);
+  clip-path:polygon(0 6px,6px 0,calc(100% - 6px) 0,100% 6px,100% calc(100% - 6px),calc(100% - 6px) 100%,6px 100%,0 calc(100% - 6px));
+}
+.cc-mode-chip strong {
+  font-size:7px;
+  letter-spacing:1.2px;
+}
+.cc-mode-dot {
+  width:8px;
+  height:8px;
+  border-radius:50%;
+  background:#1ee87b;
+  box-shadow:0 0 9px #1ee87b;
+}
+.cc-working .cc-mode-chip {
+  color:#ff7777;
+  border-color:rgba(255,85,85,.45);
+  background:rgba(255,85,85,.04);
+}
+.cc-working .cc-mode-dot {
+  background:#ff5555;
+  box-shadow:0 0 9px #ff5555;
+}
+.cc-header-right {
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  gap:14px;
+  min-width:0;
+}
+.cc-header-clock {
+  display:grid;
+  justify-items:end;
+  gap:2px;
+  padding-right:13px;
+  border-right:1px solid rgba(0,243,255,.13);
+}
+.cc-header-clock strong {
+  color:var(--accent);
+  font-size:9px;
+  letter-spacing:.8px;
+}
+.cc-header-clock span {
+  color:#56777b;
+  font-size:5px;
+  letter-spacing:.8px;
+}
+.cc-header-operator {
+  display:grid;
+  justify-items:end;
+  gap:2px;
+  min-width:100px;
+}
+.cc-header-operator strong {
+  color:#dffcff;
+  font-size:7px;
+}
+.cc-header-operator span,
+.cc-header-operator small {
+  font-size:5px;
+  letter-spacing:.65px;
+}
+.cc-header-operator span { color:#708f94; }
+.cc-header-operator small { color:#62ff9a; }
+
+@media (max-width:820px) {
+  .command-center-reference { gap:7px; }
+  .cc-titlebar {
+    grid-template-columns:1fr auto;
+    gap:7px;
+    min-height:42px;
+    padding:6px 7px;
+  }
+  .cc-brand-lockup { gap:7px; }
+  .cc-brand-lockup .cc-logo { font-size:16px; letter-spacing:2.2px; }
+  .cc-brand-lockup .cc-title {
+    font-size:9px;
+    letter-spacing:2px;
+    padding-left:7px;
+  }
+  .cc-mode-chip { grid-column:2; grid-row:1; min-height:24px; padding:0 7px; }
+  .cc-mode-chip strong { font-size:6px; }
+  .cc-mode-dot { width:6px; height:6px; }
+  .cc-header-right {
+    grid-column:1 / -1;
+    justify-content:space-between;
+    gap:8px;
+    border-top:1px solid rgba(0,243,255,.08);
+    padding-top:5px;
+  }
+  .cc-header-clock {
+    justify-items:start;
+    border-right:0;
+    padding-right:0;
+  }
+  .cc-header-clock strong { font-size:7px; }
+  .cc-header-operator { justify-items:end; }
+  .cc-panel { padding:8px; }
+  .cc-panel-head { margin-bottom:6px; padding-bottom:6px; }
+  .cc-panel h2 { font-size:10px; }
+  .cc-top-grid,.cc-main-grid { gap:7px; }
+  .cc-core-status { min-height:0; }
+  .cc-radar-shell { width:min(100%,250px); }
+  .cc-radar-controls { gap:4px; }
+  .cc-radar-controls button { min-height:26px; font-size:5.5px; }
+  .cc-live-map { min-height:0; }
+  .cc-map-frame-grid { gap:5px; }
+  .cc-real-map { height:230px; }
+  .cc-street-view { height:135px; }
+  .cc-quick { padding:8px; }
+  .cc-quick-grid { gap:5px; }
+  .cc-quick-grid button { min-height:32px; font-size:6px; }
+  .cc-bottom-strip { gap:5px; }
+  .cc-bottom-strip div { padding:6px; }
+}
+@media (max-width:420px) {
+  .cc-titlebar { grid-template-columns:1fr; }
+  .cc-mode-chip { grid-column:1; grid-row:auto; justify-self:start; }
+  .cc-header-right { grid-column:1; }
+  .cc-brand-lockup .cc-title { font-size:8px; }
+  .cc-logo { font-size:15px; }
+  .cc-radar-shell { width:min(100%,220px); }
+  .cc-radar-info { grid-template-columns:1fr; }
+  .cc-radar-source { grid-template-columns:repeat(4,1fr); }
+  .cc-map-readout { grid-template-columns:1fr 1fr 1fr; }
+  .cc-footerline { gap:5px 10px; }
+}
