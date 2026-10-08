@@ -3959,3 +3959,17 @@ button:disabled {
   .cc-map-readout { grid-template-columns:1fr 1fr 1fr; }
   .cc-footerline { gap:5px 10px; }
 }
+
+
+/* Dashboard uses its own reference header on the main viewport. */
+.dashboard-main .topbar {
+  display:none;
+}
+.dashboard-main .content {
+  padding:10px;
+  gap:10px;
+}
+@media (max-width:760px) {
+  .dashboard-main .topbar { display:none; }
+  .dashboard-main .content { padding:7px; gap:7px; }
+}
