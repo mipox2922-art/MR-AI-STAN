@@ -91,6 +91,22 @@ function NetworkMetric({ telemetry, telemetryHistory = [] }) {
     ? Math.max(0, currentReceived - Number(previous.network.bytes_received)) / elapsedSeconds
     : null;
 
+  const sparkValues = telemetryHistory.slice(-10).map(item => {
+    const sent = Number(item?.network?.bytes_sent);
+    const received = Number(item?.network?.bytes_received);
+    return Number.isFinite(sent) && Number.isFinite(received) ? sent + received : null;
+  }).filter(value => value !== null);
+  const maxSpark = sparkValues.length ? Math.max(...sparkValues) : 1;
+  const minSpark = sparkValues.length ? Math.min(...sparkValues) : 0;
+  const sparkPoints = sparkValues.length > 1
+    ? sparkValues.map((value, index) => {
+        const x = 2 + (index / (sparkValues.length - 1)) * 96;
+        const range = Math.max(1, maxSpark - minSpark);
+        const y = 26 - ((value - minSpark) / range) * 20;
+        return `${x.toFixed(1)},${y.toFixed(1)}`;
+      }).join(" ")
+    : "";
+
   return (
     <div className="cc-metric cc-network-metric">
       <div className="cc-metric-top">
@@ -100,6 +116,11 @@ function NetworkMetric({ telemetry, telemetryHistory = [] }) {
       <div className="cc-network-rates">
         <span>TX {formatRate(txRate)}</span>
         <span>RX {formatRate(rxRate)}</span>
+      </div>
+      <div className="cc-network-spark">
+        <svg viewBox="0 0 100 28" preserveAspectRatio="none" aria-label="Network traffic history">
+          {sparkPoints && <polyline points={sparkPoints} fill="none" stroke="var(--accent)" strokeWidth="1.1" />}
+        </svg>
       </div>
     </div>
   );
@@ -159,6 +180,14 @@ function MissionOverview({ tasks = [] }) {
         </svg>
         {!chart && <span className="cc-chart-empty">WAITING FOR TASK DATA</span>}
         <div className="cc-chart-axis"><span>00</span><span>04</span><span>08</span><span>12</span><span>16</span><span>20</span><span>24</span></div>
+      </div>
+      <div className="cc-mission-globe" aria-hidden="true">
+        <div className="cc-globe-ring ring-a" />
+        <div className="cc-globe-ring ring-b" />
+        <div className="cc-globe-arc arc-a" />
+        <div className="cc-globe-arc arc-b" />
+        <div className="cc-globe-gridline grid-h" />
+        <div className="cc-globe-gridline grid-v" />
       </div>
       <div className="cc-mission-stats">
         <div><span>ACTIVE</span><strong>{active.length}</strong></div>
@@ -327,20 +356,20 @@ function WebResearch() {
 
 function QuickCommands() {
   const commands = [
-    ["SCAN SYSTEM", "scan my system status"],
-    ["ANALYZE DATA", "analyze my current system data"],
-    ["WEB RESEARCH", "research the latest technology trends"],
-    ["GENERATE REPORT", "generate a concise executive report of my current system"],
-    ["SECURITY CHECK", "run a security status check"],
-    ["OPTIMIZE", "identify safe optimization opportunities"],
+    ["⌕", "SCAN SYSTEM", "scan my system status"],
+    ["◫", "ANALYZE DATA", "analyze my current system data"],
+    ["◎", "WEB RESEARCH", "research the latest technology trends"],
+    ["▣", "GENERATE REPORT", "generate a concise executive report of my current system"],
+    ["◈", "SECURITY CHECK", "run a security status check"],
+    ["⚙", "OPTIMIZE", "identify safe optimization opportunities"],
   ];
   const [state, setState] = useState("READY");
 
   async function run(command) {
-    setState(`RUNNING · ${command[0]}`);
+    setState(`RUNNING · ${command[1]}`);
     try {
       const result = await dispatchTool(command[1]);
-      setState(`${command[0]} · ${String(result?.status || "ROUTED").toUpperCase()}`);
+      setState(`${command[1]} · ${String(result?.status || "ROUTED").toUpperCase()}`);
     } catch (error) {
       setState(`${command[0]} · ERROR: ${error.message}`);
     }
@@ -354,7 +383,10 @@ function QuickCommands() {
       </div>
       <div className="cc-quick-grid">
         {commands.map(command => (
-          <button key={command[0]} onClick={() => run(command)}>{command[0]}</button>
+          <button key={command[1]} onClick={() => run(command)}>
+            <span>{command[0]}</span>
+            <strong>{command[1]}</strong>
+          </button>
         ))}
       </div>
     </section>
