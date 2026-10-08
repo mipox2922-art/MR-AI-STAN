@@ -1,8 +1,7 @@
 function detectApiUrl() {
   if (import.meta.env.VITE_API_URL) return import.meta.env.VITE_API_URL;
-  const { hostname, protocol } = window.location;
-  if (hostname.endsWith(".app.github.dev")) {
-    return `${protocol}//${hostname.replace(/-\d+\.app\.github\.dev$/, "-8000.app.github.dev")}`;
+  if (typeof window !== "undefined") {
+    return `${window.location.origin}/api`;
   }
   return "http://localhost:8000";
 }
