@@ -18,6 +18,11 @@ function formatUptime(seconds) {
   return `${d}d ${String(h).padStart(2, "0")}h ${String(m).padStart(2, "0")}m`;
 }
 
+function formatDashboardDate(value) {
+  if (!(value instanceof Date) || Number.isNaN(value.getTime())) return "--";
+  return value.toLocaleDateString("en-GB", { weekday: "short", day: "2-digit", month: "short", year: "numeric" }).toUpperCase();
+}
+
 function formatTime(value) {
   if (!value) return "--";
   const d = new Date(value);
@@ -394,6 +399,7 @@ export default function DashboardHome({
   onPowerCommand,
   onOpenMap,
   onRadarScan,
+  clock = null,
 }) {
   const telemetry = system?.telemetry || {};
   const services = system?.services || {};
@@ -412,9 +418,25 @@ export default function DashboardHome({
   return (
     <div className={`command-center-reference ${working ? "cc-working" : "cc-normal"}`}>
       <div className="cc-titlebar">
-        <div className="cc-logo">MR AI</div>
-        <div className="cc-title">MR AI COMMAND CENTER</div>
-        <div className="cc-clock-state"><span>{working ? "WORKING MODE" : "NORMAL MODE"}</span><strong>{connectionState === "ONLINE" ? "● ONLINE" : connectionState}</strong></div>
+        <div className="cc-brand-lockup">
+          <div className="cc-logo">MR AI</div>
+          <div className="cc-title">COMMAND CENTER</div>
+        </div>
+        <div className="cc-mode-chip">
+          <span className="cc-mode-dot" />
+          <strong>{working ? "WORKING MODE" : "NORMAL MODE"}</strong>
+        </div>
+        <div className="cc-header-right">
+          <div className="cc-header-clock">
+            <strong>{clock ? clock.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit" }) : "--:--:--"}</strong>
+            <span>{formatDashboardDate(clock)}</span>
+          </div>
+          <div className="cc-header-operator">
+            <strong>BOSS FERISI</strong>
+            <span>CHIEF OF STAFF</span>
+            <small>{connectionState === "ONLINE" ? "● ONLINE" : connectionState}</small>
+          </div>
+        </div>
       </div>
 
       <div className="cc-top-grid">
