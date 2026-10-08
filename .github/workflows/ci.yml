@@ -36,11 +36,11 @@ jobs:
       - name: Verify Supabase connection
         env:
           SECRET_KEY: ci-test-secret
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL || secrets.DATABASE_UR }}
           PYTHONPATH: ${{ github.workspace }}/backend
         run: |
           if [ -z "$DATABASE_URL" ]; then
-            echo "Supabase smoke test skipped: DATABASE_URL secret is not configured."
+            echo "Supabase smoke test skipped: DATABASE_URL/DATABASE_UR secret is not configured."
             exit 0
           fi
           cd backend
