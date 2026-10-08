@@ -44,19 +44,11 @@ jobs:
         working-directory: backend
         run: uv sync
 
-      - name: Discover Cloudflare account
-        if: steps.secrets.outputs.ready == 'true'
-        id: account
-        working-directory: backend
-        run: |
-          ACCOUNT_ID="$(uv run pywrangler whoami --json | python -c 'import json,sys; d=json.load(sys.stdin); print(d["accounts"][0]["id"])')"
-          echo "account_id=$ACCOUNT_ID" >> "$GITHUB_OUTPUT"
-
       - name: Ensure Hyperdrive configuration
         if: steps.secrets.outputs.ready == 'true'
         working-directory: backend
         env:
-          ACCOUNT_ID: ${{ steps.account.outputs.account_id }}
+          ACCOUNT_ID: d1d533cdc2144804ee6f07ee9dbc0b7f
         run: |
           python - <<'PY' > /tmp/hyperdrive-origin.json
           from urllib.parse import urlparse
