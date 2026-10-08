@@ -68,4 +68,7 @@ jobs:
       - name: Deploy Worker
         if: steps.secrets.outputs.ready == 'true'
         working-directory: backend
-        run: uv run pywrangler deploy
+        run: |
+          mv requirements.txt /tmp/mr-ai-backend-requirements.txt
+          trap 'mv /tmp/mr-ai-backend-requirements.txt requirements.txt' EXIT
+          uv run pywrangler deploy
