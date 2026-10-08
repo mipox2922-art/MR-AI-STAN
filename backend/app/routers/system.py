@@ -4,7 +4,10 @@ import shutil
 import subprocess
 import time
 
-import psutil
+try:
+    import psutil
+except ImportError:
+    psutil = None
 from fastapi import APIRouter, Depends
 from sqlalchemy import text
 
@@ -67,9 +70,33 @@ def _service_status() -> dict:
 
 @router.get('/status')
 def system_status(current_user=Depends(get_current_user)):
-    memory = psutil.virtual_memory()
-    disk = psutil.disk_usage('/')
-    net = psutil.net_io_counters()
+    if psutil is None:
+        telemetry = {
+            "cpu_percent": None,
+            "memory_percent": None,
+            "storage_percent": None,
+            "network": {"bytes_sent": None, "bytes_received": None},
+            "gpu": {
+                "status": "UNAVAILABLE",
+                "utilization_percent": None,
+                "memory_percent": None,
+            },
+            "uptime_seconds": None,
+            "source": "serverless_runtime",
+        }
+    else:
+        memory = psutil.virtual_memory()
+        disk = psutil.disk_usage('/')
+        net = psutil.net_io_counters()
+        telemetry = {
+            "cpu_percent": round(psutil.cpu_percent(interval=0.05), 1),
+            "memory_percent": round(memory.percent, 1),
+            "storage_percent": round(disk.percent, 1),
+            "network": {"bytes_sent": net.bytes_sent, "bytes_received": net.bytes_recv},
+            "gpu": _gpu_status(),
+            "uptime_seconds": max(0, int(time.time() - psutil.boot_time())),
+            "source": "host_runtime",
+        }
     return {
         "organization": {
             "owner": "Boss Ferisi",
@@ -79,14 +106,7 @@ def system_status(current_user=Depends(get_current_user)):
             "model_role": "Digital Chief of Staff",
         },
         "services": _service_status(),
-        "telemetry": {
-            "cpu_percent": round(psutil.cpu_percent(interval=0.05), 1),
-            "memory_percent": round(memory.percent, 1),
-            "storage_percent": round(disk.percent, 1),
-            "network": {"bytes_sent": net.bytes_sent, "bytes_received": net.bytes_recv},
-            "gpu": _gpu_status(),
-            "uptime_seconds": max(0, int(time.time() - psutil.boot_time())),
-        },
+        "telemetry": telemetry,
         "security": {"threats_detected": None, "source": "no_security_engine"},
         "ai": {
             "provider": "gemini" if settings.gemini_api_key else ("kimi" if settings.kimi_api_key else None),
