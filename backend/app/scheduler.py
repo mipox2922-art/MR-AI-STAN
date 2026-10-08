@@ -108,25 +108,32 @@ def run_due_jobs(db: Session, now: Optional[datetime] = None) -> int:
     return fired
 
 
+async def run_scheduler_cycle() -> tuple[int, int]:
+    db = SessionLocal()
+    try:
+        fired = run_due_jobs(db)
+        processed = await run_pending_tasks(db, limit=5)
+        if fired or processed:
+            logger.info(
+                "Scheduler cycle complete: triggered=%s processed=%s",
+                fired,
+                processed,
+            )
+        return fired, processed
+    except Exception:
+        db.rollback()
+        logger.exception("Scheduled job cycle failed")
+        return 0, 0
+    finally:
+        db.close()
+
+
 async def _scheduler_loop() -> None:
     while True:
-        db = SessionLocal()
         try:
-            fired = run_due_jobs(db)
-            processed = await run_pending_tasks(db, limit=5)
-            if fired or processed:
-                logger.info(
-                    "Scheduler cycle complete: triggered=%s processed=%s",
-                    fired,
-                    processed,
-                )
+            await run_scheduler_cycle()
         except asyncio.CancelledError:
             raise
-        except Exception:
-            db.rollback()
-            logger.exception("Scheduled job cycle failed")
-        finally:
-            db.close()
         await asyncio.sleep(POLL_SECONDS)
 
 
