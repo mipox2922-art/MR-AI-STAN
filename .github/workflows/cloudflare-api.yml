@@ -1,0 +1,140 @@
+name: Deploy MR AI Cloudflare API
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "backend/**"
+      - ".github/workflows/cloudflare-api.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy FastAPI backend to Cloudflare Workers
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      DATABASE_URL: ${{ secrets.DATABASE_URL || secrets.DATABASE_UR }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check deployment secrets
+        id: secrets
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$DATABASE_URL" ]; then
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "Cloudflare API token or Supabase database secret is not configured. Deployment is skipped."
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set up Python
+        if: steps.secrets.outputs.ready == 'true'
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Set up uv
+        if: steps.secrets.outputs.ready == 'true'
+        uses: astral-sh/setup-uv@v7
+        with:
+          version: "latest"
+
+      - name: Install Worker dependencies
+        if: steps.secrets.outputs.ready == 'true'
+        working-directory: backend
+        run: uv sync
+
+      - name: Discover Cloudflare account
+        if: steps.secrets.outputs.ready == 'true'
+        id: account
+        working-directory: backend
+        run: |
+          ACCOUNT_ID="$(uv run pywrangler whoami --json | python -c 'import json,sys; d=json.load(sys.stdin); print(d["accounts"][0]["id"])')"
+          echo "account_id=$ACCOUNT_ID" >> "$GITHUB_OUTPUT"
+
+      - name: Ensure Hyperdrive configuration
+        if: steps.secrets.outputs.ready == 'true'
+        working-directory: backend
+        env:
+          ACCOUNT_ID: ${{ steps.account.outputs.account_id }}
+        run: |
+          python - <<'PY' > /tmp/hyperdrive-origin.json
+from urllib.parse import urlparse
+import json
+import os
+
+raw = os.environ["DATABASE_URL"]
+parsed = urlparse(raw)
+if parsed.scheme not in {"postgres", "postgresql"}:
+    raise SystemExit("DATABASE_URL must be a PostgreSQL connection URL")
+
+origin = {
+    "database": (parsed.path or "/postgres").lstrip("/"),
+    "host": parsed.hostname,
+    "port": parsed.port or 5432,
+    "scheme": "postgres",
+    "user": parsed.username,
+    "password": parsed.password,
+}
+if not all(origin.values()):
+    raise SystemExit("DATABASE_URL is missing database origin fields")
+print(json.dumps(origin))
+PY
+
+          HD_JSON="$(curl -fsS             -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN"             "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT_ID/hyperdrive/configs?per_page=100")"
+
+          HD_ID="$(python -c 'import json,sys; d=json.load(sys.stdin); print(next((x["id"] for x in d.get("result",[]) if x.get("name")=="mr-ai-stan-db"),""))' <<< "$HD_JSON")"
+
+          if [ -z "$HD_ID" ]; then
+            CREATE_BODY="$(python - <<'PY'
+import json
+origin=json.load(open("/tmp/hyperdrive-origin.json"))
+print(json.dumps({
+    "name": "mr-ai-stan-db",
+    "origin": origin,
+    "caching": {"disabled": True},
+}))
+PY
+)"
+            CREATE_JSON="$(curl -fsS -X POST               -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN"               -H "Content-Type: application/json"               --data "$CREATE_BODY"               "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT_ID/hyperdrive/configs")"
+            HD_ID="$(python -c 'import json,sys; print(json.load(sys.stdin)["result"]["id"])' <<< "$CREATE_JSON")"
+          else
+            UPDATE_BODY="$(python - <<'PY'
+import json
+origin=json.load(open("/tmp/hyperdrive-origin.json"))
+print(json.dumps({"origin": origin, "caching": {"disabled": True}}))
+PY
+)"
+            curl -fsS -X PUT               -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN"               -H "Content-Type: application/json"               --data "$UPDATE_BODY"               "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT_ID/hyperdrive/configs/$HD_ID" >/dev/null
+          fi
+
+          HD_ID="$HD_ID" python - <<'PY'
+from pathlib import Path
+import os
+path = Path("wrangler.jsonc")
+text = path.read_text()
+text = text.replace("REPLACE_WITH_HYPERDRIVE_ID", os.environ["HD_ID"])
+path.write_text(text)
+PY
+
+          echo "Hyperdrive configuration ready."
+
+      - name: Ensure persistent JWT secret
+        if: steps.secrets.outputs.ready == 'true'
+        working-directory: backend
+        run: |
+          SECRETS_JSON="$(uv run pywrangler secret list --name mr-ai-stan-api --format json 2>/dev/null || echo '[]')"
+          if ! python -c 'import json,sys; d=json.load(sys.stdin); raise SystemExit(0 if any(x.get("name")=="SECRET_KEY" for x in d) else 1)' <<< "$SECRETS_JSON"; then
+            openssl rand -base64 48 | tr -d '\n' | uv run pywrangler secret put SECRET_KEY --name mr-ai-stan-api
+          fi
+
+      - name: Deploy Worker
+        if: steps.secrets.outputs.ready == 'true'
+        working-directory: backend
+        run: uv run pywrangler deploy
