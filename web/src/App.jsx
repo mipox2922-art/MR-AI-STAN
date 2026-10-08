@@ -605,7 +605,7 @@ function App() {
 
       {sleeping && <SleepOverlay onWake={() => setOperationalMode("normal")} />}
 
-      <main className="main-area">
+      <main className={`main-area ${active === "dashboard" ? "dashboard-main" : ""}`}>
         <header className="topbar">
           <div>
             <span className="eyebrow">MOG343 // MR AI STAN</span>
