@@ -59,65 +59,62 @@ jobs:
           ACCOUNT_ID: ${{ steps.account.outputs.account_id }}
         run: |
           python - <<'PY' > /tmp/hyperdrive-origin.json
-from urllib.parse import urlparse
-import json
-import os
+          from urllib.parse import urlparse
+          import json
+          import os
 
-raw = os.environ["DATABASE_URL"]
-parsed = urlparse(raw)
-if parsed.scheme not in {"postgres", "postgresql"}:
-    raise SystemExit("DATABASE_URL must be a PostgreSQL connection URL")
+          raw = os.environ["DATABASE_URL"]
+          parsed = urlparse(raw)
+          if parsed.scheme not in {"postgres", "postgresql"}:
+              raise SystemExit("DATABASE_URL must be a PostgreSQL connection URL")
 
-origin = {
-    "database": (parsed.path or "/postgres").lstrip("/"),
-    "host": parsed.hostname,
-    "port": parsed.port or 5432,
-    "scheme": "postgres",
-    "user": parsed.username,
-    "password": parsed.password,
-}
-if not all(origin.values()):
-    raise SystemExit("DATABASE_URL is missing database origin fields")
-print(json.dumps(origin))
-PY
+          origin = {
+              "database": (parsed.path or "/postgres").lstrip("/"),
+              "host": parsed.hostname,
+              "port": parsed.port or 5432,
+              "scheme": "postgres",
+              "user": parsed.username,
+              "password": parsed.password,
+          }
+          if not all(origin.values()):
+              raise SystemExit("DATABASE_URL is missing database origin fields")
+          print(json.dumps(origin))
+          PY
 
-          HD_JSON="$(curl -fsS             -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN"             "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT_ID/hyperdrive/configs?per_page=100")"
-
+          HD_JSON="$(curl -fsS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT_ID/hyperdrive/configs?per_page=100")"
           HD_ID="$(python -c 'import json,sys; d=json.load(sys.stdin); print(next((x["id"] for x in d.get("result",[]) if x.get("name")=="mr-ai-stan-db"),""))' <<< "$HD_JSON")"
 
           if [ -z "$HD_ID" ]; then
             CREATE_BODY="$(python - <<'PY'
-import json
-origin=json.load(open("/tmp/hyperdrive-origin.json"))
-print(json.dumps({
-    "name": "mr-ai-stan-db",
-    "origin": origin,
-    "caching": {"disabled": True},
-}))
-PY
-)"
+            import json
+            origin=json.load(open("/tmp/hyperdrive-origin.json"))
+            print(json.dumps({
+                "name": "mr-ai-stan-db",
+                "origin": origin,
+                "caching": {"disabled": True},
+            }))
+            PY
+            )"
             CREATE_JSON="$(curl -fsS -X POST               -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN"               -H "Content-Type: application/json"               --data "$CREATE_BODY"               "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT_ID/hyperdrive/configs")"
             HD_ID="$(python -c 'import json,sys; print(json.load(sys.stdin)["result"]["id"])' <<< "$CREATE_JSON")"
           else
             UPDATE_BODY="$(python - <<'PY'
-import json
-origin=json.load(open("/tmp/hyperdrive-origin.json"))
-print(json.dumps({"origin": origin, "caching": {"disabled": True}}))
-PY
-)"
+            import json
+            origin=json.load(open("/tmp/hyperdrive-origin.json"))
+            print(json.dumps({"origin": origin, "caching": {"disabled": True}}))
+            PY
+            )"
             curl -fsS -X PUT               -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN"               -H "Content-Type: application/json"               --data "$UPDATE_BODY"               "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT_ID/hyperdrive/configs/$HD_ID" >/dev/null
           fi
 
           HD_ID="$HD_ID" python - <<'PY'
-from pathlib import Path
-import os
-path = Path("wrangler.jsonc")
-text = path.read_text()
-text = text.replace("REPLACE_WITH_HYPERDRIVE_ID", os.environ["HD_ID"])
-path.write_text(text)
-PY
-
-          echo "Hyperdrive configuration ready."
+          from pathlib import Path
+          import os
+          path = Path("wrangler.jsonc")
+          text = path.read_text()
+          text = text.replace("REPLACE_WITH_HYPERDRIVE_ID", os.environ["HD_ID"])
+          path.write_text(text)
+          PY
 
       - name: Ensure persistent JWT secret
         if: steps.secrets.outputs.ready == 'true'
@@ -125,7 +122,7 @@ PY
         run: |
           SECRETS_JSON="$(uv run pywrangler secret list --name mr-ai-stan-api --format json 2>/dev/null || echo '[]')"
           if ! python -c 'import json,sys; d=json.load(sys.stdin); raise SystemExit(0 if any(x.get("name")=="SECRET_KEY" for x in d) else 1)' <<< "$SECRETS_JSON"; then
-            openssl rand -base64 48 | tr -d '\n' | uv run pywrangler secret put SECRET_KEY --name mr-ai-stan-api
+            openssl rand -base64 48 | tr -d '\\n' | uv run pywrangler secret put SECRET_KEY --name mr-ai-stan-api
           fi
 
       - name: Deploy Worker
