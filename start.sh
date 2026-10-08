@@ -192,8 +192,9 @@ echo "  Frontend: $FRONTEND_URL"
 echo "  Backend:  http://127.0.0.1:8000"
 echo "  Health:   $HEALTH_URL"
 echo
-echo "Codespace: ports 8000 and 5173 can be opened from the PORTS panel."
-echo "Set a port to Public there when you need a public browser link."
+echo "Codespace: open port 5173 for the MR AI browser interface."
+echo "Backend port 8000 stays internal to the Codespace and is proxied through 5173."
+echo "Set port 5173 to Public there when you need a public browser link."
 
 wait_for_service "Backend" "$HEALTH_URL" "$BACKEND_PID" "uvicorn app.main:app" "$BACKEND_LOG"
 wait_for_service "Frontend" "$FRONTEND_URL" "$FRONTEND_PID" "npm run dev" "$FRONTEND_LOG"
