@@ -371,7 +371,7 @@ function QuickCommands() {
       const result = await dispatchTool(command[1]);
       setState(`${command[1]} · ${String(result?.status || "ROUTED").toUpperCase()}`);
     } catch (error) {
-      setState(`${command[0]} · ERROR: ${error.message}`);
+      setState(`${command[1]} · ERROR: ${error.message}`);
     }
   }
 
