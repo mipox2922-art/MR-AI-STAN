@@ -1,12 +1,6 @@
 name: Deploy MR AI Cloudflare API
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - "backend/**"
-      - ".github/workflows/cloudflare-api.yml"
   workflow_dispatch:
 
 permissions:
