@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { dispatchTool, searchToolWeb } from "../api";
 import Core from "./Core";
 import Chat from "./Chat";
-import LiveGoogleMap from "./LiveGoogleMap";
+import LiveMap from "./LiveMap";
 
 function pct(value) {
   const n = Number(value);
@@ -515,7 +515,7 @@ export default function DashboardHome({
         </Panel>
 
         <Panel eyebrow="LIVE MAP" title="OpenStreetMap + Street View">
-          <LiveGoogleMap />
+          <LiveMap />
         </Panel>
 
         <Panel eyebrow="MR AI CHAT" title="MR AI Chat" className="cc-chat-panel">
