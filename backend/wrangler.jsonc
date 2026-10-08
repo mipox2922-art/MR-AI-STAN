@@ -1,0 +1,29 @@
+{
+  "$schema": "../node_modules/wrangler/config-schema.json",
+  "name": "mr-ai-stan-api",
+  "main": "worker.py",
+  "compatibility_date": "2026-10-08",
+  "compatibility_flags": [
+    "python_workers"
+  ],
+  "hyperdrive": [
+    {
+      "binding": "HYPERDRIVE",
+      "id": "REPLACE_WITH_HYPERDRIVE_ID"
+    }
+  ],
+  "vars": {
+    "CORS_ORIGINS": "https://mr-ai-stan.pages.dev",
+    "SERVERLESS_MODE": "true"
+  },
+  "secrets": {
+    "required": [
+      "SECRET_KEY"
+    ]
+  },
+  "triggers": {
+    "crons": [
+      "*/5 * * * *"
+    ]
+  }
+}
