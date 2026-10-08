@@ -644,6 +644,7 @@ function App() {
               onPowerCommand={handlePowerCommand}
               onOpenMap={() => setActive("map")}
               onRadarScan={handleRadarScan}
+              clock={clock}
             />
           )}
 
