@@ -179,8 +179,10 @@ function radarRadius(finding) {
   return 28;
 }
 
-function Radar({ findings = [] }) {
+function Radar({ findings = [], onRadarScan }) {
   const points = findings.slice(0, 18);
+  const [scanState, setScanState] = useState("READY");
+
   const counts = {
     wifi: points.filter(item => item?.type === "wifi").length,
     bluetooth: points.filter(item => item?.type === "bluetooth").length,
@@ -188,8 +190,33 @@ function Radar({ findings = [] }) {
     fastboot: points.filter(item => item?.type === "fastboot").length,
   };
 
+  async function runScan(source) {
+    if (!onRadarScan) return;
+    setScanState(`SCANNING · ${source.toUpperCase()}`);
+    try {
+      await onRadarScan(source);
+      setScanState(`${source.toUpperCase()} · COMPLETE`);
+    } catch (error) {
+      setScanState(`${source.toUpperCase()} · ERROR`);
+    }
+  }
+
+  const scanButtons = ["all", "wifi", "bluetooth", "android", "fastboot"];
+
   return (
     <div className="cc-radar-wrap">
+      <div className="cc-radar-controls" role="group" aria-label="Radar scan controls">
+        {scanButtons.map(source => (
+          <button
+            key={source}
+            className={source === "all" ? "active" : ""}
+            onClick={() => runScan(source)}
+            disabled={scanState.startsWith("SCANNING")}
+          >
+            {source === "all" ? "SCAN ALL" : source === "bluetooth" ? "BLE SCAN" : `${source.toUpperCase()} SCAN`}
+          </button>
+        ))}
+      </div>
       <div className="cc-radar-shell">
         <div className="cc-radar">
           <div className="cc-radar-cross cross-x" />
@@ -238,6 +265,7 @@ function Radar({ findings = [] }) {
           <div><span>FASTBOOT</span><strong>{counts.fastboot}</strong></div>
         </div>
       </div>
+      <div className="cc-radar-status"><span>{scanState}</span><strong>{findings.length ? "LIVE SENSOR SNAPSHOT" : "WAITING FOR SENSOR SCAN"}</strong></div>
       <div className="cc-radar-note">CONTACT PLOT IS A VISUAL PROXIMITY VIEW. DIRECTION IS NOT CLAIMED WITHOUT DIRECTIONAL SENSOR DATA.</div>
     </div>
   );
@@ -365,6 +393,7 @@ export default function DashboardHome({
   onModToggle,
   onPowerCommand,
   onOpenMap,
+  onRadarScan,
 }) {
   const telemetry = system?.telemetry || {};
   const services = system?.services || {};
@@ -420,11 +449,11 @@ export default function DashboardHome({
 
       <div className="cc-main-grid">
         <Panel eyebrow="RADAR SCAN" title="Radar Scan" badge={`${radarFindings.length} CONTACTS`}>
-          <Radar findings={radarFindings} />
+          <Radar findings={radarFindings} onRadarScan={onRadarScan} />
         </Panel>
 
         <Panel eyebrow="LIVE MAP" title="OpenStreetMap + Street View">
-          <LiveGoogleMap onOpenMap={onOpenMap} />
+          <LiveGoogleMap />
         </Panel>
 
         <Panel eyebrow="MR AI CHAT" title="MR AI Chat" className="cc-chat-panel">
