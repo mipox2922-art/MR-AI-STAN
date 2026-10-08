@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..models import User
-from ..schemas import LoginRequest, RegisterRequest, TokenResponse
+from ..schemas import AuthStatusResponse, LoginRequest, RegisterRequest, TokenResponse
 from ..security import (
     create_access_token,
     verify_password,
@@ -15,6 +15,18 @@ router = APIRouter(
     prefix="/auth",
     tags=["Authentication"],
 )
+
+
+@router.get(
+    "/status",
+    response_model=AuthStatusResponse,
+)
+def auth_status(
+    db: Session = Depends(get_db),
+):
+    return AuthStatusResponse(
+        setup_required=db.query(User.id).first() is None,
+    )
 
 
 @router.post(

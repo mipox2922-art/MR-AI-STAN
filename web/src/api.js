@@ -44,17 +44,41 @@ async function request(path, options = {}) {
     headers
   });
 
-  const data = await response.json().catch(() => ({}));
+  const rawBody = await response.text();
+  let data = {};
+  if (rawBody) {
+    try {
+      data = JSON.parse(rawBody);
+    } catch {
+      data = { detail: rawBody.trim() };
+    }
+  }
 
   if (!response.ok) {
     if (response.status === 401) {
       clearToken();
     }
 
-    throw new ApiError(data.detail || `Request failed (${response.status})`, response.status);
+    let message = typeof data.detail === "string"
+      ? data.detail
+      : `Request failed (${response.status})`;
+
+    if (/^<!doctype html|<html[\\s>]/i.test(message)) {
+      message = `Upstream authentication gateway returned HTTP ${response.status}.`;
+    }
+
+    if (message.length > 300) {
+      message = message.slice(0, 300) + "…";
+    }
+
+    throw new ApiError(message || `Request failed (${response.status})`, response.status);
   }
 
   return data;
+}
+
+export function getAuthStatus() {
+  return request("/auth/status");
 }
 
 export async function register(username, password) {

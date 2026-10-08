@@ -91,3 +91,18 @@ Current connector routes:
 - `DELETE /integrations/gmail`
 
 Sending/replying is intentionally not enabled in this tranche. High-impact mail actions will use the existing approval engine before execution.
+
+
+## Codespaces
+
+Use the single browser-facing port:
+
+```bash
+bash start.sh
+```
+
+Open port **5173** for the MR AI interface. The FastAPI backend stays internal on port 8000 and is reached through the Vite proxy.
+
+On first run, the login screen automatically switches to **Initialize operator** when the local database has no users. Create the operator account there, then use that account for subsequent sessions.
+
+The application does not ship a hard-coded production username or password.

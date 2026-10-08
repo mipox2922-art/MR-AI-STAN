@@ -17,6 +17,10 @@ class TokenResponse(BaseModel):
     token_type: str = "bearer"
 
 
+class AuthStatusResponse(BaseModel):
+    setup_required: bool
+
+
 class ChatRequest(BaseModel):
     message: str
     provider: str = "gemini"

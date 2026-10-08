@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   getAgents,
   getStatus,
+  getAuthStatus,
   getToken,
   clearToken,
   scanRadar,
@@ -74,10 +75,28 @@ function SleepOverlay({ onWake }) {
 
 function AuthScreen({ onAuthenticated }) {
   const [mode, setMode] = useState("login");
+  const [setupRequired, setSetupRequired] = useState(false);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    getAuthStatus()
+      .then(status => {
+        if (mounted && status?.setup_required) {
+          setSetupRequired(true);
+          setMode("register");
+        }
+      })
+      .catch(() => {
+        // Login remains available when the optional setup check is unavailable.
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   async function submit(event) {
     event.preventDefault();
@@ -101,8 +120,8 @@ function AuthScreen({ onAuthenticated }) {
       <section className="auth-card">
         <div className="brand-mark">MR AI</div>
         <div className="eyebrow">DIGITAL CHIEF OF STAFF</div>
-        <h1>{mode === "login" ? "Command access" : "Create operator"}</h1>
-        <p>Secure session. Real tools. Verified actions only.</p>
+        <h1>{mode === "login" ? "Command access" : setupRequired ? "Initialize operator" : "Create operator"}</h1>
+        <p>{setupRequired ? "First-run setup. Create the operator account that owns this Command Center." : "Secure session. Real tools. Verified actions only."}</p>
 
         <form onSubmit={submit}>
           <label>
