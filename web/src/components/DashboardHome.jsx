@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { dispatchTool, searchToolWeb } from "../api";
 import Core from "./Core";
 import Chat from "./Chat";
+import LiveGoogleMap from "./LiveGoogleMap";
 
 function pct(value) {
   const n = Number(value);
@@ -163,103 +164,84 @@ function MissionOverview({ tasks = [] }) {
   );
 }
 
+function stableHash(value) {
+  return Array.from(String(value || "")).reduce((hash, char) => (
+    (hash * 31 + char.charCodeAt(0)) >>> 0
+  ), 7);
+}
+
+function radarRadius(finding) {
+  const distance = Number(finding?.distance_estimate_m);
+  if (Number.isFinite(distance)) return Math.max(14, Math.min(44, 12 + distance * 0.28));
+  const signalText = String(finding?.signal ?? "").replace("%", "");
+  const signal = Number(signalText);
+  if (Number.isFinite(signal)) return Math.max(12, Math.min(44, 46 - signal * 0.28));
+  return 28;
+}
+
 function Radar({ findings = [] }) {
-  const points = findings.slice(0, 12);
-  const contactLabel = points.length ? `${points.length} CONTACTS` : "NO CONTACTS";
+  const points = findings.slice(0, 18);
+  const counts = {
+    wifi: points.filter(item => item?.type === "wifi").length,
+    bluetooth: points.filter(item => item?.type === "bluetooth").length,
+    android: points.filter(item => item?.type === "android").length,
+    fastboot: points.filter(item => item?.type === "fastboot").length,
+  };
+
   return (
     <div className="cc-radar-wrap">
-      <div className="cc-radar">
-        <div className="cc-radar-grid" />
-        <div className="cc-radar-sweep" />
-        <div className="cc-radar-core">MR</div>
-        {points.map((finding, index) => {
-          const angle = (index / Math.max(1, points.length)) * Math.PI * 2 - Math.PI / 2;
-          const radius = 28 + (index % 3) * 9;
-          return (
-            <span
-              key={finding.id || finding.address || finding.label || index}
-              className="cc-radar-dot"
-              style={{ left: `${50 + Math.cos(angle) * radius}%`, top: `${50 + Math.sin(angle) * radius}%` }}
-              title={finding.label || finding.address || finding.type || "Sensor contact"}
-            />
-          );
-        })}
+      <div className="cc-radar-shell">
+        <div className="cc-radar">
+          <div className="cc-radar-cross cross-x" />
+          <div className="cc-radar-cross cross-y" />
+          <div className="cc-radar-ring ring-1" />
+          <div className="cc-radar-ring ring-2" />
+          <div className="cc-radar-ring ring-3" />
+          <div className="cc-radar-ring ring-4" />
+          <div className="cc-radar-sweep" />
+          <div className="cc-radar-origin" />
+          <div className="cc-radar-corner corner-tl" />
+          <div className="cc-radar-corner corner-tr" />
+          <div className="cc-radar-corner corner-bl" />
+          <div className="cc-radar-corner corner-br" />
+          {points.map((finding, index) => {
+            const seed = stableHash(finding.id || finding.address || finding.label || (finding.type + "-" + index));
+            const angle = (seed % 360) * (Math.PI / 180);
+            const radius = radarRadius(finding);
+            const left = 50 + Math.cos(angle) * radius;
+            const top = 50 + Math.sin(angle) * radius;
+            return (
+              <span
+                key={finding.id || finding.address || finding.label || index}
+                className="cc-radar-contact"
+                style={{ left: left + "%", top: top + "%", animationDelay: (index % 6) * 120 + "ms" }}
+                title={finding.label || finding.address || finding.type || "Sensor contact"}
+              ><i /></span>
+            );
+          })}
+          <div className="cc-radar-core">MR</div>
+        </div>
+        <div className="cc-radar-scale scale-top">100 KM</div>
+        <div className="cc-radar-scale scale-right">75 KM</div>
+        <div className="cc-radar-scale scale-bottom">50 KM</div>
+        <div className="cc-radar-scale scale-left">25 KM</div>
       </div>
-      <div className="cc-radar-readout">
-        <div><span>GLOBAL SCAN</span><strong>{findings.length ? "ACTIVE" : "STANDBY"}</strong></div>
-        <div><span>CONTACTS</span><strong>{contactLabel}</strong></div>
-        <div><span>SOURCE</span><strong>{findings.length ? "AUTHORIZED SENSORS" : "NO SENSOR DATA"}</strong></div>
+      <div className="cc-radar-info">
+        <div className="cc-radar-contact-count">
+          <span>CONTACTS</span><strong>{points.length}</strong>
+          <small>{findings.length ? "VERIFIED SENSOR FINDINGS" : "NO SENSOR DATA"}</small>
+        </div>
+        <div className="cc-radar-source">
+          <div><span>WI-FI</span><strong>{counts.wifi}</strong></div>
+          <div><span>BLE</span><strong>{counts.bluetooth}</strong></div>
+          <div><span>ANDROID</span><strong>{counts.android}</strong></div>
+          <div><span>FASTBOOT</span><strong>{counts.fastboot}</strong></div>
+        </div>
       </div>
+      <div className="cc-radar-note">CONTACT PLOT IS A VISUAL PROXIMITY VIEW. DIRECTION IS NOT CLAIMED WITHOUT DIRECTIONAL SENSOR DATA.</div>
     </div>
   );
 }
-
-function HolographicWorldMap({ onOpenMap }) {
-  const [position, setPosition] = useState(null);
-  const [accuracy, setAccuracy] = useState(null);
-  const [status, setStatus] = useState("READY");
-
-  function locate() {
-    if (!navigator.geolocation) {
-      setStatus("NOT_SUPPORTED");
-      return;
-    }
-    setStatus("REQUESTING...");
-    navigator.geolocation.getCurrentPosition(
-      current => {
-        setPosition({ lat: current.coords.latitude, lon: current.coords.longitude });
-        setAccuracy(current.coords.accuracy);
-        setStatus("LOCATION VERIFIED");
-      },
-      error => {
-        setStatus(error.code === error.PERMISSION_DENIED ? "PERMISSION DENIED" : "LOCATION ERROR");
-      },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 }
-    );
-  }
-
-  const marker = position ? (
-    <g className="cc-globe-marker" transform={`translate(${84 + (position.lon / 180) * 150} ${130 - (position.lat / 90) * 48})`}>
-      <circle r="4" />
-      <circle r="9" className="pulse-ring" />
-    </g>
-  ) : null;
-
-  return (
-    <div className="cc-world-map">
-      <div className="cc-map-toolbar">
-        <button className="cc-inline-button" onClick={locate}>LOCATE DEVICE</button>
-        <button className="cc-inline-button" onClick={onOpenMap}>OPEN LIVE MAP</button>
-        <span className="cc-map-state">{status}{accuracy != null ? ` · ±${Math.round(accuracy)}m` : ""}</span>
-      </div>
-      <div className="cc-globe-stage">
-        <div className="cc-globe-halo" />
-        <svg className="cc-globe-svg" viewBox="0 0 420 260" role="img" aria-label="MR AI holographic world map">
-          <ellipse cx="210" cy="130" rx="156" ry="102" className="globe-shell" />
-          <ellipse cx="210" cy="130" rx="156" ry="46" className="globe-line" />
-          <ellipse cx="210" cy="130" rx="112" ry="102" className="globe-line" />
-          <ellipse cx="210" cy="130" rx="58" ry="102" className="globe-line" />
-          <ellipse cx="210" cy="130" rx="25" ry="102" className="globe-line" />
-          <path d="M54 130 H366 M92 82 Q210 112 328 82 M92 178 Q210 148 328 178" className="globe-line" />
-          <path d="M111 94 C95 81 83 70 77 54 C91 46 108 54 119 68 L137 80 L126 96 Z" className="land-shape" />
-          <path d="M128 118 L151 111 L167 129 L158 151 L146 174 L139 154 L128 143 L122 128 Z" className="land-shape" />
-          <path d="M179 72 L201 60 L222 67 L235 78 L225 92 L205 88 L190 99 L176 91 Z" className="land-shape" />
-          <path d="M225 103 L248 96 L265 105 L284 106 L301 118 L291 130 L271 125 L258 136 L240 126 L228 134 L215 121 Z" className="land-shape" />
-          <path d="M300 153 L320 146 L341 158 L337 174 L319 179 L304 168 Z" className="land-shape" />
-          <path d="M196 145 L215 145 L223 162 L218 181 L205 194 L197 178 L184 170 L188 155 Z" className="land-shape" />
-          {marker}
-        </svg>
-        <div className="cc-map-center-label"><span>MR AI</span><strong>LIVE WORLD VIEW</strong></div>
-      </div>
-      <div className="cc-map-readout">
-        <div><span>STATUS</span><strong>{status}</strong></div>
-        <div><span>LAT</span><strong>{position ? position.lat.toFixed(4) : "N/A"}</strong></div>
-        <div><span>LON</span><strong>{position ? position.lon.toFixed(4) : "N/A"}</strong></div>
-      </div>
-    </div>
-  );
-}
-
 function WebResearch() {
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("READY");
@@ -441,8 +423,8 @@ export default function DashboardHome({
           <Radar findings={radarFindings} />
         </Panel>
 
-        <Panel eyebrow="GLOBAL NETWORK" title="World Monitoring">
-          <HolographicWorldMap onOpenMap={onOpenMap} />
+        <Panel eyebrow="LIVE MAP" title="Google Maps + Street View">
+          <LiveGoogleMap onOpenMap={onOpenMap} />
         </Panel>
 
         <Panel eyebrow="MR AI CHAT" title="MR AI Chat" className="cc-chat-panel">
