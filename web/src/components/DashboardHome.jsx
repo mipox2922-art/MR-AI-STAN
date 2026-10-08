@@ -423,7 +423,7 @@ export default function DashboardHome({
           <Radar findings={radarFindings} />
         </Panel>
 
-        <Panel eyebrow="LIVE MAP" title="Google Maps + Street View">
+        <Panel eyebrow="LIVE MAP" title="OpenStreetMap + Street View">
           <LiveGoogleMap onOpenMap={onOpenMap} />
         </Panel>
 
