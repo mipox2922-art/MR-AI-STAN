@@ -5,6 +5,10 @@ import {
   getToken,
   clearToken,
   scanRadar,
+  scanWifi,
+  scanBluetooth,
+  getAndroidDevices,
+  getFastbootDevices,
   login,
   register,
   planAgentWork,
@@ -418,6 +422,65 @@ function App() {
   const telemetry = system?.telemetry || {};
   const services = system?.services || {};
 
+  async function handleRadarScan(source = "all") {
+    const normalized = String(source).toLowerCase();
+
+    if (normalized === "all") {
+      const result = await scanRadar();
+      setRadarFindings(Array.isArray(result?.findings) ? result.findings : []);
+      return result;
+    }
+
+    let result;
+    let type;
+    if (normalized === "wifi") {
+      result = await scanWifi();
+      type = "wifi";
+    } else if (normalized === "bluetooth") {
+      result = await scanBluetooth();
+      type = "bluetooth";
+    } else if (normalized === "android") {
+      result = await getAndroidDevices();
+      type = "android";
+    } else if (normalized === "fastboot") {
+      result = await getFastbootDevices();
+      type = "fastboot";
+    } else {
+      throw new Error(`Unknown radar source: ${source}`);
+    }
+
+    const nextFindings =
+      type === "wifi"
+        ? (Array.isArray(result?.networks) ? result.networks.map(network => ({
+            type: "wifi",
+            label: network.ssid || "(hidden)",
+            signal: network.signal_percent ?? network.bssids?.[0]?.signal ?? null,
+            source: result.source || "Wi-Fi",
+          })) : [])
+        : type === "bluetooth"
+          ? (Array.isArray(result?.devices) ? result.devices.map(device => ({
+              type: "bluetooth",
+              label: device.name || device.address || "BLE device",
+              signal: device.rssi ?? null,
+              distance_estimate_m: device.distance_estimate_m,
+              distance_confidence: device.distance_confidence,
+              direction: device.direction || "UNKNOWN",
+              source: "BLE",
+            })) : [])
+          : (Array.isArray(result?.devices) ? result.devices.map(device => ({
+              type,
+              label: device.serial || type.toUpperCase(),
+              signal: null,
+              source: type === "android" ? "ADB" : "FASTBOOT",
+            })) : []);
+
+    setRadarFindings(current => [
+      ...current.filter(item => item?.type !== type),
+      ...nextFindings,
+    ]);
+    return result;
+  }
+
   function authenticate(result) {
     setTokenState(result.access_token);
   }
@@ -580,6 +643,7 @@ function App() {
               onModToggle={toggleMode}
               onPowerCommand={handlePowerCommand}
               onOpenMap={() => setActive("map")}
+              onRadarScan={handleRadarScan}
             />
           )}
 
