@@ -34,12 +34,15 @@ jobs:
           python -c "from app.main import app; print(app.title); print(len(app.routes), \"routes loaded\")"
 
       - name: Verify Supabase connection
-        if: ${{ secrets.DATABASE_URL != '' }}
         env:
           SECRET_KEY: ci-test-secret
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           PYTHONPATH: ${{ github.workspace }}/backend
         run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "Supabase smoke test skipped: DATABASE_URL secret is not configured."
+            exit 0
+          fi
           cd backend
           python - <<'PY'
           from sqlalchemy import text
