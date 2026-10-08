@@ -75,6 +75,8 @@ app.include_router(notifications.router)
 
 @app.on_event("startup")
 async def startup_scheduler():
+    if settings.serverless_mode:
+        return
     start_scheduler()
 
 
