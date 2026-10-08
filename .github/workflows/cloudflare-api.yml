@@ -50,49 +50,19 @@ jobs:
         working-directory: backend
         run: uv sync
 
-      - name: Ensure Hyperdrive configuration
+      - name: Configure persistent Worker database secret
         if: steps.secrets.outputs.ready == 'true'
         working-directory: backend
         run: |
-          HD_JSON="$(curl -fsS \
-            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
-            "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT_ID/hyperdrive/configs?per_page=100")"
-
-          HD_ID="$(printf '%s' "$HD_JSON" | python -c 'import json,sys; d=json.load(sys.stdin); print(next((x["id"] for x in d.get("result",[]) if x.get("name")=="mr-ai-stan-db"),""))')"
-
-          if [ -z "$HD_ID" ]; then
-            CREATE_OUTPUT="$(uv run pywrangler hyperdrive create mr-ai-stan-db \
-              --connection-string="$DATABASE_URL" \
-              --caching-disabled 2>&1)"
-            HD_ID="$(printf '%s' "$CREATE_OUTPUT" | grep -Eo '[0-9a-f]{32}' | tail -n1 || true)"
-            if [ -z "$HD_ID" ]; then
-              echo "Hyperdrive creation failed."
-              echo "$CREATE_OUTPUT"
-              exit 1
-            fi
-          else
-            uv run pywrangler hyperdrive update "$HD_ID" \
-              --connection-string="$DATABASE_URL" \
-              --caching-disabled
-          fi
-
-          HD_ID="$HD_ID" python - <<'PY'
-          from pathlib import Path
-          import os
-
-          path = Path("wrangler.jsonc")
-          text = path.read_text()
-          text = text.replace("REPLACE_WITH_HYPERDRIVE_ID", os.environ["HD_ID"])
-          path.write_text(text)
-          PY
+          printf '%s' "$DATABASE_URL" | uv run pywrangler secret put DATABASE_URL --name mr-ai-stan-api
 
       - name: Ensure persistent JWT secret
         if: steps.secrets.outputs.ready == 'true'
         working-directory: backend
         run: |
-          SECRETS_JSON="$(uv run pywrangler secret list --name mr-ai-stan-api --format json 2>/dev/null || echo '[]')"
-          if ! python -c 'import json,sys; d=json.load(sys.stdin); raise SystemExit(0 if any(x.get("name")=="SECRET_KEY" for x in d) else 1)' <<< "$SECRETS_JSON"; then
-            openssl rand -base64 48 | tr -d '\\n' | uv run pywrangler secret put SECRET_KEY --name mr-ai-stan-api
+          SECRETS_JSON="$(uv run pywrangler secret list --name mr-ai-stan-api --format json)"
+          if ! printf '%s' "$SECRETS_JSON" | python -c 'import json,sys; d=json.load(sys.stdin); raise SystemExit(0 if any(x.get("name")=="SECRET_KEY" for x in d) else 1)'; then
+            openssl rand -base64 48 | tr -d '\n' | uv run pywrangler secret put SECRET_KEY --name mr-ai-stan-api
           fi
 
       - name: Deploy Worker
