@@ -459,14 +459,22 @@ export default function DashboardHome({
           <strong>{working ? "WORKING MODE" : "NORMAL MODE"}</strong>
         </div>
         <div className="cc-header-right">
+          <div className="cc-header-tools" aria-hidden="true">
+            <span>♧</span>
+            <span>⌁</span>
+            <span>◌</span>
+          </div>
           <div className="cc-header-clock">
             <strong>{clock ? clock.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit" }) : "--:--:--"}</strong>
             <span>{formatDashboardDate(clock)}</span>
           </div>
           <div className="cc-header-operator">
-            <strong>BOSS FERISI</strong>
-            <span>CHIEF OF STAFF</span>
-            <small>{connectionState === "ONLINE" ? "● ONLINE" : connectionState}</small>
+            <div className="cc-header-avatar">MR</div>
+            <div>
+              <strong>BOSS FERISI</strong>
+              <span>CHIEF OF STAFF</span>
+              <small>{connectionState === "ONLINE" ? "● ONLINE" : connectionState}</small>
+            </div>
           </div>
         </div>
       </div>
