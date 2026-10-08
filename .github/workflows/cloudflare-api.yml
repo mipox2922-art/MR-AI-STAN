@@ -53,61 +53,33 @@ jobs:
       - name: Ensure Hyperdrive configuration
         if: steps.secrets.outputs.ready == 'true'
         working-directory: backend
-        env:
-          ACCOUNT_ID: d1d533cdc2144804ee6f07ee9dbc0b7f
         run: |
-          python - <<'PY' > /tmp/hyperdrive-origin.json
-          from urllib.parse import urlparse
-          import json
-          import os
+          HD_JSON="$(curl -fsS \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT_ID/hyperdrive/configs?per_page=100")"
 
-          raw = os.environ["DATABASE_URL"]
-          parsed = urlparse(raw)
-          if parsed.scheme not in {"postgres", "postgresql"}:
-              raise SystemExit("DATABASE_URL must be a PostgreSQL connection URL")
-
-          origin = {
-              "database": (parsed.path or "/postgres").lstrip("/"),
-              "host": parsed.hostname,
-              "port": parsed.port or 5432,
-              "scheme": "postgres",
-              "user": parsed.username,
-              "password": parsed.password,
-          }
-          if not all(origin.values()):
-              raise SystemExit("DATABASE_URL is missing database origin fields")
-          print(json.dumps(origin))
-          PY
-
-          HD_JSON="$(curl -fsS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT_ID/hyperdrive/configs?per_page=100")"
-          HD_ID="$(python -c 'import json,sys; d=json.load(sys.stdin); print(next((x["id"] for x in d.get("result",[]) if x.get("name")=="mr-ai-stan-db"),""))' <<< "$HD_JSON")"
+          HD_ID="$(printf '%s' "$HD_JSON" | python -c 'import json,sys; d=json.load(sys.stdin); print(next((x["id"] for x in d.get("result",[]) if x.get("name")=="mr-ai-stan-db"),""))')"
 
           if [ -z "$HD_ID" ]; then
-            CREATE_BODY="$(python - <<'PY'
-            import json
-            origin=json.load(open("/tmp/hyperdrive-origin.json"))
-            print(json.dumps({
-                "name": "mr-ai-stan-db",
-                "origin": origin,
-                "caching": {"disabled": True},
-            }))
-            PY
-            )"
-            CREATE_JSON="$(curl -fsS -X POST               -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN"               -H "Content-Type: application/json"               --data "$CREATE_BODY"               "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT_ID/hyperdrive/configs")"
-            HD_ID="$(python -c 'import json,sys; print(json.load(sys.stdin)["result"]["id"])' <<< "$CREATE_JSON")"
+            CREATE_OUTPUT="$(uv run pywrangler hyperdrive create mr-ai-stan-db \
+              --connection-string="$DATABASE_URL" \
+              --caching-disabled 2>&1)"
+            HD_ID="$(printf '%s' "$CREATE_OUTPUT" | grep -Eo '[0-9a-f]{32}' | tail -n1 || true)"
+            if [ -z "$HD_ID" ]; then
+              echo "Hyperdrive creation failed."
+              echo "$CREATE_OUTPUT"
+              exit 1
+            fi
           else
-            UPDATE_BODY="$(python - <<'PY'
-            import json
-            origin=json.load(open("/tmp/hyperdrive-origin.json"))
-            print(json.dumps({"origin": origin, "caching": {"disabled": True}}))
-            PY
-            )"
-            curl -fsS -X PUT               -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN"               -H "Content-Type: application/json"               --data "$UPDATE_BODY"               "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT_ID/hyperdrive/configs/$HD_ID" >/dev/null
+            uv run pywrangler hyperdrive update "$HD_ID" \
+              --connection-string="$DATABASE_URL" \
+              --caching-disabled
           fi
 
           HD_ID="$HD_ID" python - <<'PY'
           from pathlib import Path
           import os
+
           path = Path("wrangler.jsonc")
           text = path.read_text()
           text = text.replace("REPLACE_WITH_HYPERDRIVE_ID", os.environ["HD_ID"])
