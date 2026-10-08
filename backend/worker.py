@@ -3,7 +3,8 @@ from __future__ import annotations
 import os
 from urllib.parse import quote
 
-from workers import WorkerEntrypoint, asgi
+import asgi
+from workers import WorkerEntrypoint
 
 _app = None
 
