@@ -1,7 +1,6 @@
 {
   "name": "MR-AI-STAN",
   "forwardPorts": [
-    8000,
     5173
   ],
   "portsAttributes": {
@@ -9,11 +8,6 @@
       "label": "MR AI Frontend",
       "protocol": "http",
       "onAutoForward": "openPreview"
-    },
-    "8000": {
-      "label": "MR AI Backend",
-      "protocol": "http",
-      "onAutoForward": "notify"
     }
   },
   "postStartCommand": "bash /workspaces/MR-AI-STAN/start.sh"
