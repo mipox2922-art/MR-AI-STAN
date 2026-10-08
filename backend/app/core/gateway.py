@@ -3,7 +3,10 @@ from __future__ import annotations
 import time
 from typing import Any
 import httpx
-import psutil
+try:
+    import psutil
+except ImportError:
+    psutil = None
 
 from sqlalchemy.orm import Session
 
@@ -15,19 +18,32 @@ async def execute(intent: Intent, user_id: int, db: Session) -> dict[str, Any]:
     started = time.perf_counter()
 
     if intent.name == "SYSTEM_INFO":
-        memory = psutil.virtual_memory()
-        disk = psutil.disk_usage("/")
-        net = psutil.net_io_counters()
-        result = {
-            "status": "COMPLETED",
-            "source": "psutil",
-            "telemetry": {
-                "cpu_percent": psutil.cpu_percent(interval=0.05),
-                "memory_percent": memory.percent,
-                "storage_percent": disk.percent,
-                "network": {"bytes_sent": net.bytes_sent, "bytes_received": net.bytes_recv},
-            },
-        }
+        if psutil is None:
+            result = {
+                "status": "NOT_AVAILABLE",
+                "source": "serverless_runtime",
+                "reason": "OS telemetry is not exposed in this runtime",
+                "telemetry": {
+                    "cpu_percent": None,
+                    "memory_percent": None,
+                    "storage_percent": None,
+                    "network": {"bytes_sent": None, "bytes_received": None},
+                },
+            }
+        else:
+            memory = psutil.virtual_memory()
+            disk = psutil.disk_usage("/")
+            net = psutil.net_io_counters()
+            result = {
+                "status": "COMPLETED",
+                "source": "psutil",
+                "telemetry": {
+                    "cpu_percent": psutil.cpu_percent(interval=0.05),
+                    "memory_percent": memory.percent,
+                    "storage_percent": disk.percent,
+                    "network": {"bytes_sent": net.bytes_sent, "bytes_received": net.bytes_recv},
+                },
+            }
     elif intent.name == "MEMORY_SEARCH":
         q = intent.parameters.get("query", "")
         rows = db.query(Memory).filter(Memory.user_id == user_id).all()
