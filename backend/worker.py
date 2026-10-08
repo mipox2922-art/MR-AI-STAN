@@ -6,6 +6,7 @@ from urllib.parse import quote
 import asgi
 from workers import WorkerEntrypoint
 
+
 _app = None
 
 
