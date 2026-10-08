@@ -41,6 +41,8 @@ import GmailPanel from "./components/GmailPanel";
 import SchedulerPanel from "./components/SchedulerPanel";
 import VoiceControl from "./components/VoiceControl";
 
+const BUILD_ID = import.meta.env.VITE_BUILD_ID || "MR-AI-STAN";
+
 const NAV = [
   ["dashboard", "⌂", "Dashboard"],
   ["core", "◉", "AI Core"],
@@ -122,6 +124,7 @@ function AuthScreen({ onAuthenticated }) {
         <div className="eyebrow">DIGITAL CHIEF OF STAFF</div>
         <h1>{mode === "login" ? "Command access" : setupRequired ? "Initialize operator" : "Create operator"}</h1>
         <p>{setupRequired ? "First-run setup. Create the operator account that owns this Command Center." : "Secure session. Real tools. Verified actions only."}</p>
+        <small className="auth-build-id">BUILD {BUILD_ID}</small>
 
         <form onSubmit={submit}>
           <label>
