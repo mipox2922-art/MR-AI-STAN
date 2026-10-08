@@ -4,7 +4,8 @@
   "main": "worker.py",
   "compatibility_date": "2026-10-08",
   "compatibility_flags": [
-    "python_workers"
+    "python_workers",
+    "nodejs_compat"
   ],
   "hyperdrive": [
     {
