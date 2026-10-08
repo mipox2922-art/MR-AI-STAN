@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import os
-from urllib.parse import quote
 
 import asgi
 from workers import WorkerEntrypoint
@@ -10,20 +9,8 @@ from workers import WorkerEntrypoint
 _app = None
 
 
-def _hyperdrive_database_url(hyperdrive) -> str:
-    user = quote(str(hyperdrive.user), safe="")
-    password = quote(str(hyperdrive.password), safe="")
-    host = str(hyperdrive.host)
-    port = int(hyperdrive.port)
-    database = quote(str(hyperdrive.database), safe="")
-    return (
-        f"postgresql+psycopg://{user}:{password}@{host}:{port}/{database}"
-        "?sslmode=require"
-    )
-
-
 def _configure_runtime(env) -> None:
-    os.environ["DATABASE_URL"] = _hyperdrive_database_url(env.HYPERDRIVE)
+    os.environ["DATABASE_URL"] = str(env.DATABASE_URL)
     os.environ["SECRET_KEY"] = str(env.SECRET_KEY)
     os.environ["CORS_ORIGINS"] = str(
         getattr(env, "CORS_ORIGINS", "https://mr-ai-stan.pages.dev")
