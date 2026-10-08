@@ -22,3 +22,10 @@ def test_service_status_reports_configured_provider_without_claiming_online(monk
     assert services["ai_core"] == "READY"
     assert services["gemini"] == "CONFIGURED"
     assert services["kimi"] == "NOT_CONFIGURED"
+
+
+
+def test_database_status_reports_current_connection():
+    from app.routers.system import _database_status
+
+    assert _database_status() == "ONLINE"

@@ -6,6 +6,9 @@ import time
 
 import psutil
 from fastapi import APIRouter, Depends
+from sqlalchemy import text
+
+from ..database import engine
 
 from ..config import settings
 from ..dependencies import get_current_user
@@ -36,6 +39,15 @@ def _gpu_status() -> dict:
     except (OSError, subprocess.SubprocessError, ValueError, IndexError):
         return {"status": "UNAVAILABLE", "utilization_percent": None, "memory_percent": None}
 
+def _database_status() -> str:
+    try:
+        with engine.connect() as connection:
+            connection.execute(text("select 1"))
+        return "ONLINE"
+    except Exception:
+        return "OFFLINE"
+
+
 def _service_status() -> dict:
     gemini_configured = bool(settings.gemini_api_key)
     kimi_configured = bool(settings.kimi_api_key)
@@ -43,7 +55,7 @@ def _service_status() -> dict:
 
     return {
         "ai_core": "READY" if ai_ready else "NOT_CONFIGURED",
-        "database": "ONLINE",
+        "database": _database_status(),
         "memory": "ONLINE",
         "web_app": "ONLINE",
         "agents": "ONLINE",
