@@ -13,6 +13,19 @@
     "GMAIL_REDIRECT_URI": "https://mr-ai-stan.pages.dev/api/integrations/gmail/callback",
     "GMAIL_SCOPES": "https://www.googleapis.com/auth/gmail.readonly"
   },
+  "python_modules": {
+    "exclude": [
+      "**/*.pyc",
+      "**/__pycache__",
+      "**/tests/**",
+      "**/test/**",
+      "**/docs/**",
+      "**/doc/**",
+      "**/*.pyi",
+      "**/*.dist-info/**",
+      "**/*.egg-info/**"
+    ]
+  },
   "secrets": {
     "required": [
       "SECRET_KEY",

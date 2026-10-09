@@ -1,0 +1,14 @@
+# Runtime dependencies are packaged into python_modules by pywrangler.
+# Never upload host-side virtual environments or local test/cache files.
+.venv/
+.venv/**
+.venv-workers/
+.venv-workers/**
+tests/
+tests/**
+.pytest_cache/
+.pytest_cache/**
+.ruff_cache/
+.ruff_cache/**
+**/__pycache__/
+**/*.pyc
