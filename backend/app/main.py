@@ -89,7 +89,7 @@ async def shutdown_scheduler():
 
 
 @app.get("/")
-def root():
+async def root():
     return {
         "name": "MR AI",
         "role": "Digital Chief of Staff",
@@ -99,7 +99,7 @@ def root():
 
 
 @app.get("/health")
-def health():
+async def health():
     return {
         "status": "healthy",
     }
