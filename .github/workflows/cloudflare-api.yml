@@ -46,7 +46,7 @@ jobs:
         with:
           version: "latest"
 
-      - name: Install Worker dependencies
+      - name: Install deployment tooling
         if: steps.secrets.outputs.ready == 'true'
         working-directory: backend
         run: uv sync
@@ -76,10 +76,20 @@ jobs:
           fi
           printf '%s' "$GMAIL_CLIENT_SECRET" | uv run pywrangler secret put GMAIL_CLIENT_SECRET --name mr-ai-stan-api
 
-      - name: Deploy Worker
+      - name: Sync Python Worker packages
         if: steps.secrets.outputs.ready == 'true'
         working-directory: backend
         run: |
           mv requirements.txt /tmp/mr-ai-backend-requirements.txt
           trap 'mv /tmp/mr-ai-backend-requirements.txt requirements.txt' EXIT
-          uv run pywrangler deploy
+          uv run pywrangler sync
+          test -d python_modules
+
+      - name: Deploy Worker without build environments
+        if: steps.secrets.outputs.ready == 'true'
+        working-directory: backend
+        run: |
+          mv requirements.txt /tmp/mr-ai-backend-requirements.txt
+          trap 'mv /tmp/mr-ai-backend-requirements.txt requirements.txt' EXIT
+          rm -rf .venv .venv-workers
+          npx --yes wrangler@latest deploy
