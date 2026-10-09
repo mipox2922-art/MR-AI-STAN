@@ -1,3 +1,5 @@
+import ssl
+
 from sqlalchemy import create_engine
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import declarative_base, sessionmaker
@@ -6,14 +8,23 @@ from .config import settings
 
 
 def normalize_database_url(database_url: str) -> str:
-    """Normalize Supabase/Postgres URLs for SQLAlchemy + psycopg."""
-    if database_url.startswith("postgresql://"):
-        database_url = "postgresql+psycopg://" + database_url[len("postgresql://"):]
+    """Normalize Postgres URLs for SQLAlchemy's pure-Python pg8000 driver."""
+    if database_url.startswith("postgres://"):
+        database_url = "postgresql://" + database_url[len("postgres://"):]
 
-    if database_url.startswith("postgresql+psycopg://"):
+    for old_scheme in ("postgresql+psycopg://", "postgresql+psycopg2://"):
+        if database_url.startswith(old_scheme):
+            database_url = "postgresql+pg8000://" + database_url[len(old_scheme):]
+            break
+
+    if database_url.startswith("postgresql://"):
+        database_url = "postgresql+pg8000://" + database_url[len("postgresql://"):]
+
+    if database_url.startswith("postgresql+pg8000://"):
         url = make_url(database_url)
-        if "sslmode" not in url.query:
-            url = url.update_query_dict({"sslmode": "require"})
+        # sslmode belongs to libpq-based drivers; pg8000 gets TLS via ssl_context.
+        query = {key: value for key, value in url.query.items() if key != "sslmode"}
+        url = url.set(query=query)
         database_url = url.render_as_string(hide_password=False)
 
     return database_url
@@ -25,11 +36,15 @@ connect_args = {}
 
 if DATABASE_URL.startswith("sqlite"):
     connect_args = {"check_same_thread": False}
+elif DATABASE_URL.startswith("postgresql+pg8000://"):
+    connect_args = {"ssl_context": ssl.create_default_context()}
 
 engine = create_engine(
     DATABASE_URL,
     connect_args=connect_args,
     pool_pre_ping=True,
+    pool_size=1 if DATABASE_URL.startswith("postgresql+pg8000://") else 5,
+    max_overflow=0 if DATABASE_URL.startswith("postgresql+pg8000://") else 10,
 )
 
 SessionLocal = sessionmaker(
