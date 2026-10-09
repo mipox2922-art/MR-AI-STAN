@@ -99,8 +99,8 @@ jobs:
         run: |
           for attempt in $(seq 1 8); do
             response="$(curl --silent --show-error --max-time 15 --write-out '\n__HTTP_STATUS__:%{http_code}' https://mr-ai-stan-api.mipox2922.workers.dev/health || true)"
-            status="\${response##*__HTTP_STATUS__:}"
-            body="\${response%$'\n'__HTTP_STATUS__:*}"
+            status="${response##*__HTTP_STATUS__:}"
+            body="${response%$'\n'__HTTP_STATUS__:*}"
             echo "Health check attempt $attempt returned HTTP $status"
             printf 'Response body: %s\n' "$body"
             if [ "$status" = "200" ] && printf '%s' "$body" | python -c 'import json,sys; payload=json.load(sys.stdin); sys.exit(0 if payload.get("status")=="healthy" else 1)'; then
