@@ -37,7 +37,12 @@ connect_args = {}
 if DATABASE_URL.startswith("sqlite"):
     connect_args = {"check_same_thread": False}
 elif DATABASE_URL.startswith("postgresql+pg8000://"):
-    connect_args = {"ssl_context": ssl.create_default_context()}
+    # Match Supabase sslmode=require semantics: encrypt traffic even when the
+    # pooler's presented chain is not in the Worker/CI CA bundle.
+    ssl_context = ssl.create_default_context()
+    ssl_context.check_hostname = False
+    ssl_context.verify_mode = ssl.CERT_NONE
+    connect_args = {"ssl_context": ssl_context}
 
 engine = create_engine(
     DATABASE_URL,
