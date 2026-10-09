@@ -61,9 +61,9 @@ jobs:
         if: steps.secrets.outputs.ready == 'true'
         working-directory: backend
         run: |
-          SECRETS_JSON="$(uv run pywrangler secret list --name mr-ai-stan-api --format json)"
-          if ! printf '%s' "$SECRETS_JSON" | python -c 'import json,sys; d=json.load(sys.stdin); raise SystemExit(0 if any(x.get("name")=="SECRET_KEY" for x in d) else 1)'; then
-            openssl rand -base64 48 | tr -d '\n' | uv run pywrangler secret put SECRET_KEY --name mr-ai-stan-api
+          SECRETS_OUTPUT="$(npx --yes wrangler@latest secret list --name mr-ai-stan-api 2>&1 || true)"
+          if ! printf '%s' "$SECRETS_OUTPUT" | grep -q 'SECRET_KEY'; then
+            openssl rand -base64 48 | tr -d '\n' | npx --yes wrangler@latest secret put SECRET_KEY --name mr-ai-stan-api
           fi
 
       - name: Configure Gmail OAuth secret when provided
@@ -99,9 +99,8 @@ jobs:
         run: |
           for attempt in $(seq 1 8); do
             response="$(curl --silent --show-error --max-time 15 --write-out '\n__HTTP_STATUS__:%{http_code}' https://mr-ai-stan-api.mipox2922.workers.dev/health || true)"
-            body="${response%
-\n'__HTTP_STATUS__:*}"
-            status="${response##*__HTTP_STATUS__:}"
+            status="\${response##*__HTTP_STATUS__:}"
+            body="\${response%$'\n'__HTTP_STATUS__:*}"
             echo "Health check attempt $attempt returned HTTP $status"
             printf 'Response body: %s\n' "$body"
             if [ "$status" = "200" ] && printf '%s' "$body" | python -c 'import json,sys; payload=json.load(sys.stdin); sys.exit(0 if payload.get("status")=="healthy" else 1)'; then
