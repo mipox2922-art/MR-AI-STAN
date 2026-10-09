@@ -37,7 +37,10 @@ if settings.secret_key in {
         "SECRET_KEY is not configured. Run start.sh or set a strong SECRET_KEY in backend/.env."
     )
 
-Base.metadata.create_all(bind=engine)
+# Serverless Worker imports must not perform database DDL/network I/O.
+# Apply schema changes in a controlled migration/setup step instead.
+if not settings.serverless_mode:
+    Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
     title="MR AI — Digital Chief of Staff",
