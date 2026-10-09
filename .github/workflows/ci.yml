@@ -65,6 +65,8 @@ jobs:
       - name: Install frontend dependencies
         working-directory: web
         run: npm ci
+      - name: Validate Pages API proxy syntax
+        run: node --check 'web/functions/api/[[path]].js'
       - name: Build frontend
         working-directory: web
         run: npm run build
