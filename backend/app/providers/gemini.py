@@ -1,9 +1,7 @@
 import logging
 from typing import Optional
 
-from google import genai
-from google.genai import types
-from google.genai import errors as genai_errors
+import httpx
 
 from .base import AIProvider, AIProviderError
 from app.config import settings
@@ -11,6 +9,7 @@ from app.config import settings
 logger = logging.getLogger("mrai.providers.gemini")
 
 DEFAULT_MODEL = settings.gemini_model
+GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
 
 
 class GeminiProvider(AIProvider):
@@ -20,41 +19,55 @@ class GeminiProvider(AIProvider):
         api_key = settings.gemini_api_key
         if not api_key:
             raise RuntimeError("GEMINI_API_KEY haipo kwenye .env — Gemini provider haiwezi kuanzishwa.")
-        self._client = genai.Client(api_key=api_key)
+        self._api_key = api_key
         self._model = DEFAULT_MODEL
 
     async def generate(self, prompt: str, system_instruction: Optional[str] = None) -> str:
-        config = types.GenerateContentConfig(
-            system_instruction=system_instruction or "You are MR AI, Boss Ferisi's digital chief of staff.",
-            temperature=0.7,
-            max_output_tokens=2048,
-        )
+        payload = {
+            "contents": [{"role": "user", "parts": [{"text": prompt}]}],
+            "generationConfig": {
+                "temperature": 0.7,
+                "maxOutputTokens": 2048,
+            },
+        }
+        instruction = system_instruction or "You are MR AI, Boss Ferisi's digital chief of staff."
+        if instruction:
+            payload["systemInstruction"] = {"parts": [{"text": instruction}]}
+
         try:
-            response = await self._client.aio.models.generate_content(
-                model=self._model,
-                contents=prompt,
-                config=config,
-            )
-        except genai_errors.APIError as e:
-            logger.error("Gemini API error [%s]: %s", e.code, e.message)
-            raise AIProviderError("gemini", f"API error {e.code}: {e.message}") from e
-        except Exception as e:
-            logger.exception("Gemini unexpected failure")
-            raise AIProviderError("gemini", f"unexpected failure: {e}") from e
+            async with httpx.AsyncClient(timeout=60) as client:
+                response = await client.post(
+                    f"{GEMINI_API_BASE}/{self._model}:generateContent",
+                    headers={"x-goog-api-key": self._api_key},
+                    json=payload,
+                )
+        except httpx.RequestError as exc:
+            logger.warning("Gemini connection failed: %s", type(exc).__name__)
+            raise AIProviderError("gemini", "connection failed while calling Gemini API") from exc
 
-        text = getattr(response, "text", None)
-        if text:
-            return text.strip()
+        if response.is_error:
+            try:
+                error_payload = response.json().get("error", {})
+                detail = str(error_payload.get("message") or response.text[:500])
+            except (ValueError, AttributeError):
+                detail = response.text[:500]
+            logger.error("Gemini API error [%s]: %s", response.status_code, detail)
+            raise AIProviderError("gemini", f"API error {response.status_code}: {detail}")
 
-        candidates = getattr(response, "candidates", None) or []
+        try:
+            result = response.json()
+        except ValueError as exc:
+            raise AIProviderError("gemini", "API returned invalid JSON") from exc
+
+        candidates = result.get("candidates") or []
         if not candidates:
             raise AIProviderError("gemini", "no candidates returned (likely blocked by safety filters or quota)")
 
-        finish_reason = getattr(candidates[0], "finish_reason", "UNKNOWN")
-        parts = getattr(candidates[0].content, "parts", None) if candidates[0].content else None
-        if parts:
-            joined = "".join(getattr(p, "text", "") or "" for p in parts).strip()
-            if joined:
-                return joined
+        candidate = candidates[0] or {}
+        parts = (candidate.get("content") or {}).get("parts") or []
+        answer = "".join(str(part.get("text") or "") for part in parts).strip()
+        if answer:
+            return answer
 
+        finish_reason = candidate.get("finishReason", "UNKNOWN")
         raise AIProviderError("gemini", f"empty response (finish_reason={finish_reason})")
