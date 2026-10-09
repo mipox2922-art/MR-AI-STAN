@@ -1,6 +1,6 @@
 export async function onRequest(context) {
   const incoming = new URL(context.request.url);
-  const pathname = incoming.pathname.replace(/^\\/api(?=\\/|$)/, "") || "/";
+  const pathname = incoming.pathname.replace(/^\/api(?=\/|$)/, "") || "/";
 
   // Preferred production path: forward through Pages to the separate Python API host.
   // The browser still talks only to https://mr-ai-stan.pages.dev/api/*.
