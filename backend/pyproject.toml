@@ -15,8 +15,6 @@ dependencies = [
   "email-validator",
   "pwdlib[argon2]",
   "cryptography",
-  "openai",
-  "google-genai",
 ]
 
 [dependency-groups]
