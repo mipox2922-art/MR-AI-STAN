@@ -93,3 +93,18 @@ jobs:
           trap 'mv /tmp/mr-ai-backend-requirements.txt requirements.txt' EXIT
           rm -rf .venv .venv-workers
           npx --yes wrangler@latest deploy
+
+      - name: Smoke test deployed Worker
+        if: steps.secrets.outputs.ready == 'true'
+        run: |
+          for attempt in $(seq 1 8); do
+            if body="$(curl --silent --show-error --fail --max-time 15 https://mr-ai-stan-api.mipox2922.workers.dev/health)"; then
+              printf 'Health response: %s\n' "$body"
+              printf '%s' "$body" | python -c 'import json,sys; payload=json.load(sys.stdin); sys.exit(0 if payload.get("status")=="healthy" else 1)'
+              exit 0
+            fi
+            echo "Health check attempt $attempt failed; retrying..."
+            sleep 3
+          done
+          echo "Worker deployment completed, but the HTTP health check failed."
+          exit 1
