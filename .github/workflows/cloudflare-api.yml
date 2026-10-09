@@ -19,10 +19,7 @@ jobs:
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       DATABASE_URL: ${{ secrets.DATABASE_URL || secrets.DATABASE_UR }}
-      GMAIL_CLIENT_ID: ${{ secrets.GMAIL_CLIENT_ID }}
       GMAIL_CLIENT_SECRET: ${{ secrets.GMAIL_CLIENT_SECRET }}
-      GMAIL_REDIRECT_URI: ${{ secrets.GMAIL_REDIRECT_URI }}
-      GMAIL_SCOPES: ${{ secrets.GMAIL_SCOPES }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -69,20 +66,15 @@ jobs:
             openssl rand -base64 48 | tr -d '\n' | uv run pywrangler secret put SECRET_KEY --name mr-ai-stan-api
           fi
 
-      - name: Configure Gmail OAuth secrets when provided
+      - name: Configure Gmail OAuth secret when provided
         if: steps.secrets.outputs.ready == 'true'
         working-directory: backend
         run: |
-          if [ -z "$GMAIL_CLIENT_ID" ] || [ -z "$GMAIL_CLIENT_SECRET" ]; then
-            echo "Gmail OAuth secrets are not configured yet; API deployment will continue and Gmail will remain unavailable."
+          if [ -z "$GMAIL_CLIENT_SECRET" ]; then
+            echo "Gmail Client Secret is not configured yet; API deployment will continue and Gmail will remain unavailable."
             exit 0
           fi
-          REDIRECT_URI="${GMAIL_REDIRECT_URI:-https://mr-ai-stan.pages.dev/api/integrations/gmail/callback}"
-          SCOPES="${GMAIL_SCOPES:-https://www.googleapis.com/auth/gmail.readonly}"
-          printf '%s' "$GMAIL_CLIENT_ID" | uv run pywrangler secret put GMAIL_CLIENT_ID --name mr-ai-stan-api
           printf '%s' "$GMAIL_CLIENT_SECRET" | uv run pywrangler secret put GMAIL_CLIENT_SECRET --name mr-ai-stan-api
-          printf '%s' "$REDIRECT_URI" | uv run pywrangler secret put GMAIL_REDIRECT_URI --name mr-ai-stan-api
-          printf '%s' "$SCOPES" | uv run pywrangler secret put GMAIL_SCOPES --name mr-ai-stan-api
 
       - name: Deploy Worker
         if: steps.secrets.outputs.ready == 'true'
