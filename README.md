@@ -77,7 +77,9 @@ GMAIL_REDIRECT_URI=http://localhost:8000/integrations/gmail/callback
 GMAIL_SCOPES=https://www.googleapis.com/auth/gmail.readonly
 ```
 
-For Codespaces, set `GMAIL_REDIRECT_URI` to the public HTTPS URL of the backend callback and register that exact URI in the Google OAuth client configuration.
+For the hosted site, the registered Google OAuth redirect URI is:
+
+`https://mr-ai-stan.pages.dev/api/integrations/gmail/callback`
 
 The browser never receives the Gmail refresh token. The backend stores the encrypted refresh token in the database and exchanges it for short-lived access tokens when mailbox operations run.
 
@@ -92,6 +94,24 @@ Current connector routes:
 
 Sending/replying is intentionally not enabled in this tranche. High-impact mail actions will use the existing approval engine before execution.
 
+## Production deployment (free backend + Cloudflare Pages)
+
+The full Python app is too large for the Cloudflare Workers Free bundle limit. Deploy the FastAPI backend as a free Render Web Service using the repository's `render.yaml` Blueprint, and keep the frontend on Cloudflare Pages.
+
+Render Blueprints need these private values supplied during setup:
+
+- `DATABASE_URL`: the existing Supabase PostgreSQL connection string.
+- `GMAIL_CLIENT_SECRET`: the Web OAuth Client Secret from Google Cloud.
+
+The Blueprint generates `SECRET_KEY` and sets the hosted Gmail Client ID, callback URI, least-privilege scope, and CORS origin. Optional AI provider keys can be added in the Render service's Environment settings.
+
+After Render creates and deploys the API, copy its HTTPS service origin (for example, `https://your-service.onrender.com`). In Cloudflare Pages, open the `mr-ai-stan` project, go to **Settings → Variables and Secrets**, and add this Production variable:
+
+`MR_AI_API_URL=https://your-service.onrender.com`
+
+Use the actual URL Render gives you, not the example. Redeploy the Pages project after adding the variable. The `/api/*` Pages Function forwards requests to Render, keeping the browser-facing site on `https://mr-ai-stan.pages.dev`.
+
+Render's free service may sleep after 15 minutes without traffic and take about a minute to wake up. This is the trade-off for staying at $0 without adding a payment method.
 
 ## Codespaces
 
