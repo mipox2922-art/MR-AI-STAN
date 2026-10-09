@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import os
+import traceback
+from urllib.parse import urlsplit
 
 import asgi
-from workers import WorkerEntrypoint
+from workers import Response, WorkerEntrypoint
 
 
 _app = None
@@ -48,7 +50,20 @@ def _get_app(env):
 
 class Default(WorkerEntrypoint):
     async def fetch(self, request):
-        return await asgi.fetch(_get_app(self.env), request, self.env)
+        try:
+            return await asgi.fetch(_get_app(self.env), request, self.env)
+        except Exception as exc:
+            # Keep diagnostic detail in Worker logs, never expose exception text or secrets.
+            print("MR_AI_WORKER_FETCH_EXCEPTION", type(exc).__module__, type(exc).__name__)
+            traceback.print_exc()
+            request_path = urlsplit(str(request.url)).path
+            if request_path == "/health":
+                return Response(
+                    content=f"MR AI Worker internal failure: {type(exc).__name__}",
+                    status=500,
+                    headers={"content-type": "text/plain; charset=utf-8"},
+                )
+            raise
 
     async def scheduled(self, controller, env, ctx):
         _get_app(env)
