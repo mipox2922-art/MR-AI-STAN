@@ -98,13 +98,16 @@ jobs:
         if: steps.secrets.outputs.ready == 'true'
         run: |
           for attempt in $(seq 1 8); do
-            if body="$(curl --silent --show-error --fail --max-time 15 https://mr-ai-stan-api.mipox2922.workers.dev/health)"; then
-              printf 'Health response: %s\n' "$body"
-              printf '%s' "$body" | python -c 'import json,sys; payload=json.load(sys.stdin); sys.exit(0 if payload.get("status")=="healthy" else 1)'
+            response="$(curl --silent --show-error --max-time 15 --write-out '\n__HTTP_STATUS__:%{http_code}' https://mr-ai-stan-api.mipox2922.workers.dev/health || true)"
+            body="${response%
+\n'__HTTP_STATUS__:*}"
+            status="${response##*__HTTP_STATUS__:}"
+            echo "Health check attempt $attempt returned HTTP $status"
+            printf 'Response body: %s\n' "$body"
+            if [ "$status" = "200" ] && printf '%s' "$body" | python -c 'import json,sys; payload=json.load(sys.stdin); sys.exit(0 if payload.get("status")=="healthy" else 1)'; then
               exit 0
             fi
-            echo "Health check attempt $attempt failed; retrying..."
             sleep 3
           done
-          echo "Worker deployment completed, but the HTTP health check failed."
+          echo "Worker deployed, but HTTP health check did not return healthy JSON."
           exit 1
