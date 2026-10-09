@@ -8,7 +8,10 @@
   ],
   "vars": {
     "CORS_ORIGINS": "https://mr-ai-stan.pages.dev",
-    "SERVERLESS_MODE": "true"
+    "SERVERLESS_MODE": "true",
+    "GMAIL_CLIENT_ID": "915582116434-57794p02eorjkpmrbu2ian4r9btclo8f.apps.googleusercontent.com",
+    "GMAIL_REDIRECT_URI": "https://mr-ai-stan.pages.dev/api/integrations/gmail/callback",
+    "GMAIL_SCOPES": "https://www.googleapis.com/auth/gmail.readonly"
   },
   "secrets": {
     "required": [
