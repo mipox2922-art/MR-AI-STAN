@@ -4,8 +4,7 @@ import os
 import traceback
 from urllib.parse import urlsplit
 
-import asgi
-from workers import Response, WorkerEntrypoint
+from workers import Response, WorkerEntrypoint, asgi
 
 
 _app = None
@@ -51,7 +50,7 @@ def _get_app(env):
 class Default(WorkerEntrypoint):
     async def fetch(self, request):
         try:
-            return await asgi.fetch(_get_app(self.env), request, self.env)
+            return await asgi.fetch(_get_app(self.env), request.js_object, self.env)
         except Exception as exc:
             # Keep diagnostic detail in Worker logs, never expose exception text or secrets.
             print("MR_AI_WORKER_FETCH_EXCEPTION", type(exc).__module__, type(exc).__name__)
