@@ -91,15 +91,30 @@ def test_gmail_message_normalization_extracts_headers():
     assert normalized["labels"] == ["INBOX", "UNREAD"]
 
 
-def test_invalid_oauth_state_is_rejected():
+def test_invalid_oauth_state_does_not_consume_the_valid_pending_state():
     db = make_db()
     from app.connectors.gmail import _set_oauth_state, _consume_oauth_state
 
-    _set_oauth_state(db, 9)
+    valid_state = _set_oauth_state(db, 9)
 
     try:
         _consume_oauth_state(db, 9, "wrong-state")
     except GmailConnectorError:
-        return
+        pass
+    else:
+        raise AssertionError("Invalid OAuth state was accepted")
 
-    raise AssertionError("Invalid OAuth state was accepted")
+    row = (
+        db.query(Setting)
+        .filter(Setting.user_id == 9, Setting.key == GMAIL_STATE_KEY)
+        .first()
+    )
+    assert row is not None, "A forged callback must not consume the legitimate state"
+
+    _consume_oauth_state(db, 9, valid_state)
+    row = (
+        db.query(Setting)
+        .filter(Setting.user_id == 9, Setting.key == GMAIL_STATE_KEY)
+        .first()
+    )
+    assert row is None, "A valid one-time OAuth state should be consumed"
