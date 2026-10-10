@@ -5,8 +5,8 @@ const INSTANCE_NAME = "mr-ai-stan-api";
 export class MrAiApiContainer extends Container {
   defaultPort = 8000;
   pingEndpoint = "health";
-  // The Worker Cron trigger runs every minute. Let the container sleep between
-  // scheduler ticks to control idle memory charges; user requests can wake it.
+  // Cron runs every minute; keep FastAPI warm and avoid reconnecting to Supabase
+  // on each tick. The Cloudflare Containers runtime is usage-billed.
   sleepAfter = "5m";
 
   constructor(ctx, workerEnv) {
