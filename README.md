@@ -123,11 +123,12 @@ Keep the Pages project named `mr-ai-stan`. Its service binding must be named `MR
 
 ### 2. Set backend secrets in Cloudflare
 
-Use the terminal from the repository:
+After the first API Worker deployment has created `mr-ai-stan-api`, open the repository in the terminal and sign Wrangler in to your Cloudflare account. (You can also add the same values in **Cloudflare Dashboard → Workers & Pages → mr-ai-stan-api → Settings → Variables and Secrets**.)
 
 ```bash
 cd backend
 npm install
+npx wrangler login
 
 # Set these values when prompted. Do not commit them into Git.
 npx wrangler secret put DATABASE_URL
