@@ -1,6 +1,6 @@
 export async function onRequest(context) {
   const incoming = new URL(context.request.url);
-  const pathname = incoming.pathname.replace(/^\\/api(?=\\/|$)/, "") || "/";
+  const pathname = incoming.pathname.replace(/^\/api(?=\/|$)/, "") || "/";
 
   // Production API stays inside Cloudflare through a Pages service binding.
   // The browser only calls https://mr-ai-stan.pages.dev/api/*.
