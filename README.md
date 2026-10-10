@@ -94,27 +94,60 @@ Current connector routes:
 
 Sending/replying is intentionally not enabled in this tranche. High-impact mail actions will use the existing approval engine before execution.
 
-## Production deployment (free backend + Cloudflare Pages)
+## Production deployment (Cloudflare + Supabase only)
 
-The full Python app is too large for the Cloudflare Workers Free bundle limit. Deploy the FastAPI backend as a free Render Web Service using the repository's `render.yaml` Blueprint, and keep the frontend on Cloudflare Pages.
+The production stack is intentionally limited to these services:
 
-Render Blueprints need these private values supplied during setup:
+- **Frontend:** Cloudflare Pages at `https://mr-ai-stan.pages.dev`.
+- **Backend:** the existing FastAPI app packaged in `backend/Dockerfile`, running in a Cloudflare Container managed by the `mr-ai-stan-api` Worker.
+- **Database:** Supabase PostgreSQL.
 
-- `DATABASE_URL`: the existing Supabase PostgreSQL connection string.
-- `DATABASE_SSL_CA_CERT`: the trusted database CA certificate in PEM format, if the database endpoint's certificate chain is not present in the runtime trust store. The current CI database endpoint fails certificate verification without its CA. Do not disable certificate or hostname verification to work around this.
-- `GMAIL_CLIENT_SECRET`: the Web OAuth Client Secret from Google Cloud.
+There is no Render service and no external API-origin URL. The Pages Function forwards `/api/*` requests through the `MR_AI_API` Cloudflare service binding to the `mr-ai-stan-api` Worker.
 
-Add the same PEM certificate as the GitHub Actions secret `DATABASE_SSL_CA_CERT` if you want the CI database smoke test to run. Without it, CI clearly reports that the live database connection check was skipped; it does not claim that Supabase connectivity was verified.
+**Plan requirement:** Cloudflare Containers require the Workers Paid plan, currently starting at **$5 USD/month**, with additional usage-based charges if included allowances are exceeded. The previous Python Worker bundle exceeded the platform bundle limit, so the backend now runs as a Linux container instead of forcing the full Python dependency set into a Worker bundle. See the [Cloudflare Containers overview](https://developers.cloudflare.com/containers/) and [current pricing](https://developers.cloudflare.com/containers/platform/pricing/).
 
-The Blueprint generates `SECRET_KEY` and sets the hosted Gmail Client ID, callback URI, least-privilege scope, and CORS origin. Optional AI provider keys can be added in the Render service's Environment settings.
+### 1. Connect the backend Worker
 
-After Render creates and deploys the API, copy its HTTPS service origin (for example, `https://your-service.onrender.com`). In Cloudflare Pages, open the `mr-ai-stan` project, go to **Settings → Variables and Secrets**, and add this Production variable:
+In Cloudflare, create or connect a Worker named `mr-ai-stan-api` from this repository. Set the Worker build root directory to `backend`, install dependencies with `npm install`, and deploy with `npm run deploy`. The deploy uses `backend/wrangler.jsonc` and builds the existing `backend/Dockerfile`. Cloudflare Workers Builds can build Dockerfile-based Container images.
 
-`MR_AI_API_URL=https://your-service.onrender.com`
+Keep the Pages project named `mr-ai-stan`. Its service binding must be named `MR_AI_API` and point to the `mr-ai-stan-api` Worker in the **Production** environment. The binding is defined in `web/wrangler.jsonc`; the Pages Function does not fall back to a remote backend URL.
 
-Use the actual URL Render gives you, not the example. Redeploy the Pages project after adding the variable. The `/api/*` Pages Function forwards requests to Render, keeping the browser-facing site on `https://mr-ai-stan.pages.dev`.
+### 2. Set backend secrets in Cloudflare
 
-Render's free service may sleep after 15 minutes without traffic and take about a minute to wake up. This is the trade-off for staying at $0 without adding a payment method.
+Use the terminal from the repository:
+
+```bash
+cd backend
+npm install
+
+# Set these values when prompted. Do not commit them into Git.
+npx wrangler secret put DATABASE_URL
+npx wrangler secret put DATABASE_SSL_CA_CERT
+npx wrangler secret put SECRET_KEY
+npx wrangler secret put CLOUDFLARE_CRON_SECRET
+
+# Add these if you use the corresponding integrations/providers:
+npx wrangler secret put GEMINI_API_KEY
+npx wrangler secret put KIMI_API_KEY
+npx wrangler secret put GMAIL_CLIENT_SECRET
+```
+
+- `DATABASE_URL` is the PostgreSQL connection string copied from the Supabase dashboard's **Connect** panel.
+- `DATABASE_SSL_CA_CERT` must contain the trusted Supabase database root CA certificate in PEM format. Download the certificate from **Supabase Dashboard → Database → Settings → SSL Configuration**. The database connection in CI previously failed certificate validation; the app intentionally does not disable TLS verification to get around this. See [Supabase's Postgres SSL guidance](https://supabase.com/docs/guides/platform/ssl-enforcement).
+- `SECRET_KEY` must be unique and at least 32 characters. Generate one with `python -c "import secrets; print(secrets.token_urlsafe(48))"`.
+- `CLOUDFLARE_CRON_SECRET` must be a separate random value of at least 32 characters. The Worker uses it to authorize scheduled-job cycles inside the container.
+- `GEMINI_API_KEY`, `KIMI_API_KEY`, and `GMAIL_CLIENT_SECRET` are only needed for the corresponding services.
+
+The current FastAPI app creates missing tables on first startup against Supabase. Keep `SERVERLESS_MODE=false` for this container so schema initialization runs. `SCHEDULER_ENABLED=false` disables the in-process polling loop; Cloudflare Cron triggers a protected scheduler cycle every minute instead.
+
+### 3. Confirm the deployment
+
+After the Worker deploy and the Pages service binding are configured:
+
+- Open `https://mr-ai-stan.pages.dev/api/health`; it should return JSON with `{"status":"healthy"}`.
+- Confirm the backend Worker deployment and Container instance are healthy in Cloudflare.
+- Check Worker logs if the health endpoint or Supabase TLS connection fails.
+- Add `DATABASE_URL` and `DATABASE_SSL_CA_CERT` as GitHub Actions repository secrets if you want CI to execute a real Supabase connection smoke test. If the CA secret is missing, that database smoke test is explicitly skipped; CI does not claim the live database was verified.
 
 ## Codespaces
 
