@@ -1,35 +1,44 @@
 import { Container, getContainer } from "@cloudflare/containers";
-import { env } from "cloudflare:workers";
 
 const INSTANCE_NAME = "mr-ai-stan-api";
 
 export class MrAiApiContainer extends Container {
   defaultPort = 8000;
+  pingEndpoint = "health";
+  // The Worker Cron trigger runs every minute. Let the container sleep between
+  // scheduler ticks to control idle memory charges; user requests can wake it.
   sleepAfter = "30s";
 
-  envVars = {
-    PORT: "8000",
-    SERVERLESS_MODE: "false",
-    SCHEDULER_ENABLED: "false",
-    SECRET_KEY: String(env.SECRET_KEY || ""),
-    DATABASE_URL: String(env.DATABASE_URL || ""),
-    DATABASE_SSL_CA_CERT: String(env.DATABASE_SSL_CA_CERT || ""),
-    CORS_ORIGINS: String(env.CORS_ORIGINS || "https://mr-ai-stan.pages.dev"),
-    GEMINI_API_KEY: String(env.GEMINI_API_KEY || ""),
-    GEMINI_MODEL: String(env.GEMINI_MODEL || "gemini-2.5-flash"),
-    GEMINI_TIER: String(env.GEMINI_TIER || "FREE"),
-    KIMI_API_KEY: String(env.KIMI_API_KEY || ""),
-    KIMI_MODEL: String(env.KIMI_MODEL || "kimi-k2"),
-    KIMI_BASE_URL: String(env.KIMI_BASE_URL || "https://api.moonshot.ai/v1"),
-    SEARXNG_URL: String(env.SEARXNG_URL || ""),
-    GMAIL_CLIENT_ID: String(env.GMAIL_CLIENT_ID || ""),
-    GMAIL_CLIENT_SECRET: String(env.GMAIL_CLIENT_SECRET || ""),
-    GMAIL_REDIRECT_URI: String(env.GMAIL_REDIRECT_URI || ""),
-    GMAIL_SCOPES: String(
-      env.GMAIL_SCOPES || "https://www.googleapis.com/auth/gmail.readonly",
-    ),
-    CLOUDFLARE_CRON_SECRET: String(env.CLOUDFLARE_CRON_SECRET || ""),
-  };
+  constructor(ctx, workerEnv) {
+    super(ctx, workerEnv);
+    this.envVars = {
+      PORT: "8000",
+      SERVERLESS_MODE: "false",
+      SCHEDULER_ENABLED: "false",
+      SECRET_KEY: String(workerEnv.SECRET_KEY || ""),
+      DATABASE_URL: String(workerEnv.DATABASE_URL || ""),
+      DATABASE_SSL_CA_CERT: String(workerEnv.DATABASE_SSL_CA_CERT || ""),
+      CORS_ORIGINS: String(
+        workerEnv.CORS_ORIGINS || "https://mr-ai-stan.pages.dev",
+      ),
+      GEMINI_API_KEY: String(workerEnv.GEMINI_API_KEY || ""),
+      GEMINI_MODEL: String(workerEnv.GEMINI_MODEL || "gemini-2.5-flash"),
+      GEMINI_TIER: String(workerEnv.GEMINI_TIER || "FREE"),
+      KIMI_API_KEY: String(workerEnv.KIMI_API_KEY || ""),
+      KIMI_MODEL: String(workerEnv.KIMI_MODEL || "kimi-k2"),
+      KIMI_BASE_URL: String(
+        workerEnv.KIMI_BASE_URL || "https://api.moonshot.ai/v1",
+      ),
+      SEARXNG_URL: String(workerEnv.SEARXNG_URL || ""),
+      GMAIL_CLIENT_ID: String(workerEnv.GMAIL_CLIENT_ID || ""),
+      GMAIL_CLIENT_SECRET: String(workerEnv.GMAIL_CLIENT_SECRET || ""),
+      GMAIL_REDIRECT_URI: String(workerEnv.GMAIL_REDIRECT_URI || ""),
+      GMAIL_SCOPES: String(
+        workerEnv.GMAIL_SCOPES || "https://www.googleapis.com/auth/gmail.readonly",
+      ),
+      CLOUDFLARE_CRON_SECRET: String(workerEnv.CLOUDFLARE_CRON_SECRET || ""),
+    };
+  }
 }
 
 export default {
