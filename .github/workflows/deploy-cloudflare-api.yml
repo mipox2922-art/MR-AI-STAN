@@ -1,0 +1,63 @@
+name: Deploy MR AI API to Cloudflare Containers
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "backend/**"
+      - ".github/workflows/deploy-cloudflare-api.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-cloudflare-api
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Verify required deployment secrets
+        id: secrets
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+              echo "::error::Add CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID in GitHub Actions repository secrets before manual deployment."
+              exit 1
+            fi
+            echo "::warning::Cloudflare API deploy skipped because CLOUDFLARE_API_TOKEN and/or CLOUDFLARE_ACCOUNT_ID is missing."
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "### Cloudflare API deployment skipped" >> "$GITHUB_STEP_SUMMARY"
+            echo "Add `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` to repository Actions secrets, then run this workflow manually or push another backend change." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          echo "configured=true" >> "$GITHUB_OUTPUT"
+
+      - name: Install Worker tooling
+        if: steps.secrets.outputs.configured == 'true'
+        working-directory: backend
+        run: npm install
+
+      - name: Check Docker engine
+        if: steps.secrets.outputs.configured == 'true'
+        run: docker info
+
+      - name: Deploy API Container Worker
+        if: steps.secrets.outputs.configured == 'true'
+        working-directory: backend
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npm run deploy

@@ -94,43 +94,51 @@ Current connector routes:
 
 Sending/replying is intentionally not enabled in this tranche. High-impact mail actions will use the existing approval engine before execution.
 
-## Production deployment (Cloudflare Pages + Render + Supabase)
+## Production deployment (Cloudflare Pages + Cloudflare Containers)
 
-The deployed app uses the services together, each for its intended job:
+MR AI is hosted on Cloudflare for both the browser app and FastAPI API:
 
-- **Frontend:** Cloudflare Pages at `https://mr-ai-stan.pages.dev`.
-- **Backend:** FastAPI API service `mr-ai-stan-api` on Render, defined in the root `render.yaml` Blueprint.
-- **Database:** Supabase PostgreSQL.
+- **Frontend:** Cloudflare Pages project `mr-ai-stan`, served at `https://mr-ai-stan.pages.dev`.
+- **Backend:** FastAPI inside a Cloudflare Container managed by the Worker `mr-ai-stan-api`.
+- **API routing:** the Pages Function forwards same-origin `/api/*` requests through the `MR_AI_API` service binding. No Render API URL is needed.
+- **Database:** a reachable PostgreSQL database is required for durable production data. Supabase is one option, not a code-level requirement; configure `DATABASE_URL` for any supported PostgreSQL provider. Cloudflare Container local disk is ephemeral, and Cloudflare D1 is not a drop-in SQLAlchemy/PostgreSQL replacement. Keep SQLite for local development only.
 
-### 1. Deploy the FastAPI backend on Render
+**Plan and cost:** Cloudflare Containers require the Workers Paid plan and may incur usage-based container charges. Review the [official Containers pricing](https://developers.cloudflare.com/containers/platform/pricing/) before enabling deployment.
 
-In Render, create a **Blueprint** for this GitHub repository and apply `render.yaml`. The Blueprint sets the backend root directory to `backend`, installs `backend/requirements.txt`, starts Uvicorn on Render's assigned port, and checks `/health`. Render generates `SECRET_KEY` automatically.
+### 1. GitHub Actions deployment credentials
 
-In the Render service's **Environment** settings, set:
+In GitHub, open **Settings → Secrets and variables → Actions → New repository secret** and add:
 
-- `DATABASE_URL`: the PostgreSQL connection URI from Supabase Dashboard → **Connect**.
-- `DATABASE_SSL_CA_CERT`: the trusted Supabase root CA certificate in PEM format. Download it from Supabase Dashboard → **Database → Settings → SSL Configuration**. PostgreSQL certificate and hostname verification stays enabled; do not bypass TLS verification.
-- Optional: `GEMINI_API_KEY`, `KIMI_API_KEY`, `SEARXNG_URL`, and `GMAIL_CLIENT_SECRET` if those integrations are enabled.
+- `CLOUDFLARE_API_TOKEN`: account-scoped token authorized to deploy Workers and Containers.
+- `CLOUDFLARE_ACCOUNT_ID`: the Cloudflare account ID that owns the Pages project and API Worker.
 
-The `render.yaml` Blueprint includes `CORS_ORIGINS=https://mr-ai-stan.pages.dev` and the hosted Gmail OAuth callback. Keep the callback URL registered in Google Cloud as `https://mr-ai-stan.pages.dev/api/integrations/gmail/callback`.
+The workflow `.github/workflows/deploy-cloudflare-api.yml` deploys the API Worker when backend files change on `main`, or manually from **GitHub → Actions → Deploy MR AI API to Cloudflare Containers → Run workflow**. If either credential is missing, an automatic push safely skips backend deployment and records a warning; manual deployment fails clearly.
 
-### 2. Connect Cloudflare Pages to Render
+### 2. Configure API Worker runtime secrets
 
-Open the Cloudflare Pages project named `mr-ai-stan`, then go to **Settings → Variables and Secrets → Production**. Add this variable:
+After the first successful Worker deployment, open **Cloudflare Dashboard → Workers & Pages → mr-ai-stan-api → Settings → Variables and Secrets**. Add the required secrets:
 
-`MR_AI_API_URL=https://YOUR-ACTUAL-SERVICE.onrender.com`
+- `SECRET_KEY`: a unique random value at least 32 characters long.
+- `DATABASE_URL`: PostgreSQL connection string supplied by your chosen database provider.
+- `CLOUDFLARE_CRON_SECRET`: a separate random value at least 32 characters long, used to authenticate scheduled work.
 
-Replace the example with the exact HTTPS origin Render assigned. Do not append `/api` or another path. Save the variable and redeploy the Pages project.
+Add these only when needed:
 
-The Pages Function forwards requests from `https://mr-ai-stan.pages.dev/api/*` to the Render API. The React application keeps using the same-origin `/api` path, so the browser does not need a separate API URL and backend API keys are not exposed to the frontend.
+- `DATABASE_SSL_CA_CERT`: custom trusted CA certificate in PEM format if your PostgreSQL provider requires one. It is optional when the system trust store already validates the database certificate. Never disable TLS verification.
+- `GEMINI_API_KEY` and/or `KIMI_API_KEY`: for the AI provider(s) you use.
+- `GMAIL_CLIENT_SECRET`: if Gmail OAuth is enabled.
 
-### 3. Verify the complete connection
+The non-secret defaults in `backend/wrangler.jsonc` set the Pages CORS origin, Gmail client ID/redirect URI, and scheduler configuration. If your public Pages hostname changes, update `CORS_ORIGINS` in the Worker configuration and `GMAIL_REDIRECT_URI` in both Google Cloud Console and the Worker config.
 
-- Open the Render service's `/health` endpoint; it should return `{"status":"healthy"}`.
-- Open `https://mr-ai-stan.pages.dev/api/health`; it should return the same JSON through the Pages proxy.
-- Check Render logs for database TLS or connection errors if either health check fails.
-- For the GitHub Actions Supabase smoke test, add `DATABASE_URL` and `DATABASE_SSL_CA_CERT` as repository Actions secrets. If those secrets are absent, CI explicitly skips the live database check rather than claiming Supabase was verified.
+### 3. Connect Cloudflare Pages to the API Worker
 
+The Pages project must be connected to this Git repository, with `web` as its root directory, `npm run build` as the build command, and `dist` as the output directory. Keep `web/wrangler.jsonc` in the deployment configuration so the Production service binding named `MR_AI_API` targets the Worker `mr-ai-stan-api`.
+
+After deployment, open `https://mr-ai-stan.pages.dev/api/health`. It should return `{"status":"healthy","database":"reachable"}` when the backend container and database are reachable. A healthy Pages build alone does not prove runtime secrets or the live database connection are correct.
+
+Register this Gmail OAuth redirect URI in Google Cloud Console if Gmail integration is enabled:
+
+`https://mr-ai-stan.pages.dev/api/integrations/gmail/callback`.
 
 ## Codespaces
 

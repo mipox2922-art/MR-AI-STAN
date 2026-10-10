@@ -33,29 +33,26 @@ jobs:
           cd backend
           python -c "from app.main import app; print(app.title); print(len(app.routes), \"routes loaded\")"
 
-      - name: Verify Supabase connection
+      - name: Verify configured PostgreSQL connection
         env:
           SECRET_KEY: ci-only-secret-for-mr-ai-stan-tests-not-for-production-2026
-          DATABASE_URL: ${{ secrets.DATABASE_URL || secrets.DATABASE_UR }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
           DATABASE_SSL_CA_CERT: ${{ secrets.DATABASE_SSL_CA_CERT }}
           PYTHONPATH: ${{ github.workspace }}/backend
         run: |
           if [ -z "$DATABASE_URL" ]; then
-            echo "Supabase smoke test skipped: DATABASE_URL/DATABASE_UR secret is not configured."
-            exit 0
-          fi
-          if [ -z "$DATABASE_SSL_CA_CERT" ]; then
-            echo "::warning::Supabase smoke test skipped: add DATABASE_SSL_CA_CERT as a trusted PEM certificate secret to verify this database's TLS chain."
+            echo "PostgreSQL smoke test skipped: DATABASE_URL Actions secret is not configured."
             exit 0
           fi
           cd backend
           python - <<'PY'
           from sqlalchemy import text
           from app.database import engine
+          assert engine.dialect.name == "postgresql", "DATABASE_URL must point to PostgreSQL for the production smoke test."
           with engine.connect() as connection:
               result = connection.execute(text("select 1")).scalar_one()
               assert result == 1
-              print("Supabase/PostgreSQL connection: OK")
+              print("PostgreSQL connection: OK")
           PY
 
   frontend:
@@ -70,8 +67,25 @@ jobs:
       - name: Install frontend dependencies
         working-directory: web
         run: npm ci
-      - name: Validate Pages API proxy syntax
-        run: node --check 'web/functions/api/[[path]].js'
+      - name: Validate Cloudflare Pages and Container bindings
+        run: |
+          node --check 'web/functions/api/[[path]].js'
+          node --check backend/container-worker.js
+          node - <<'NODE'
+          const assert = require("node:assert/strict");
+          const fs = require("node:fs");
+          const pages = JSON.parse(fs.readFileSync("web/wrangler.jsonc", "utf8"));
+          const api = JSON.parse(fs.readFileSync("backend/wrangler.jsonc", "utf8"));
+          const proxy = fs.readFileSync("web/functions/api/[[path]].js", "utf8");
+          assert(api.name === "mr-ai-stan-api", "Cloudflare API Worker name changed unexpectedly");
+          assert(api.main === "container-worker.js", "API Worker entry point is missing");
+          assert(api.containers?.some(item => item.class_name === "MrAiApiContainer"), "Cloudflare Container declaration is missing");
+          assert(api.triggers?.crons?.includes("* * * * *"), "Scheduler Cron trigger is missing");
+          assert(pages.services?.some(item => item.binding === "MR_AI_API" && item.service === api.name), "Pages service binding does not target the API Worker");
+          assert(proxy.includes("context.env.MR_AI_API"), "Pages API proxy does not use the Cloudflare service binding");
+          assert(!proxy.includes("MR_AI_API_URL") && !proxy.includes("onrender.com"), "External Render API dependency remains in the Pages proxy");
+          console.log("Cloudflare Pages/Container wiring: OK");
+          NODE
       - name: Build frontend
         working-directory: web
         run: npm run build
