@@ -1,0 +1,54 @@
+name: Deploy MR AI API to Cloudflare Containers
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "backend/**"
+      - ".github/workflows/deploy-cloudflare-api.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-cloudflare-api
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Verify required deployment secrets
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+            echo "::error::Add CLOUDFLARE_API_TOKEN in GitHub Actions repository secrets."
+            exit 1
+          fi
+          if [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "::error::Add CLOUDFLARE_ACCOUNT_ID in GitHub Actions repository secrets."
+            exit 1
+          fi
+
+      - name: Install Worker tooling
+        working-directory: backend
+        run: npm install
+
+      - name: Check Docker engine
+        run: docker info
+
+      - name: Deploy API Container Worker
+        working-directory: backend
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npm run deploy
