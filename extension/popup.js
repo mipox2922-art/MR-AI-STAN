@@ -12,7 +12,7 @@ async function getApiUrl() {
   if (!["http:", "https:"].includes(url.protocol)) {
     throw new Error("MR AI API URL must use HTTP or HTTPS.");
   }
-  return url.toString().replace(/\\/+$/, "");
+  return url.toString().replace(/\/+$/, "");
 }
 
 const prompt = document.getElementById("prompt");
