@@ -217,10 +217,6 @@ function AgentsPanel({ agents, onPlan }) {
             throw new Error(`Unsupported browser handoff action: ${action}`);
         }
 
-        if (evidence?.verified === false) {
-          throw new Error("Browser handoff returned an unverified result.");
-        }
-
         const verified = await reportMissionHandoff(
           result.mission.id,
           "COMPLETED",
