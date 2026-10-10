@@ -37,6 +37,30 @@ jobs:
           fi
           echo "Cloudflare deployment credentials are present."
 
+      - name: Verify Cloudflare API token validity
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          response_file="$(mktemp)"
+          trap 'rm -f "$response_file"' EXIT
+          http_code="$(curl --connect-timeout 10 --max-time 30 -sS \
+            -o "$response_file" -w '%{http_code}' \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            "https://api.cloudflare.com/client/v4/user/tokens/verify")"
+          if [ "$http_code" -lt 200 ] || [ "$http_code" -ge 300 ]; then
+            echo "::error::Cloudflare rejected the API token itself (HTTP $http_code). Create a fresh API token and replace CLOUDFLARE_API_TOKEN in GitHub Secrets."
+            cat "$response_file"
+            exit 1
+          fi
+          if ! python -c 'import json,sys; d=json.load(open(sys.argv[1])); raise SystemExit(0 if d.get("success") and d.get("result",{}).get("status") == "active" else 1)' "$response_file"; then
+            echo "::error::Cloudflare API token is not active. Replace CLOUDFLARE_API_TOKEN in GitHub Secrets."
+            cat "$response_file"
+            exit 1
+          fi
+          echo "Cloudflare API token is valid and active."
+
       - name: Verify Cloudflare Containers API access
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
