@@ -3,6 +3,7 @@ import logging
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from sqlalchemy import text
 
 from .config import settings, validate_secret_key
 from .database import Base, SessionLocal, engine
@@ -93,9 +94,17 @@ async def root():
 
 @app.get("/health")
 async def health():
-    return {
-        "status": "healthy",
-    }
+    try:
+        with engine.connect() as connection:
+            connection.execute(text("SELECT 1"))
+    except Exception:
+        logger.exception("Health check failed because the database is unavailable")
+        return JSONResponse(
+            status_code=503,
+            content={"status": "unhealthy", "database": "unavailable"},
+        )
+
+    return {"status": "healthy", "database": "reachable"}
 
 
 @app.websocket("/ws")
