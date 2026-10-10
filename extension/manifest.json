@@ -10,13 +10,15 @@
     "tabs"
   ],
   "host_permissions": [
-    "http://localhost:8000/*"
+    "http://localhost:8000/*",
+    "https://mr-ai-stan.pages.dev/*"
   ],
   "externally_connectable": {
     "matches": [
       "http://localhost:5173/*",
       "http://127.0.0.1:5173/*",
-      "https://*.app.github.dev/*"
+      "https://*.app.github.dev/*",
+      "https://mr-ai-stan.pages.dev/*"
     ]
   },
   "action": {
@@ -28,8 +30,12 @@
   },
   "content_scripts": [
     {
-      "matches": ["<all_urls>"],
-      "js": ["content.js"]
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "content.js"
+      ]
     }
   ]
 }
