@@ -9,6 +9,8 @@ class Settings(BaseSettings):
 
     database_url: str = "sqlite:///./mr_ai.db"
     database_ssl_ca_cert: str = ""
+    scheduler_enabled: bool = True
+    cloudflare_cron_secret: str = ""
 
     gemini_api_key: str = ""
     gemini_model: str = "gemini-2.5-flash"
