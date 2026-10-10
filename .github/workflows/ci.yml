@@ -20,14 +20,14 @@ jobs:
         run: python -m compileall -q backend/app
       - name: Run backend tests
         env:
-          SECRET_KEY: ci-test-secret
+          SECRET_KEY: ci-only-secret-for-mr-ai-stan-tests-not-for-production-2026
           PYTHONPATH: ${{ github.workspace }}/backend
         run: |
           cd backend
           pytest -q
       - name: Import FastAPI app
         env:
-          SECRET_KEY: ci-test-secret
+          SECRET_KEY: ci-only-secret-for-mr-ai-stan-tests-not-for-production-2026
           PYTHONPATH: ${{ github.workspace }}/backend
         run: |
           cd backend
@@ -35,7 +35,7 @@ jobs:
 
       - name: Verify Supabase connection
         env:
-          SECRET_KEY: ci-test-secret
+          SECRET_KEY: ci-only-secret-for-mr-ai-stan-tests-not-for-production-2026
           DATABASE_URL: ${{ secrets.DATABASE_URL || secrets.DATABASE_UR }}
           PYTHONPATH: ${{ github.workspace }}/backend
         run: |
