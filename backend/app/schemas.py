@@ -1,5 +1,7 @@
 from datetime import datetime
-from pydantic import BaseModel
+from typing import Literal
+
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class RegisterRequest(BaseModel):
@@ -52,11 +54,21 @@ class TaskCreate(BaseModel):
 
 
 class TaskUpdate(BaseModel):
-    status: str | None = None
-    priority: str | None = None
-    progress: int | None = None
-    result: str | None = None
-    error: str | None = None
+    # Generic user-facing edits cannot forge completion or overwrite execution evidence.
+    model_config = ConfigDict(extra="forbid")
+
+    title: str | None = Field(default=None, min_length=1, max_length=255)
+    description: str | None = Field(default=None, max_length=12000)
+    status: Literal[
+        "PENDING",
+        "RUNNING",
+        "IN_PROGRESS",
+        "WAITING",
+        "WAITING_FOR_HAND",
+        "WAITING_APPROVAL",
+    ] | None = None
+    priority: Literal["LOW", "NORMAL", "HIGH", "CRITICAL"] | None = None
+    progress: int | None = Field(default=None, ge=0, le=99)
 
 
 class ScheduleCreate(BaseModel):
