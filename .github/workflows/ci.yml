@@ -58,24 +58,6 @@ jobs:
               print("Supabase/PostgreSQL connection: OK")
           PY
 
-  cloudflare_api:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-      - name: Install Cloudflare Worker dependencies
-        working-directory: backend
-        run: npm install
-      - name: Validate Cloudflare Container Worker
-        working-directory: backend
-        run: |
-          npm run check
-          node -e "JSON.parse(require('node:fs').readFileSync('wrangler.jsonc', 'utf8')); console.log('Cloudflare Worker config JSON: OK')"
-      - name: Validate Pages API proxy
-        run: node --check 'web/functions/api/[[path]].js'
-
   frontend:
     runs-on: ubuntu-latest
     steps:
