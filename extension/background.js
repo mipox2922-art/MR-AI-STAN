@@ -71,6 +71,22 @@ chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => 
     return false;
   }
 
+  if (message?.type === "MR_AI_AUTH_TOKEN") {
+    const token = typeof message.token === "string" ? message.token.trim() : "";
+    if (token.length > 8192) {
+      sendResponse({ ok: false, error: "Authentication token is too long." });
+      return false;
+    }
+
+    const storageOperation = token
+      ? chrome.storage.local.set({ mr_ai_token: token })
+      : chrome.storage.local.remove("mr_ai_token");
+    storageOperation
+      .then(() => sendResponse({ ok: true }))
+      .catch(() => sendResponse({ ok: false, error: "Could not sync MR AI authentication." }));
+    return true;
+  }
+
   if (message?.type !== "MR_AI_BROWSER_ACTION") {
     sendResponse({ ok: false, error: "Unsupported external message." });
     return false;
