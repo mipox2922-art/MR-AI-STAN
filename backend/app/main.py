@@ -4,7 +4,7 @@ from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from .config import settings
+from .config import settings, validate_secret_key
 from .database import Base, SessionLocal, engine
 from .models import User
 from .realtime import manager
@@ -28,20 +28,7 @@ from .routers import (
 
 logger = logging.getLogger("mr_ai")
 
-MIN_SECRET_KEY_LENGTH = 32
-INSECURE_SECRET_KEYS = {
-    "",
-    "CHANGE_ME_TO_A_LONG_RANDOM_SECRET",
-    "CHANGE_THIS_SECRET_KEY",
-}
-if (
-    settings.secret_key.strip() in INSECURE_SECRET_KEYS
-    or len(settings.secret_key.strip()) < MIN_SECRET_KEY_LENGTH
-):
-    raise RuntimeError(
-        "SECRET_KEY must be a unique random value of at least 32 characters. "
-        "Run start.sh to generate a local key or configure SECRET_KEY in the hosting environment."
-    )
+validate_secret_key(settings.secret_key)
 
 # Serverless Worker imports must not perform database DDL/network I/O.
 # Apply schema changes in a controlled migration/setup step instead.
