@@ -1,0 +1,14 @@
+.venv/
+.venv-workers/
+node_modules/
+tests/
+.pytest_cache/
+.ruff_cache/
+__pycache__/
+*.py[cod]
+*.db
+*.db-*
+*.log
+.env
+.env.*
+!.env.example
