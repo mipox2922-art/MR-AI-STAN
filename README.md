@@ -112,8 +112,10 @@ The repository now contains `.github/workflows/deploy-cloudflare-api.yml`. It bu
 
 Add these two GitHub Actions repository secrets before deploying:
 
-- `CLOUDFLARE_API_TOKEN`: a Cloudflare API token allowed to deploy Workers and Containers for this account.
+- `CLOUDFLARE_API_TOKEN`: an account-scoped Cloudflare API token with **Workers Scripts Edit** and **Workers Containers Write** permissions. Keep this token private.
 - `CLOUDFLARE_ACCOUNT_ID`: the Cloudflare account ID that owns the Workers and Pages projects.
+
+The API token permissions are separate from the Cloudflare runtime secrets listed below. The GitHub token lets Actions publish the Worker and Container image; `DATABASE_URL`, `DATABASE_SSL_CA_CERT`, `SECRET_KEY`, and provider secrets are set in the Cloudflare Worker environment and are passed into the container only at runtime. See the [Cloudflare token permission reference](https://developers.cloudflare.com/fundamentals/api/reference/permissions/).
 
 The workflow installs the backend's Worker tooling and deploys using `backend/wrangler.jsonc` plus the existing `backend/Dockerfile`. Keep the API Worker named `mr-ai-stan-api`; that exact name is used by the Pages service binding.
 
