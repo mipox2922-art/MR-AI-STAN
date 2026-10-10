@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import json
 import logging
+from datetime import datetime, timedelta
 
+from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session
 
 from .core.gateway import execute
@@ -20,9 +22,19 @@ HAND_STATUSES = {
 
 
 async def run_pending_tasks(db: Session, limit: int = 5) -> int:
+    stale_cutoff = datetime.utcnow() - timedelta(minutes=15)
     rows = (
         db.query(Task)
-        .filter(Task.status == "PENDING", Task.agent == "scheduler")
+        .filter(
+            Task.agent == "scheduler",
+            or_(
+                Task.status == "PENDING",
+                and_(
+                    Task.status == "RUNNING",
+                    Task.updated_at < stale_cutoff,
+                ),
+            ),
+        )
         .order_by(Task.id.asc())
         .limit(max(1, min(limit, 20)))
         .all()
