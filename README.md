@@ -94,43 +94,29 @@ Current connector routes:
 
 Sending/replying is intentionally not enabled in this tranche. High-impact mail actions will use the existing approval engine before execution.
 
-## Production deployment (Cloudflare Pages + Render + Supabase)
+## Production deployment (Render only)
 
-The deployed app uses the services together, each for its intended job:
+The root `render.yaml` Blueprint defines both application services on Render:
 
-- **Frontend:** Cloudflare Pages at `https://mr-ai-stan.pages.dev`.
-- **Backend:** FastAPI API service `mr-ai-stan-api` on Render, defined in the root `render.yaml` Blueprint.
-- **Database:** Supabase PostgreSQL.
+- **Frontend:** Render Static Site, service name `mr-ai-stan-web` (normally `https://mr-ai-stan-web.onrender.com`).
+- **Backend:** FastAPI web service, service name `mr-ai-stan-api` (normally `https://mr-ai-stan-api.onrender.com`).
 
-### 1. Deploy the FastAPI backend on Render
+Cloudflare Pages, Cloudflare Functions, and Supabase are **not required**. Render wires the frontend's build-time `VITE_API_URL` to the backend's `RENDER_EXTERNAL_URL`, and the API allows the Render frontend origin through CORS.
 
-In Render, create a **Blueprint** for this GitHub repository and apply `render.yaml`. The Blueprint sets the backend root directory to `backend`, installs `backend/requirements.txt`, starts Uvicorn on Render's assigned port, and checks `/health`. Render generates `SECRET_KEY` automatically.
+### Deploy
 
-In the Render service's **Environment** settings, set:
+1. In Render, create or open the Blueprint for this repository and sync `render.yaml`.
+2. Configure the backend's `GEMINI_API_KEY` and/or `KIMI_API_KEY` in Render Environment settings. Configure `GMAIL_CLIENT_SECRET` only if Gmail OAuth is enabled.
+3. Configure persistent storage deliberately before using the app with important data. The app supports SQLite by default for local/sandbox use and accepts a PostgreSQL `DATABASE_URL`. The Blueprint does not provision a third-party database.
+4. After Render deploys both services, check the backend health endpoint:
+   `https://mr-ai-stan-api.onrender.com/health`
+   It should return `{"status":"healthy","database":"reachable"}` when the configured database is reachable.
+5. In Google Cloud Console, register this exact authorized redirect URI if Gmail integration is enabled:
+   `https://mr-ai-stan-api.onrender.com/integrations/gmail/callback`.
 
-- `DATABASE_URL`: the PostgreSQL connection URI from Supabase Dashboard → **Connect**.
-- `DATABASE_SSL_CA_CERT`: the trusted Supabase root CA certificate in PEM format. Download it from Supabase Dashboard → **Database → Settings → SSL Configuration**. PostgreSQL certificate and hostname verification stays enabled; do not bypass TLS verification.
-- Optional: `GEMINI_API_KEY`, `KIMI_API_KEY`, `SEARXNG_URL`, and `GMAIL_CLIENT_SECRET` if those integrations are enabled.
+**Persistence warning:** a free Render web service does not provide durable local-file storage. If `DATABASE_URL` is left on SQLite, data can be lost when the instance restarts or is redeployed. For durable production data, configure a Render-managed PostgreSQL database on an appropriate plan or use a paid persistent disk. Do not substitute a temporary free database that expires after 30 days. PostgreSQL TLS certificate and hostname verification must remain enabled; provide `DATABASE_SSL_CA_CERT` only when your database requires a custom trusted CA.
 
-The `render.yaml` Blueprint includes `CORS_ORIGINS=https://mr-ai-stan.pages.dev` and the hosted Gmail OAuth callback. Keep the callback URL registered in Google Cloud as `https://mr-ai-stan.pages.dev/api/integrations/gmail/callback`.
-
-### 2. Connect Cloudflare Pages to Render
-
-Open the Cloudflare Pages project named `mr-ai-stan`, then go to **Settings → Variables and Secrets → Production**. Add this variable:
-
-`MR_AI_API_URL=https://YOUR-ACTUAL-SERVICE.onrender.com`
-
-Replace the example with the exact HTTPS origin Render assigned. Do not append `/api` or another path. Save the variable and redeploy the Pages project.
-
-The Pages Function forwards requests from `https://mr-ai-stan.pages.dev/api/*` to the Render API. The React application keeps using the same-origin `/api` path, so the browser does not need a separate API URL and backend API keys are not exposed to the frontend.
-
-### 3. Verify the complete connection
-
-- Open the Render service's `/health` endpoint; it should return `{"status":"healthy"}`.
-- Open `https://mr-ai-stan.pages.dev/api/health`; it should return the same JSON through the Pages proxy.
-- Check Render logs for database TLS or connection errors if either health check fails.
-- For the GitHub Actions Supabase smoke test, add `DATABASE_URL` and `DATABASE_SSL_CA_CERT` as repository Actions secrets. If those secrets are absent, CI explicitly skips the live database check rather than claiming Supabase was verified.
-
+If Render assigns a different public hostname to either service, use the actual hostname in `CORS_ORIGINS`, `VITE_API_URL`, and the Google OAuth redirect URI. The Chrome extension's production defaults currently target the service names declared in `render.yaml`.
 
 ## Codespaces
 
