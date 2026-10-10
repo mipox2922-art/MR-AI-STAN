@@ -1,4 +1,4 @@
-const DEFAULT_API_URL = "https://mr-ai-stan.pages.dev/api";
+const DEFAULT_API_URL = "https://mr-ai-stan-api.onrender.com";
 
 async function getApiUrl() {
   const stored = await chrome.storage.local.get("mr_ai_api_url");
