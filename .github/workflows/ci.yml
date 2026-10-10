@@ -83,6 +83,23 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
+      - name: Validate extension manifest and production controller wiring
+        run: |
+          node - <<'NODE'
+          const assert = require("node:assert/strict");
+          const fs = require("node:fs");
+          const manifest = JSON.parse(fs.readFileSync("extension/manifest.json", "utf8"));
+          const origin = "https://mr-ai-stan.pages.dev/*";
+          assert(manifest.host_permissions.includes(origin), "Production Pages API host permission is missing");
+          assert(manifest.externally_connectable.matches.includes(origin), "Production Pages controller origin is not externally connectable");
+          const background = fs.readFileSync("extension/background.js", "utf8");
+          assert(background.split("\n").some(line => line.includes("mr-ai-stan") && line.includes("pages")), "Production Pages controller pattern is missing");
+          const popup = fs.readFileSync("extension/popup.js", "utf8");
+          assert(popup.includes("https://mr-ai-stan.pages.dev/api"), "Extension popup does not use the production Pages API proxy");
+          const content = fs.readFileSync("extension/content.js", "utf8");
+          assert(content.includes("resulting application state was not independently verified"), "Browser action verification caveat is missing");
+          console.log("Extension manifest and production controller wiring: OK");
+          NODE
       - name: Validate extension JavaScript
         run: |
           node --check extension/background.js
