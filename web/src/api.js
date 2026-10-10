@@ -1,6 +1,6 @@
 function detectApiUrl() {
   // Production must use the same-origin Cloudflare Pages Function proxy.
-  // This prevents a stale VITE_API_URL from bypassing the configured Render API.
+  // This prevents stale VITE_API_URL values from bypassing the Cloudflare Pages proxy.
   if (typeof window !== "undefined") {
     if (!import.meta.env.DEV) {
       return `${window.location.origin}/api`;
