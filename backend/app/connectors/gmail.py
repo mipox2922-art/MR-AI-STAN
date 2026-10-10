@@ -103,7 +103,6 @@ def _set_oauth_state(db: Session, user_id: int) -> str:
 
 def _consume_oauth_state(db: Session, user_id: int, state: str) -> None:
     row = _get_setting(db, user_id, GMAIL_STATE_KEY)
-    _delete_setting(db, user_id, GMAIL_STATE_KEY)
     if not row:
         raise GmailConnectorError("Gmail OAuth state is missing or expired.")
 
@@ -111,14 +110,20 @@ def _consume_oauth_state(db: Session, user_id: int, state: str) -> None:
         payload = json.loads(row.value)
         expires_at = datetime.fromisoformat(payload["expires_at"])
     except (ValueError, KeyError, TypeError, json.JSONDecodeError) as exc:
+        _delete_setting(db, user_id, GMAIL_STATE_KEY)
         raise GmailConnectorError("Gmail OAuth state is invalid.") from exc
 
     if expires_at < datetime.now(timezone.utc):
+        _delete_setting(db, user_id, GMAIL_STATE_KEY)
         raise GmailConnectorError("Gmail OAuth state is expired.")
 
     saved_state = str(payload.get("state", ""))
     if not secrets.compare_digest(saved_state, state):
+        # A forged callback must not invalidate the real browser's pending OAuth flow.
         raise GmailConnectorError("Gmail OAuth state validation failed.")
+
+    # Consume the one-time state only after it has passed all validation checks.
+    _delete_setting(db, user_id, GMAIL_STATE_KEY)
 
 
 def connection_status(db: Session, user_id: int) -> dict[str, Any]:

@@ -37,6 +37,14 @@ def register(
     data: RegisterRequest,
     db: Session = Depends(get_db),
 ):
+    # This deployment is a single-owner command center. Public registration is
+    # available only for the initial bootstrap account; all later users must log in.
+    if db.query(User.id).first() is not None:
+        raise HTTPException(
+            status_code=403,
+            detail="Initial setup is already complete. Log in with the existing account.",
+        )
+
     existing = (
         db.query(User)
         .filter(User.username == data.username)

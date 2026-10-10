@@ -1,7 +1,8 @@
 const CONTROLLER_PATTERNS = [
   /^http:\/\/localhost:5173\//,
   /^http:\/\/127\.0\.0\.1:5173\//,
-  /^https:\/\/[^/]+\.app\.github\.dev\//
+  /^https:\/\/[^/]+\.app\.github\.dev\//,
+  /^https:\/\/mr-ai-stan\.pages\.dev\//
 ];
 
 let controlledTabId = null;
@@ -68,6 +69,22 @@ chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => 
   if (!isControllerPage(senderUrl)) {
     sendResponse({ ok: false, error: "MR AI controller origin is not authorized." });
     return false;
+  }
+
+  if (message?.type === "MR_AI_AUTH_TOKEN") {
+    const token = typeof message.token === "string" ? message.token.trim() : "";
+    if (token.length > 8192) {
+      sendResponse({ ok: false, error: "Authentication token is too long." });
+      return false;
+    }
+
+    const storageOperation = token
+      ? chrome.storage.local.set({ mr_ai_token: token })
+      : chrome.storage.local.remove("mr_ai_token");
+    storageOperation
+      .then(() => sendResponse({ ok: true }))
+      .catch(() => sendResponse({ ok: false, error: "Could not sync MR AI authentication." }));
+    return true;
   }
 
   if (message?.type !== "MR_AI_BROWSER_ACTION") {

@@ -18,12 +18,29 @@ export function getToken() {
   return localStorage.getItem("mr_ai_token");
 }
 
+function syncExtensionAuthToken(token) {
+  const extensionId = getBrowserExtensionId();
+  if (!extensionId || typeof globalThis.chrome?.runtime?.sendMessage !== "function") return;
+
+  try {
+    const pending = globalThis.chrome.runtime.sendMessage(extensionId, {
+      type: "MR_AI_AUTH_TOKEN",
+      token: token || "",
+    });
+    pending?.catch?.(() => {});
+  } catch {
+    // The dashboard remains usable when the extension is absent or reloading.
+  }
+}
+
 export function setToken(token) {
   localStorage.setItem("mr_ai_token", token);
+  syncExtensionAuthToken(token);
 }
 
 export function clearToken() {
   localStorage.removeItem("mr_ai_token");
+  syncExtensionAuthToken("");
 }
 
 class ApiError extends Error {
@@ -277,6 +294,8 @@ function getBrowserExtensionId() {
 
 export async function getBrowserHandsStatus() {
   const extensionId = getBrowserExtensionId();
+  const token = getToken();
+  if (token) syncExtensionAuthToken(token);
   return {
     installed: Boolean(extensionId),
     extensionId: extensionId || null,

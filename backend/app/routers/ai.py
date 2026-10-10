@@ -500,10 +500,17 @@ async def chat(
                     f"❌ AI explanation failed after action: {exc}",
                     extra={"request_id": request_id, "intent": intent.name},
                 )
-                answer = (
-                    f"Nimekamilisha hatua ya {intent.name} kwa matokeo yaliyothibitishwa. "
-                    f"Status: {orchestration_result.get('status', 'UNKNOWN')}."
-                )
+                action_status = str(orchestration_result.get("status", "UNKNOWN")).upper()
+                if action_status == "COMPLETED":
+                    answer = (
+                        f"Hatua ya {intent.name} imeripotiwa kukamilika na mfumo "
+                        f"(status: {action_status}), lakini maelezo ya AI hayakupatikana."
+                    )
+                else:
+                    answer = (
+                        f"Siwezi kuthibitisha kuwa hatua ya {intent.name} imekamilika. "
+                        f"Provider ya AI imeshindwa kueleza matokeo; status ya mfumo ni {action_status}."
+                    )
                 provider_name = "orchestrator"
 
         elapsed = time.time() - request_start

@@ -1,3 +1,5 @@
+import json
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
@@ -71,26 +73,51 @@ def report_mission_handoff(
     if not mission:
         raise HTTPException(404, "Mission not found")
 
-    status = str(payload.get("status", "")).upper()
+    if mission.agent != "orchestrator" or mission.status not in {"WAITING", "IN_PROGRESS", "WAITING_FOR_HAND"}:
+        raise HTTPException(409, "Only an active orchestrated mission can accept a handoff.")
+
+    reported_status = str(payload.get("status", "")).upper()
     evidence = payload.get("evidence")
-    if status not in {"COMPLETED", "FAILED"}:
+    if reported_status not in {"COMPLETED", "FAILED"}:
         raise HTTPException(400, "handoff status must be COMPLETED or FAILED")
 
-    mission.status = status
-    mission.progress = 100 if status == "COMPLETED" else mission.progress
-    mission.result = str(evidence)[:12000] if evidence is not None else ""
-    mission.error = None if status == "COMPLETED" else str(evidence)[:4000]
+    # Browser/device handoffs originate outside the backend. A client-supplied
+    # status or evidence blob is not independent proof that the remote action worked.
+    if reported_status == "COMPLETED":
+        status = "WAITING_FOR_VERIFICATION"
+        mission.status = status
+        mission.progress = min(99, mission.progress or 0)
+        mission.error = (
+            "The hand reported completion, but the backend cannot independently verify "
+            "the remote browser/device outcome yet."
+        )
+    else:
+        status = "FAILED"
+        mission.status = status
+        mission.error = str(evidence)[:4000] if evidence is not None else "The execution hand reported failure."
+
+    try:
+        mission.result = json.dumps(evidence, ensure_ascii=False, default=str)[:12000]
+    except (TypeError, ValueError):
+        mission.result = str(evidence)[:12000]
+
     db.add(ActivityLog(
         user_id=current_user.id,
         action="MISSION_HANDOFF_RESULT",
-        details=f"Mission {mission.id}: {status}",
+        details=f"Mission {mission.id}: reported={reported_status}; stored={status}",
     ))
     db.commit()
     db.refresh(mission)
 
     return {
         "status": status,
-        "verified": status == "COMPLETED",
+        "reported_status": reported_status,
+        "verified": False,
+        "next_action": (
+            "The handoff is waiting for independent verification. The mission has not been marked completed."
+            if status == "WAITING_FOR_VERIFICATION"
+            else "Review the failed handoff evidence and retry only after correcting the cause."
+        ),
         "mission": {
             "id": mission.id,
             "status": mission.status,

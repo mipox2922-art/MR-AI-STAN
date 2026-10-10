@@ -217,10 +217,6 @@ function AgentsPanel({ agents, onPlan }) {
             throw new Error(`Unsupported browser handoff action: ${action}`);
         }
 
-        if (evidence?.verified === false) {
-          throw new Error("Browser handoff returned an unverified result.");
-        }
-
         const verified = await reportMissionHandoff(
           result.mission.id,
           "COMPLETED",
@@ -241,12 +237,13 @@ function AgentsPanel({ agents, onPlan }) {
             progress: verified.mission.progress,
             result: verified.mission.result,
           },
+          next_action: verified.next_action || result.next_action,
           steps: result.steps.map(step =>
             step.step === handoffStep.step
               ? {
                   ...step,
-                  status: "COMPLETED",
-                  verified: true,
+                  status: verified.verified === true ? "COMPLETED" : verified.status,
+                  verified: verified.verified === true,
                   evidence,
                 }
               : step
