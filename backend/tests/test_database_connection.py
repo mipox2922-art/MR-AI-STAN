@@ -1,4 +1,6 @@
-from app.database import normalize_database_url
+import ssl
+
+from app.database import create_postgres_ssl_context, normalize_database_url
 
 
 def test_normalize_postgres_url_for_pg8000_and_tls():
@@ -18,3 +20,11 @@ def test_normalize_existing_psycopg_url_to_pg8000():
 
     assert url.startswith("postgresql+pg8000://")
     assert "sslmode=" not in url
+
+
+
+def test_postgres_tls_verifies_certificate_and_hostname():
+    context = create_postgres_ssl_context()
+
+    assert context.verify_mode == ssl.CERT_REQUIRED
+    assert context.check_hostname is True
