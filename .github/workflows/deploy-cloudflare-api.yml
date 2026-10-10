@@ -18,6 +18,7 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
 
@@ -26,38 +27,52 @@ jobs:
           node-version: "22"
 
       - name: Verify required deployment secrets
-        id: secrets
         env:
-          EVENT_NAME: ${{ github.event_name }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
-            if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
-              echo "::error::Add CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID in GitHub Actions repository secrets before manual deployment."
-              exit 1
-            fi
-            echo "::warning::Cloudflare API deploy skipped because CLOUDFLARE_API_TOKEN and/or CLOUDFLARE_ACCOUNT_ID is missing."
-            echo "configured=false" >> "$GITHUB_OUTPUT"
-            echo "### Cloudflare API deployment skipped" >> "$GITHUB_STEP_SUMMARY"
-            echo "Add `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` to repository Actions secrets, then run this workflow manually or push another backend change." >> "$GITHUB_STEP_SUMMARY"
-            exit 0
+            echo "::error::Deployment stopped: configure CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID in GitHub Actions repository secrets."
+            exit 1
           fi
-          echo "configured=true" >> "$GITHUB_OUTPUT"
+          echo "Cloudflare deployment credentials are present."
 
       - name: Install Worker tooling
-        if: steps.secrets.outputs.configured == 'true'
         working-directory: backend
         run: npm install
 
       - name: Check Docker engine
-        if: steps.secrets.outputs.configured == 'true'
         run: docker info
 
       - name: Deploy API Container Worker
-        if: steps.secrets.outputs.configured == 'true'
         working-directory: backend
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: npm run deploy
+
+      - name: Verify live API and database through Cloudflare Pages
+        shell: bash
+        run: |
+          set -euo pipefail
+          health_url="https://mr-ai-stan.pages.dev/api/health"
+          last_response="No response received."
+          for attempt in $(seq 1 18); do
+            last_response="$(curl --connect-timeout 5 --max-time 12 -sS "$health_url" 2>&1 || true)"
+            if printf '%s' "$last_response" | python -c '
+          import json, sys
+          try:
+              payload = json.load(sys.stdin)
+          except Exception:
+              raise SystemExit(1)
+          raise SystemExit(0 if payload.get("status") == "healthy" and payload.get("database") == "reachable" else 1)
+          '; then
+              echo "Live API health check passed: $last_response"
+              exit 0
+            fi
+            echo "Health check attempt $attempt/18 did not pass yet."
+            sleep 10
+          done
+          echo "::error::Cloudflare deployment did not pass the live API/database health check."
+          echo "Last response: $last_response"
+          exit 1
