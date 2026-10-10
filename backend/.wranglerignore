@@ -1,5 +1,6 @@
-# Runtime dependencies are packaged into python_modules by pywrangler.
-# Never upload host-side virtual environments or local test/cache files.
+# Runtime and test artifacts must not be uploaded with the Worker.
+node_modules/
+node_modules/**
 .venv/
 .venv/**
 .venv-workers/
@@ -12,3 +13,6 @@ tests/**
 .ruff_cache/**
 **/__pycache__/
 **/*.pyc
+*.db
+*.db-*
+*.log

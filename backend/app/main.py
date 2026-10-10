@@ -1,14 +1,15 @@
 import logging
+import secrets
 
-from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Header, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from .config import settings
+from .config import settings, validate_secret_key
 from .database import Base, SessionLocal, engine
 from .models import User
 from .realtime import manager
-from .scheduler import start_scheduler, stop_scheduler
+from .scheduler import run_scheduler_cycle, start_scheduler, stop_scheduler
 from .security import decode_access_token
 
 from .routers import (
@@ -28,14 +29,7 @@ from .routers import (
 
 logger = logging.getLogger("mr_ai")
 
-if settings.secret_key in {
-    "",
-    "CHANGE_ME_TO_A_LONG_RANDOM_SECRET",
-    "CHANGE_THIS_SECRET_KEY",
-}:
-    raise RuntimeError(
-        "SECRET_KEY is not configured. Run start.sh or set a strong SECRET_KEY in backend/.env."
-    )
+validate_secret_key(settings.secret_key)
 
 # Serverless Worker imports must not perform database DDL/network I/O.
 # Apply schema changes in a controlled migration/setup step instead.
@@ -78,7 +72,7 @@ app.include_router(notifications.router)
 
 @app.on_event("startup")
 async def startup_scheduler():
-    if settings.serverless_mode:
+    if settings.serverless_mode or not settings.scheduler_enabled:
         return
     start_scheduler()
 
@@ -102,6 +96,24 @@ async def root():
 async def health():
     return {
         "status": "healthy",
+    }
+
+
+@app.post("/internal/cloudflare/scheduler-cycle", include_in_schema=False)
+async def cloudflare_scheduler_cycle(
+    x_mr_ai_cron_secret: str = Header(default=""),
+):
+    expected = settings.cloudflare_cron_secret
+    if len(expected) < 32 or not secrets.compare_digest(
+        x_mr_ai_cron_secret, expected
+    ):
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    triggered, processed = await run_scheduler_cycle()
+    return {
+        "status": "completed",
+        "triggered": triggered,
+        "processed": processed,
     }
 
 

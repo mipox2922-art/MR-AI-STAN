@@ -167,7 +167,7 @@ elif [[ ! -f "$BACKEND_DIR/.env" ]]; then
 fi
 
 CURRENT_SECRET="$(sed -n 's/^SECRET_KEY=//p' "$BACKEND_DIR/.env" | head -n 1)"
-if [[ -z "$CURRENT_SECRET" || "$CURRENT_SECRET" == "CHANGE_ME_TO_A_LONG_RANDOM_SECRET" || "$CURRENT_SECRET" == "CHANGE_THIS_SECRET_KEY" ]]; then
+if [[ ${#CURRENT_SECRET} -lt 32 || -z "$CURRENT_SECRET" || "$CURRENT_SECRET" == "CHANGE_ME_TO_A_LONG_RANDOM_SECRET" || "$CURRENT_SECRET" == "CHANGE_THIS_SECRET_KEY" ]]; then
   GENERATED_SECRET="$("$PYTHON" -c 'import secrets; print(secrets.token_urlsafe(48))')"
   if grep -q '^SECRET_KEY=' "$BACKEND_DIR/.env"; then
     sed -i "s/^SECRET_KEY=.*/SECRET_KEY=$GENERATED_SECRET/" "$BACKEND_DIR/.env"

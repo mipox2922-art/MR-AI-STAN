@@ -20,14 +20,14 @@ jobs:
         run: python -m compileall -q backend/app
       - name: Run backend tests
         env:
-          SECRET_KEY: ci-test-secret
+          SECRET_KEY: ci-only-secret-for-mr-ai-stan-tests-not-for-production-2026
           PYTHONPATH: ${{ github.workspace }}/backend
         run: |
           cd backend
           pytest -q
       - name: Import FastAPI app
         env:
-          SECRET_KEY: ci-test-secret
+          SECRET_KEY: ci-only-secret-for-mr-ai-stan-tests-not-for-production-2026
           PYTHONPATH: ${{ github.workspace }}/backend
         run: |
           cd backend
@@ -35,12 +35,17 @@ jobs:
 
       - name: Verify Supabase connection
         env:
-          SECRET_KEY: ci-test-secret
+          SECRET_KEY: ci-only-secret-for-mr-ai-stan-tests-not-for-production-2026
           DATABASE_URL: ${{ secrets.DATABASE_URL || secrets.DATABASE_UR }}
+          DATABASE_SSL_CA_CERT: ${{ secrets.DATABASE_SSL_CA_CERT }}
           PYTHONPATH: ${{ github.workspace }}/backend
         run: |
           if [ -z "$DATABASE_URL" ]; then
             echo "Supabase smoke test skipped: DATABASE_URL/DATABASE_UR secret is not configured."
+            exit 0
+          fi
+          if [ -z "$DATABASE_SSL_CA_CERT" ]; then
+            echo "::warning::Supabase smoke test skipped: add DATABASE_SSL_CA_CERT as a trusted PEM certificate secret to verify this database's TLS chain."
             exit 0
           fi
           cd backend
@@ -52,6 +57,24 @@ jobs:
               assert result == 1
               print("Supabase/PostgreSQL connection: OK")
           PY
+
+  cloudflare_api:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install Cloudflare Worker dependencies
+        working-directory: backend
+        run: npm install
+      - name: Validate Cloudflare Container Worker
+        working-directory: backend
+        run: |
+          npm run check
+          node -e "JSON.parse(require('node:fs').readFileSync('wrangler.jsonc', 'utf8')); console.log('Cloudflare Worker config JSON: OK')"
+      - name: Validate Pages API proxy
+        run: node --check 'web/functions/api/[[path]].js'
 
   frontend:
     runs-on: ubuntu-latest
