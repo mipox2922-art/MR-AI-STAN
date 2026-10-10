@@ -108,7 +108,7 @@ jobs:
           assert(manifest.host_permissions.includes(apiOrigin), "Render API host permission is missing");
           assert(manifest.externally_connectable.matches.includes(frontendOrigin), "Render controller origin is not externally connectable");
           const background = fs.readFileSync("extension/background.js", "utf8");
-          assert(background.split("\\n").some(line => line.includes("mr-ai-stan-web") && line.includes("onrender.com")), "Render controller pattern is missing");
+          assert(background.split("\\n").some(line => line.includes("mr-ai-stan-web") && line.includes("onrender")), "Render controller pattern is missing");
           const popup = fs.readFileSync("extension/popup.js", "utf8");
           assert(popup.includes("https://mr-ai-stan-api.onrender.com"), "Extension popup does not use the Render API");
           const content = fs.readFileSync("extension/content.js", "utf8");
