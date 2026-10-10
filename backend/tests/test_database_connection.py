@@ -28,3 +28,24 @@ def test_postgres_tls_verifies_certificate_and_hostname():
 
     assert context.verify_mode == ssl.CERT_REQUIRED
     assert context.check_hostname is True
+
+
+
+def test_postgres_tls_can_load_an_explicit_pem_ca(monkeypatch):
+    class FakeContext:
+        loaded = None
+
+        def load_verify_locations(self, *, cadata=None, cafile=None):
+            self.loaded = {"cadata": cadata, "cafile": cafile}
+
+    fake_context = FakeContext()
+    monkeypatch.setattr(
+        "app.database.ssl.create_default_context",
+        lambda: fake_context,
+    )
+    pem = "-----BEGIN CERTIFICATE-----\nplaceholder\n-----END CERTIFICATE-----"
+
+    result = create_postgres_ssl_context(pem)
+
+    assert result is fake_context
+    assert fake_context.loaded == {"cadata": pem, "cafile": None}
