@@ -32,4 +32,22 @@ class Settings(BaseSettings):
     )
 
 
+MIN_SECRET_KEY_LENGTH = 32
+INSECURE_SECRET_KEYS = frozenset({
+    "",
+    "CHANGE_ME_TO_A_LONG_RANDOM_SECRET",
+    "CHANGE_THIS_SECRET_KEY",
+})
+
+
+def validate_secret_key(secret_key: str) -> None:
+    """Reject default or short JWT keys before starting the API."""
+    candidate = secret_key.strip()
+    if candidate in INSECURE_SECRET_KEYS or len(candidate) < MIN_SECRET_KEY_LENGTH:
+        raise RuntimeError(
+            "SECRET_KEY must be a unique random value of at least 32 characters. "
+            "Run start.sh to generate a local key or configure SECRET_KEY in the hosting environment."
+        )
+
+
 settings = Settings()
