@@ -1,9 +1,16 @@
 function detectApiUrl() {
-  if (import.meta.env.VITE_API_URL) return import.meta.env.VITE_API_URL;
+  // Production must use the same-origin Cloudflare Pages Function proxy.
+  // This prevents a stale VITE_API_URL from bypassing the configured Render API.
   if (typeof window !== "undefined") {
+    if (!import.meta.env.DEV) {
+      return `${window.location.origin}/api`;
+    }
+    if (import.meta.env.VITE_API_URL) {
+      return import.meta.env.VITE_API_URL;
+    }
     return `${window.location.origin}/api`;
   }
-  return "http://localhost:8000";
+  return import.meta.env.VITE_API_URL || "http://localhost:8000";
 }
 const API_URL = detectApiUrl();
 
