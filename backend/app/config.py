@@ -8,6 +8,7 @@ class Settings(BaseSettings):
     serverless_mode: bool = False
 
     database_url: str = "sqlite:///./mr_ai.db"
+    database_ssl_ca_cert: str = ""
 
     gemini_api_key: str = ""
     gemini_model: str = "gemini-2.5-flash"
