@@ -1,21 +1,46 @@
 export async function onRequest(context) {
   const incoming = new URL(context.request.url);
   const pathname = incoming.pathname.replace(/^\/api(?=\/|$)/, "") || "/";
+  const apiOrigin = String(context.env.MR_AI_API_URL || "").trim();
 
-  // Production API stays inside Cloudflare through a Pages service binding.
-  // The browser only calls https://mr-ai-stan.pages.dev/api/*.
-  const api = context.env.MR_AI_API;
-  if (!api) {
+  if (!apiOrigin) {
     return Response.json(
       {
         detail:
-          "MR AI API is not connected. Configure the Cloudflare Pages service binding MR_AI_API to the mr-ai-stan-api Worker.",
+          "MR AI API is not configured. Set the Cloudflare Pages production variable MR_AI_API_URL to the HTTPS origin of the Render FastAPI service.",
       },
       { status: 503 },
     );
   }
 
-  const target = new URL(context.request.url);
+  let base;
+  try {
+    base = new URL(apiOrigin);
+  } catch {
+    return Response.json(
+      { detail: "MR_AI_API_URL must be a valid HTTPS API origin." },
+      { status: 503 },
+    );
+  }
+
+  if (
+    base.protocol !== "https:" ||
+    base.username ||
+    base.password ||
+    base.pathname !== "/" ||
+    base.search ||
+    base.hash
+  ) {
+    return Response.json(
+      { detail: "MR_AI_API_URL must be an HTTPS origin without credentials, path, query, or fragment." },
+      { status: 503 },
+    );
+  }
+
+  const target = new URL(base.origin);
   target.pathname = pathname;
-  return api.fetch(new Request(target, context.request));
+  target.search = incoming.search;
+
+  // Keep browser requests same-origin and preserve authorization/body/method.
+  return fetch(new Request(target, context.request));
 }
