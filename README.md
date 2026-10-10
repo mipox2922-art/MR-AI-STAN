@@ -106,9 +106,16 @@ There is no Render service and no external API-origin URL. The Pages Function fo
 
 **Plan requirement:** Cloudflare Containers require the Workers Paid plan, currently starting at **$5 USD/month**, with additional usage-based charges if included allowances are exceeded. The previous Python Worker bundle exceeded the platform bundle limit, so the backend now runs as a Linux container instead of forcing the full Python dependency set into a Worker bundle. See the [Cloudflare Containers overview](https://developers.cloudflare.com/containers/) and [current pricing](https://developers.cloudflare.com/containers/platform/pricing/).
 
-### 1. Connect the backend Worker
+### 1. Set up automatic backend deployment
 
-In Cloudflare, create or connect a Worker named `mr-ai-stan-api` from this repository. Set the Worker build root directory to `backend`, install dependencies with `npm install`, and deploy with `npm run deploy`. The deploy uses `backend/wrangler.jsonc` and builds the existing `backend/Dockerfile`. Cloudflare Workers Builds can build Dockerfile-based Container images.
+The repository now contains `.github/workflows/deploy-cloudflare-api.yml`. It builds the backend Docker image and deploys the `mr-ai-stan-api` Worker with Wrangler from a GitHub-hosted runner that has Docker available. After this PR is merged, changes under `backend/` trigger the deployment workflow; it can also be run manually from **GitHub → Actions → Deploy MR AI API to Cloudflare Containers → Run workflow**.
+
+Add these two GitHub Actions repository secrets before deploying:
+
+- `CLOUDFLARE_API_TOKEN`: a Cloudflare API token allowed to deploy Workers and Containers for this account.
+- `CLOUDFLARE_ACCOUNT_ID`: the Cloudflare account ID that owns the Workers and Pages projects.
+
+The workflow installs the backend's Worker tooling and deploys using `backend/wrangler.jsonc` plus the existing `backend/Dockerfile`. Keep the API Worker named `mr-ai-stan-api`; that exact name is used by the Pages service binding.
 
 Keep the Pages project named `mr-ai-stan`. Its service binding must be named `MR_AI_API` and point to the `mr-ai-stan-api` Worker in the **Production** environment. The binding is defined in `web/wrangler.jsonc`; the Pages Function does not fall back to a remote backend URL.
 
