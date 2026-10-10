@@ -1,16 +1,13 @@
 function detectApiUrl() {
-  // Production must use the same-origin Cloudflare Pages Function proxy.
-  // This prevents stale VITE_API_URL values from bypassing the Cloudflare Pages proxy.
+  const configured = String(import.meta.env.VITE_API_URL || "").trim().replace(/\/+$/, "");
+
   if (typeof window !== "undefined") {
-    if (!import.meta.env.DEV) {
-      return `${window.location.origin}/api`;
-    }
-    if (import.meta.env.VITE_API_URL) {
-      return import.meta.env.VITE_API_URL;
-    }
-    return `${window.location.origin}/api`;
+    if (configured) return configured;
+    if (import.meta.env.DEV) return `${window.location.origin}/api`;
+    return "https://mr-ai-stan-api.onrender.com";
   }
-  return import.meta.env.VITE_API_URL || "http://localhost:8000";
+
+  return configured || "http://localhost:8000";
 }
 const API_URL = detectApiUrl();
 
