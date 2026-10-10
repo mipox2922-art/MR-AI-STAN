@@ -11,14 +11,15 @@
   ],
   "host_permissions": [
     "http://localhost:8000/*",
-    "https://mr-ai-stan.pages.dev/*"
+    "https://mr-ai-stan-web.onrender.com/*",
+    "https://mr-ai-stan-api.onrender.com/*"
   ],
   "externally_connectable": {
     "matches": [
       "http://localhost:5173/*",
       "http://127.0.0.1:5173/*",
       "https://*.app.github.dev/*",
-      "https://mr-ai-stan.pages.dev/*"
+      "https://mr-ai-stan-web.onrender.com/*"
     ]
   },
   "action": {
