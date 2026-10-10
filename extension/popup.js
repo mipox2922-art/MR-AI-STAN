@@ -1,4 +1,19 @@
-const API_URL = "http://localhost:8000";
+const DEFAULT_API_URL = "https://mr-ai-stan.pages.dev/api";
+
+async function getApiUrl() {
+  const stored = await chrome.storage.local.get("mr_ai_api_url");
+  const candidate = String(stored.mr_ai_api_url || DEFAULT_API_URL).trim();
+  let url;
+  try {
+    url = new URL(candidate);
+  } catch {
+    throw new Error("Invalid MR AI API URL. Configure mr_ai_api_url in extension storage.");
+  }
+  if (!["http:", "https:"].includes(url.protocol)) {
+    throw new Error("MR AI API URL must use HTTP or HTTPS.");
+  }
+  return url.toString().replace(/\\/+$/, "");
+}
 
 const prompt = document.getElementById("prompt");
 const result = document.getElementById("result");
@@ -26,8 +41,9 @@ async function getPage() {
 async function askMR(promptText) {
   const token = await chrome.storage.local.get("mr_ai_token");
 
+  const apiUrl = await getApiUrl();
   const response = await fetch(
-    `${API_URL}/ai/chat`,
+    `${apiUrl}/ai/chat`,
     {
       method: "POST",
       headers: {
@@ -110,8 +126,9 @@ document.getElementById("task").onclick =
         "mr_ai_token"
       );
 
+      const apiUrl = await getApiUrl();
       const response = await fetch(
-        `${API_URL}/tasks`,
+        `${apiUrl}/tasks`,
         {
           method: "POST",
           headers: {
