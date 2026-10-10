@@ -30,9 +30,22 @@ def normalize_database_url(database_url: str) -> str:
     return database_url
 
 
-def create_postgres_ssl_context() -> ssl.SSLContext:
-    """Create a TLS context that verifies the database certificate and hostname."""
-    return ssl.create_default_context()
+def create_postgres_ssl_context(ca_certificate: str | None = None) -> ssl.SSLContext:
+    """Create a verified TLS context, optionally trusting a provider CA certificate.
+
+    The argument may be a path to a PEM file or the PEM certificate text itself.
+    Certificate and hostname verification remain enabled in both cases.
+    """
+    context = ssl.create_default_context()
+    configured_ca = (
+        settings.database_ssl_ca_cert if ca_certificate is None else ca_certificate
+    ).strip()
+    if configured_ca:
+        if "-----BEGIN CERTIFICATE-----" in configured_ca:
+            context.load_verify_locations(cadata=configured_ca)
+        else:
+            context.load_verify_locations(cafile=configured_ca)
+    return context
 
 
 DATABASE_URL = normalize_database_url(settings.database_url)
@@ -43,7 +56,7 @@ if DATABASE_URL.startswith("sqlite"):
     connect_args = {"check_same_thread": False}
 elif DATABASE_URL.startswith("postgresql+pg8000://"):
     # Never disable certificate verification for a database connection.
-    # If a provider uses a private CA, configure that CA in the runtime trust store.
+    # For a private CA, provide DATABASE_SSL_CA_CERT as PEM text or a mounted PEM path.
     connect_args = {"ssl_context": create_postgres_ssl_context()}
 
 engine = create_engine(
