@@ -50,12 +50,13 @@
         element.scrollIntoView({ block: "center", inline: "center", behavior: "auto" });
         element.click();
         return {
-          verified: true,
+          verified: false,
+          dispatched: true,
           action,
           element: description,
           beforeUrl,
           afterUrl: window.location.href,
-          note: "DOM click dispatched. Navigation or app-side effects may continue asynchronously."
+          note: "DOM click event was dispatched, but the resulting application state was not independently verified."
         };
       }
 
@@ -134,7 +135,7 @@
 
         const target = url.toString();
         setTimeout(() => window.location.assign(target), 50);
-        return { verified: true, action, target, note: "Navigation started." };
+        return { verified: false, dispatched: true, action, target, note: "Navigation was requested; the destination and its resulting state have not yet been verified." };
       }
 
       case "DRAG": {
@@ -178,12 +179,13 @@
         element.dispatchEvent(new Event("dragend", { bubbles: true, cancelable: true }));
 
         return {
-          verified: true,
+          verified: false,
+          dispatched: true,
           action,
           element: describeElement(element),
           start: { x: Math.round(startX), y: Math.round(startY) },
           end: { x: Math.round(endX), y: Math.round(endY) },
-          note: "Synthetic pointer/mouse drag events dispatched; complex site-specific DnD may require Playwright."
+          note: "Synthetic pointer/mouse events were dispatched, but the resulting application state was not independently verified; complex site-specific DnD may require Playwright."
         };
       }
 
