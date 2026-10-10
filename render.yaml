@@ -14,6 +14,8 @@ services:
         generateValue: true
       - key: DATABASE_URL
         sync: false
+      - key: DATABASE_SSL_CA_CERT
+        sync: false
       - key: CORS_ORIGINS
         value: "https://mr-ai-stan.pages.dev"
       - key: GEMINI_API_KEY
