@@ -7,7 +7,7 @@ export class MrAiApiContainer extends Container {
   pingEndpoint = "health";
   // The Worker Cron trigger runs every minute. Let the container sleep between
   // scheduler ticks to control idle memory charges; user requests can wake it.
-  sleepAfter = "30s";
+  sleepAfter = "5m";
 
   constructor(ctx, workerEnv) {
     super(ctx, workerEnv);
