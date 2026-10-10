@@ -1,6 +1,19 @@
 import { Container, getContainer } from "@cloudflare/containers";
 
 const INSTANCE_NAME = "mr-ai-stan-api";
+const REQUIRED_SECRETS = [
+  "SECRET_KEY",
+  "DATABASE_URL",
+  "DATABASE_SSL_CA_CERT",
+  "CLOUDFLARE_CRON_SECRET",
+];
+
+function missingRuntimeSecrets(workerEnv) {
+  return REQUIRED_SECRETS.filter((name) => {
+    const value = workerEnv[name];
+    return typeof value !== "string" || value.trim().length === 0;
+  });
+}
 
 export class MrAiApiContainer extends Container {
   defaultPort = 8000;
@@ -43,6 +56,18 @@ export class MrAiApiContainer extends Container {
 
 export default {
   async fetch(request, workerEnv) {
+    const missing = missingRuntimeSecrets(workerEnv);
+    if (missing.length) {
+      return Response.json(
+        {
+          detail:
+            "MR AI API is not configured yet. Add the required secrets to the Cloudflare Worker.",
+          missing,
+        },
+        { status: 503 },
+      );
+    }
+
     if (!workerEnv.MR_AI_API_CONTAINER) {
       return Response.json(
         { detail: "Cloudflare API container binding is missing." },
@@ -58,6 +83,15 @@ export default {
   },
 
   async scheduled(_controller, workerEnv) {
+    const missing = missingRuntimeSecrets(workerEnv);
+    if (missing.length) {
+      console.warn(
+        "Cloudflare scheduler skipped; configure the required API Worker secrets:",
+        missing.join(", "),
+      );
+      return;
+    }
+
     const secret = String(workerEnv.CLOUDFLARE_CRON_SECRET || "");
     if (secret.length < 32) {
       console.error("Cloudflare scheduler is not configured with a strong secret.");
