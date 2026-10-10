@@ -98,7 +98,10 @@ jobs:
           assert(popup.includes("https://mr-ai-stan.pages.dev/api"), "Extension popup does not use the production Pages API proxy");
           const content = fs.readFileSync("extension/content.js", "utf8");
           assert(content.includes("resulting application state was not independently verified"), "Browser action verification caveat is missing");
-          console.log("Extension manifest and production controller wiring: OK");
+          const api = fs.readFileSync("web/src/api.js", "utf8");
+          assert(api.includes("MR_AI_AUTH_TOKEN"), "Dashboard does not sync the JWT to the extension popup");
+          assert(background.includes("MR_AI_AUTH_TOKEN"), "Extension does not store the dashboard JWT for popup use");
+          console.log("Extension manifest, production controller, and auth sync: OK");
           NODE
       - name: Validate extension JavaScript
         run: |
