@@ -30,6 +30,11 @@ def normalize_database_url(database_url: str) -> str:
     return database_url
 
 
+def create_postgres_ssl_context() -> ssl.SSLContext:
+    """Create a TLS context that verifies the database certificate and hostname."""
+    return ssl.create_default_context()
+
+
 DATABASE_URL = normalize_database_url(settings.database_url)
 
 connect_args = {}
@@ -37,12 +42,9 @@ connect_args = {}
 if DATABASE_URL.startswith("sqlite"):
     connect_args = {"check_same_thread": False}
 elif DATABASE_URL.startswith("postgresql+pg8000://"):
-    # Match Supabase sslmode=require semantics: encrypt traffic even when the
-    # pooler's presented chain is not in the Worker/CI CA bundle.
-    ssl_context = ssl.create_default_context()
-    ssl_context.check_hostname = False
-    ssl_context.verify_mode = ssl.CERT_NONE
-    connect_args = {"ssl_context": ssl_context}
+    # Never disable certificate verification for a database connection.
+    # If a provider uses a private CA, configure that CA in the runtime trust store.
+    connect_args = {"ssl_context": create_postgres_ssl_context()}
 
 engine = create_engine(
     DATABASE_URL,
