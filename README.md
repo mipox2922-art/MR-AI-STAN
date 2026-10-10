@@ -101,7 +101,10 @@ The full Python app is too large for the Cloudflare Workers Free bundle limit. D
 Render Blueprints need these private values supplied during setup:
 
 - `DATABASE_URL`: the existing Supabase PostgreSQL connection string.
+- `DATABASE_SSL_CA_CERT`: the trusted database CA certificate in PEM format, if the database endpoint's certificate chain is not present in the runtime trust store. The current CI database endpoint fails certificate verification without its CA. Do not disable certificate or hostname verification to work around this.
 - `GMAIL_CLIENT_SECRET`: the Web OAuth Client Secret from Google Cloud.
+
+Add the same PEM certificate as the GitHub Actions secret `DATABASE_SSL_CA_CERT` if you want the CI database smoke test to run. Without it, CI clearly reports that the live database connection check was skipped; it does not claim that Supabase connectivity was verified.
 
 The Blueprint generates `SECRET_KEY` and sets the hosted Gmail Client ID, callback URI, least-privilege scope, and CORS origin. Optional AI provider keys can be added in the Render service's Environment settings.
 
