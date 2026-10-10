@@ -37,10 +37,15 @@ jobs:
         env:
           SECRET_KEY: ci-only-secret-for-mr-ai-stan-tests-not-for-production-2026
           DATABASE_URL: ${{ secrets.DATABASE_URL || secrets.DATABASE_UR }}
+          DATABASE_SSL_CA_CERT: ${{ secrets.DATABASE_SSL_CA_CERT }}
           PYTHONPATH: ${{ github.workspace }}/backend
         run: |
           if [ -z "$DATABASE_URL" ]; then
             echo "Supabase smoke test skipped: DATABASE_URL/DATABASE_UR secret is not configured."
+            exit 0
+          fi
+          if [ -z "$DATABASE_SSL_CA_CERT" ]; then
+            echo "::warning::Supabase smoke test skipped: add DATABASE_SSL_CA_CERT as a trusted PEM certificate secret to verify this database's TLS chain."
             exit 0
           fi
           cd backend
