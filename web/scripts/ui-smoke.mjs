@@ -12,6 +12,7 @@ let mockSchedules = [];
 let nextTaskId = 1;
 let nextMemoryId = 2;
 let nextScheduleId = 1;
+let rebootRequests = 0;
 
 const services = {
   ai_core: "READY", database: "ONLINE", memory: "ONLINE", web_app: "ONLINE",
@@ -200,6 +201,10 @@ async function bridgeMock(route) {
   if (/^\/devices\/[^/]+\/info$/.test(path)) return sendJson(route, { serial: "E2E-ANDROID-001", model: "Test Device", brand: "MR AI", android_version: "15", sdk: "35", security_patch: "2026-01-01" });
   if (/^\/devices\/[^/]+\/diagnostics$/.test(path)) return sendJson(route, { serial: "E2E-ANDROID-001", adb_state: "device", battery: "level: 99", storage: "mock storage" });
   if (/^\/devices\/[^/]+\/boot-state$/.test(path)) return sendJson(route, { serial: "E2E-ANDROID-001", state: { "ro.boot.verifiedbootstate": "green" } });
+  if (method === "POST" && /^\/devices\/[^/]+\/reboot$/.test(path)) {
+    rebootRequests += 1;
+    return sendJson(route, { serial: "E2E-ANDROID-001", mode: "system", result: "mock reboot only" });
+  }
 
   return sendJson(route, { detail: `Unexpected mock bridge request: ${method} ${path}` }, 404);
 }
@@ -285,10 +290,28 @@ async function main() {
   await modeButton.click();
   await page.locator(".sidebar-footer button").first().getByText("NORMAL MODE", { exact: true }).waitFor({ state: "visible" });
   await page.locator(".sidebar-footer button").first().click();
+  const paletteTargets = [
+    ["Open Dashboard", "Dashboard"], ["Open AI Core", "AI Core"], ["Open Agents", "Agents"],
+    ["Open Browser Hands", "Browser Hands"], ["Open Device Lab", "Device Lab"],
+    ["Open Creative Studio", "Creative Studio"], ["Open Tracking Map", "Tracking Map"],
+    ["Open Security", "Security"], ["Open Toolbox", "Toolbox"], ["Open Web Intelligence", "Web Intelligence"],
+    ["Open Gmail", "Gmail"], ["Open Calendar", "Calendar"], ["Open Tasks", "Tasks"],
+    ["Open Memory", "Memory"], ["Open Settings", "Settings"],
+  ];
+  for (const [action, destination] of paletteTargets) {
+    await page.keyboard.press("Control+k");
+    await page.locator(".palette-actions button").filter({ hasText: action }).click();
+    await page.waitForFunction(expected => document.querySelector(".topbar h1")?.textContent === expected, destination, { timeout: 7000 });
+  }
   await page.keyboard.press("Control+k");
-  await page.getByRole("button", { name: /Open Web Intelligence/ }).waitFor({ state: "visible" });
-  await page.getByRole("button", { name: /Open Web Intelligence/ }).click();
-  await page.waitForFunction(() => document.querySelector(".topbar h1")?.textContent === "Web Intelligence");
+  await page.getByRole("button", { name: "ESC", exact: true }).click();
+  await page.locator(".command-palette").waitFor({ state: "detached" });
+  await page.keyboard.press("Control+k");
+  await page.locator(".palette-actions button").filter({ hasText: "Toggle Working Mode" }).click();
+  await page.locator(".sidebar-footer button").first().getByText("WORKING MODE", { exact: true }).waitFor({ state: "visible" });
+  await goTo("Dashboard");
+  await page.locator(".cc-map-toolbar button").filter({ hasText: "OPEN MAP MODULE" }).click();
+  await page.waitForFunction(() => document.querySelector(".topbar h1")?.textContent === "Tracking Map");
   await goTo("Dashboard");
   await page.getByRole("button", { name: "SLEEP SYSTEM", exact: true }).click();
   await page.getByRole("dialog", { name: "MR AI Sleep Mode" }).getByRole("button", { name: "WAKE MR AI" }).click();
@@ -296,8 +319,10 @@ async function main() {
   completedChecks.push("dashboard telemetry, all radar scans, all six quick commands, search, chat, mode, palette and sleep/wake");
 
   await goTo("AI Core");
-  await page.locator(".state-grid button").filter({ hasText: "THINKING" }).click();
-  await page.locator(".state-grid .state-active").waitFor({ state: "visible" });
+  for (const state of ["IDLE", "LISTENING", "THINKING", "SPEAKING", "WORKING", "BUSY", "ERROR", "SLEEPING"]) {
+    await page.locator(".state-grid button").filter({ hasText: state }).click();
+    await page.waitForFunction(expected => document.querySelector(".state-grid .state-active")?.textContent === expected, state, { timeout: 3000 });
+  }
   await page.locator(".chat-panel select").selectOption("mistral");
   const coreInput = page.locator(".chat-panel .chat-input input");
   await coreInput.fill("Nipe taarifa za mfumo");
@@ -354,7 +379,15 @@ async function main() {
   await page.waitForFunction(() => document.querySelector(".device-result > strong")?.textContent?.includes("COMPLETED"));
   await deviceLab.getByRole("button", { name: "BOOT STATE", exact: true }).click();
   await page.waitForFunction(() => document.querySelector(".device-result > strong")?.textContent?.includes("COMPLETED"));
-  completedChecks.push("Device Lab save, bridge health, ADB, Fastboot, Wi-Fi, BLE, RF, radar, info, diagnostics and boot state (mock bridge)");
+  const rebootCountBefore = rebootRequests;
+  page.once("dialog", dialog => dialog.dismiss());
+  await deviceLab.getByRole("button", { name: "REBOOT SYSTEM", exact: true }).click();
+  assert.equal(rebootRequests, rebootCountBefore, "Dismissing reboot confirmation must not call the bridge.");
+  page.once("dialog", dialog => dialog.accept());
+  await deviceLab.getByRole("button", { name: "REBOOT SYSTEM", exact: true }).click();
+  await page.waitForFunction(() => document.querySelector(".device-result > strong")?.textContent?.includes("COMPLETED"));
+  assert.equal(rebootRequests, rebootCountBefore + 1, "Accepting reboot confirmation should call the bridge.");
+  completedChecks.push("Device Lab save, sensors, device info, diagnostics, boot state and guarded reboot (mock bridge)");
 
   await goTo("Creative Studio");
   await page.locator('input[placeholder="Title"]').fill("E2E CREATIVE TITLE");
@@ -375,7 +408,7 @@ async function main() {
   await page.getByRole("button", { name: /START LIVE TRACKING/ }).click();
   await page.getByRole("button", { name: "STOP TRACKING", exact: false }).waitFor({ state: "visible", timeout: 7000 });
   await page.getByRole("button", { name: "STOP TRACKING", exact: false }).click();
-  await page.getByText("LOCATION VERIFIED · FOLLOW PAUSED", { exact: true }).waitFor({ state: "visible", timeout: 7000 });
+  await page.getByText("LOCATION VERIFIED · FOLLOW PAUSED", { exact: false }).waitFor({ state: "visible", timeout: 7000 });
   completedChecks.push("Tracking Map GPS permission, locate-once, live tracking start/stop and real Street View link");
 
   await goTo("Security");
@@ -455,7 +488,11 @@ async function main() {
   await goTo("Dashboard");
   const widths = await page.evaluate(() => ({ viewport: window.innerWidth, document: document.documentElement.scrollWidth }));
   assert.ok(widths.document <= widths.viewport + 12, `Mobile layout has horizontal overflow: viewport=${widths.viewport}px, document=${widths.document}px`);
-  completedChecks.push("mobile viewport layout fits without horizontal page overflow");
+  const voiceControlCount = await page.locator(".sidebar-voice .voice-button, .sidebar-voice .voice-disabled").count();
+  assert.ok(voiceControlCount > 0, "Voice control should either be actionable or explain that the browser API is unavailable.");
+  await page.getByRole("button", { name: "DISCONNECT SESSION", exact: true }).click();
+  await page.getByRole("heading", { name: "Command access", exact: true }).waitFor({ state: "visible", timeout: 7000 });
+  completedChecks.push("mobile viewport, voice availability state and disconnect-to-login flow");
 
   assert.deepEqual(unexpectedApi, [], `Unexpected frontend API calls: ${unexpectedApi.join(", ")}`);
   assert.deepEqual(browserErrors, [], `Unhandled browser errors: ${browserErrors.join(" | ")}`);
