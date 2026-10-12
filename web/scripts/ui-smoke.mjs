@@ -496,8 +496,13 @@ async function main() {
 
   await goTo("Settings");
   await page.getByText("database", { exact: false }).first().waitFor({ state: "visible" });
-  await page.getByText(/AI Core Status|Verified Service State/).first().waitFor({ state: "visible" });
-  completedChecks.push("Settings module and service state render");
+  await page.getByText(/Verified Service State/).first().waitFor({ state: "visible" });
+  await page.getByRole("button", { name: "REFRESH STATUS", exact: true }).click();
+  const snapshotDownloadPromise = page.waitForEvent("download");
+  await page.getByRole("button", { name: "EXPORT SNAPSHOT", exact: true }).click();
+  const snapshotDownload = await snapshotDownloadPromise;
+  assert.equal(snapshotDownload.suggestedFilename(), "mr-ai-runtime-snapshot.json");
+  completedChecks.push("Settings service state, refresh and runtime snapshot export");
 
   await page.setViewportSize({ width: 390, height: 844 });
   await goTo("Dashboard");
