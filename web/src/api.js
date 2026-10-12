@@ -3,7 +3,11 @@ function detectApiUrl() {
   // If it is not configured, retain the same-origin proxy for local/Cloudflare setups.
   const configuredApiUrl = import.meta.env.VITE_API_URL?.trim();
   if (configuredApiUrl) {
-    return configuredApiUrl.replace(/\\/+$/, "");
+    let baseUrl = configuredApiUrl;
+    while (baseUrl.endsWith("/")) {
+      baseUrl = baseUrl.slice(0, -1);
+    }
+    return baseUrl;
   }
   if (typeof window !== "undefined") {
     return `${window.location.origin}/api`;
