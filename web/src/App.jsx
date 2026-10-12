@@ -606,6 +606,18 @@ function App() {
 
   return (
     <div className={`app-shell ${working ? "mode-working" : ""} ${sleeping ? "mode-sleep" : ""}`}>
+      <div className="mrai-ambient" aria-hidden="true">
+        <svg viewBox="-300 -300 600 600">
+          <circle r="290" strokeDasharray="2 8" />
+          <g className="mrai-rot"><circle r="260" strokeWidth="6" strokeDasharray="80 30 10 30" /></g>
+          <g className="mrai-rot reverse"><circle r="215" strokeWidth="2" strokeDasharray="3 6" /><circle r="200" /></g>
+          <g className="mrai-rot"><path d="M-150 0A150 150 0 0 1 0 -150" strokeWidth="10" /><path d="M150 0A150 150 0 0 1 0 150" strokeWidth="10" /></g>
+          <polygon points="0,-105 91,-52 91,52 0,105 -91,52 -91,-52" strokeWidth="1.5" />
+          <circle r="70" strokeWidth="3" /><circle className="mrai-orb-core" r="40" strokeWidth="2" /><circle className="mrai-orb-dot" r="14" />
+        </svg>
+      </div>
+      <div className="mrai-hud-frame" aria-hidden="true" />
+      <div className="mrai-scanlines" aria-hidden="true" />
       <aside className="sidebar">
         <div className="brand">
           <div className="brand-mark">MR AI</div>
