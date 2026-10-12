@@ -308,7 +308,7 @@ async function main() {
   await page.locator(".command-palette").waitFor({ state: "detached" });
   await page.keyboard.press("Control+k");
   await page.locator(".palette-actions button").filter({ hasText: "Toggle Working Mode" }).click();
-  await page.locator(".sidebar-footer button").first().getByText("WORKING MODE", { exact: true }).waitFor({ state: "visible" });
+  await page.locator(".sidebar-footer button").first().getByText("NORMAL MODE", { exact: true }).waitFor({ state: "visible" });
   await goTo("Dashboard");
   await page.locator(".cc-map-toolbar button").filter({ hasText: "OPEN MAP MODULE" }).click();
   await page.waitForFunction(() => document.querySelector(".topbar h1")?.textContent === "Tracking Map");
@@ -385,7 +385,7 @@ async function main() {
   assert.equal(rebootRequests, rebootCountBefore, "Dismissing reboot confirmation must not call the bridge.");
   page.once("dialog", dialog => dialog.accept());
   await deviceLab.getByRole("button", { name: "REBOOT SYSTEM", exact: true }).click();
-  await page.waitForFunction(() => document.querySelector(".device-result > strong")?.textContent?.includes("COMPLETED"));
+  await page.waitForFunction(() => document.querySelector(".device-result > strong")?.textContent?.includes("REBOOT: COMPLETED"));
   assert.equal(rebootRequests, rebootCountBefore + 1, "Accepting reboot confirmation should call the bridge.");
   completedChecks.push("Device Lab save, sensors, device info, diagnostics, boot state and guarded reboot (mock bridge)");
 
