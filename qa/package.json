@@ -1,0 +1,11 @@
+{
+  "name": "mr-ai-interaction-qa",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test:smoke": "node e2e-smoke.mjs"
+  },
+  "devDependencies": {
+    "playwright": "^1.56.1"
+  }
+}
