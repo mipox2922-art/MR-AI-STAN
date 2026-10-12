@@ -251,7 +251,12 @@ async function main() {
   await page.waitForFunction(() => document.querySelector(".sidebar nav button") !== null);
   // Dashboard owns its HUD titlebar and intentionally hides the generic page topbar.
   await page.locator(".cc-titlebar").waitFor({ state: "visible", timeout: 15000 });
-  assert.equal(radarScanRequests, 0, "Dashboard telemetry polling must not scan local sensor hardware.");
+  await page.locator(".cc-system-footer").waitFor({ state: "visible", timeout: 7000 });
+  await page.waitForFunction(() => {
+    const footer = document.querySelector(".cc-system-footer")?.textContent || "";
+    return footer.includes("ONLINE") && !footer.includes("WAITING");
+  }, { timeout: 7000 });
+  assert.equal(radarScanRequests, 0, "After initial telemetry refresh completes, dashboard polling must not scan local sensor hardware.");
   const nav = page.locator(".sidebar nav button");
   assert.equal(await nav.count(), 15, "All 15 main navigation entries should render.");
   completedChecks.push("authenticated app startup + 15 main navigation controls");
