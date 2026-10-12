@@ -29,8 +29,8 @@ python -m venv .venv
 .venv\Scripts\activate
 pip install -r requirements.txt
 $env:MR_AI_BRIDGE_TOKEN = "generate-a-long-random-token"
-# Optional: add your own hosted/custom MR AI origin if it differs from the default.
-$env:MR_AI_WEB_ORIGIN = "https://your-custom-mr-ai-domain.example"
+# Optional only for a custom web domain; uncomment and set the real origin:
+# $env:MR_AI_WEB_ORIGIN = "https://your-real-mr-ai-domain.example"
 python bridge.py
 ```
 
