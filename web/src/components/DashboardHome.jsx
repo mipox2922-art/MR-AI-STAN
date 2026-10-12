@@ -220,11 +220,19 @@ function stableHash(value) {
 }
 
 function radarRadius(finding) {
-  const distance = Number(finding?.distance_estimate_m);
-  if (Number.isFinite(distance)) return Math.max(14, Math.min(44, 12 + distance * 0.28));
-  const signalText = String(finding?.signal ?? "").replace("%", "");
-  const signal = Number(signalText);
-  if (Number.isFinite(signal)) return Math.max(12, Math.min(44, 46 - signal * 0.28));
+  const distance = finiteNumber(finding?.distance_estimate_m);
+  if (distance !== null) {
+    // Measured/estimated range only affects the schematic radius; it does not infer bearing.
+    return Math.max(12, Math.min(44, 12 + Math.log10(Math.max(0, distance) + 1) * 12));
+  }
+  const signal = finiteNumber(String(finding?.signal ?? "").replace("%", ""));
+  if (signal !== null) {
+    // RSSI is normally negative dBm; Wi-Fi percentages are 0..100.
+    const strength = signal < 0
+      ? Math.max(0, Math.min(100, ((signal + 100) / 65) * 100))
+      : Math.max(0, Math.min(100, signal));
+    return 44 - (strength / 100) * 32;
+  }
   return 28;
 }
 
