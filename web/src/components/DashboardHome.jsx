@@ -811,12 +811,10 @@ export default function DashboardHome({
   onRadarScan,
   clock = null,
 }) {
-  const [missionSnapshot, setMissionSnapshot] = useState(null);
   const telemetry = system?.telemetry || {};
   const services = system?.services || {};
   const uptime = formatUptime(telemetry.uptime_seconds);
   const activeCount = tasks.filter(t => !["COMPLETED", "FAILED"].includes(String(t.status || "").toUpperCase())).length;
-  const lastActivity = activities[0];
 
   const topReadout = useMemo(() => ({
     model: system?.ai?.model || "N/A",
@@ -908,38 +906,7 @@ export default function DashboardHome({
 
       <QuickCommands system={system} />
 
-      <div className="cc-operations-grid">
-        <Panel eyebrow="MISSION CONTROL" title="Mission Workbench">
-          <MissionWorkbench onMissionUpdate={setMissionSnapshot} />
-        </Panel>
-        <Panel
-          eyebrow="AGENT CREW"
-          title="Specialist Fleet"
-          badge={`${agents.length} REGISTERED`}
-          action={<button type="button" className="cc-inline-button" onClick={onOpenAgents}>AGENT CONTROL</button>}
-        >
-          <AgentFleet agents={agents} tasks={tasks} missionSnapshot={missionSnapshot} onOpenAgents={onOpenAgents} />
-        </Panel>
-      </div>
 
-      <Panel eyebrow="BOSS REQUIREMENTS" title="Your Command Center Priorities" badge="LIVE STATE">
-        <OwnerRequirements system={system} agents={agents} tasks={tasks} memories={memories} radarFindings={radarFindings} gmailStatus={gmailStatus} missionSnapshot={missionSnapshot} />
-      </Panel>
-
-      <div className="cc-bottom-strip">
-        <div><span>AGENTS</span><strong>{agents.length}</strong></div>
-        <div><span>MEMORY</span><strong>{memories.length}</strong></div>
-        <div><span>LAST ACTIVITY</span><strong>{lastActivity ? `${lastActivity.action || "EVENT"} · ${formatTime(lastActivity.created_at || lastActivity.timestamp)}` : "NONE"}</strong></div>
-        <div><span>BROWSER</span><strong>{services.extension || "NOT_CONNECTED"}</strong></div>
-        <div><span>GMAIL</span><strong>{gmailStatus?.status || services.gmail || "NOT_CONNECTED"}</strong></div>
-      </div>
-
-      <div className="cc-footerline">
-        <span>OWNER // BOSS FERISI</span>
-        <span>MANAGER // MR AI</span>
-        <span>WORKSPACE // MOG343</span>
-        <span>AUTHORIZED RUNTIME DATA ONLY</span>
-      </div>
     </div>
   );
 }
