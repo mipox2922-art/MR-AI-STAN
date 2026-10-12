@@ -195,7 +195,7 @@ async function mockApi(route) {
 async function mockBridge(route) {
   const request = route.request();
   const url = new URL(request.url());
-  const pathName = url.pathname;
+  const pathName = url.pathname.replace(/^\\/__bridge/, "");
   calls.push({ method: request.method(), path: "BRIDGE " + pathName });
   if (pathName === "/health") return json(route, { status: "healthy", service: "local_device_bridge", bind: "127.0.0.1:8765", adb: true, fastboot: true });
   if (pathName === "/radar/scan") return json(route, {
@@ -260,7 +260,7 @@ async function navTo(page, label, expectedHeading = label) {
 
 server = spawn("npm", ["run", "dev", "--", "--host", "127.0.0.1", "--port", "4173", "--strictPort"], {
   cwd: webDir,
-  env: { ...process.env, VITE_API_URL: "/__api", VITE_BUILD_ID: "INTERACTION-QA" },
+  env: { ...process.env, VITE_API_URL: "/__api", VITE_DEVICE_BRIDGE_URL: "/__bridge", VITE_BUILD_ID: "INTERACTION-QA" },
   stdio: "ignore",
 });
 
@@ -280,7 +280,7 @@ try {
   const pageErrors = [];
   page.on("pageerror", error => pageErrors.push(error.message));
   await page.route("**/__api/**", mockApi);
-  await page.route("http://127.0.0.1:8765/**", mockBridge);
+  await page.route("**/__bridge/**", mockBridge);
   await page.route("https://www.openstreetmap.org/**", route => route.fulfill({ status: 200, contentType: "text/html", body: "<html><body>QA map iframe mock</body></html>" }));
   await page.route("https://fonts.googleapis.com/**", route => route.abort());
   await page.route("https://fonts.gstatic.com/**", route => route.abort());
@@ -383,15 +383,15 @@ try {
   await check("Browser Hands surfaces clear extension errors for all six operations", async () => {
     await navTo(page, "Browser Hands");
     const actions = [
-      ["READ PAGE", null],
-      ["SCROLL DOWN", null],
-      ["SCROLL UP", null],
-      ["OPEN", "url"],
-      ["CLICK", "selector"],
-      ["TYPE", "type"],
-      ["DRAG", "drag"],
+      ["READ PAGE", null, "READ PAGE"],
+      ["SCROLL DOWN", null, "SCROLL"],
+      ["SCROLL UP", null, "SCROLL"],
+      ["OPEN", "url", "NAVIGATE"],
+      ["CLICK", "selector", "CLICK"],
+      ["TYPE", "type", "TYPE"],
+      ["DRAG", "drag", "DRAG"],
     ];
-    for (const [label, field] of actions) {
+    for (const [label, field, runLabel] of actions) {
       if (field === "url") await page.getByPlaceholder("https://...").fill("https://example.com");
       if (field === "selector") await page.getByPlaceholder("CSS selector, e.g. button[type=submit]").fill("button[type=submit]");
       if (field === "type") await page.getByPlaceholder("Text to type").fill("qa typed text");
@@ -405,7 +405,7 @@ try {
         const all = document.querySelectorAll(".tool-status");
         const text = all[all.length - 1]?.textContent || "";
         return text.includes(expected) && text.includes("MR AI Browser Hands extension not detected");
-      }, label);
+      }, runLabel);
     }
   });
 
