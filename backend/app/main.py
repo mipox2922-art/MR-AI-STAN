@@ -105,7 +105,11 @@ async def health():
             content={"status": "unhealthy", "database": "unavailable"},
         )
 
-    return {"status": "healthy", "database": "reachable"}
+    return {
+        "status": "healthy",
+        "database": "reachable",
+        "database_engine": engine.dialect.name,
+    }
 
 @app.post("/internal/cloudflare/scheduler-cycle", include_in_schema=False)
 async def cloudflare_scheduler_cycle(
