@@ -41,6 +41,8 @@ import CommandPalette from "./components/CommandPalette";
 import DashboardHome from "./components/DashboardHome";
 import GmailPanel from "./components/GmailPanel";
 import SchedulerPanel from "./components/SchedulerPanel";
+import TasksPanel from "./components/TasksPanel";
+import MemoryPanel from "./components/MemoryPanel";
 import VoiceControl from "./components/VoiceControl";
 
 const BUILD_ID = import.meta.env.VITE_BUILD_ID || "MR-AI-STAN";
@@ -430,13 +432,8 @@ function App() {
         setGmailStatus(gmailResult.value);
       }
 
-      try {
-        const result = await scanRadar();
-        setRadarFindings(Array.isArray(result?.findings) ? result.findings : []);
-        setRadarDiagnostics(radarDiagnosticsFrom(result));
-      } catch {
-        // Preserve the last verified radar snapshot during bridge outages.
-      }
+      // Local Wi-Fi/BLE/ADB/Fastboot scans run only after an explicit user action.
+      // Never trigger hardware scans in the five-second dashboard telemetry poll.
 
       setLastRefreshAt(Date.now());
     } catch (error) {
@@ -562,7 +559,7 @@ function App() {
   }
 
   function logout() {
-    localStorage.removeItem("mr_ai_token");
+    clearToken();
     setTokenState(null);
   }
 
@@ -786,28 +783,37 @@ function App() {
           {active === "security" && <SecurityHub />}
           {active === "tools" && <ToolBox />}
 
-          {active === "tasks" && (
-            <section className="panel large-panel">
-              <div className="panel-head">
-                <div><span className="eyebrow">TASK SYSTEM</span><h2>Durable Operations</h2></div>
-              </div>
-              <p className="empty">Tasks are persisted by the backend. Use the AI command channel to create and manage work; completion is only reported after backend confirmation.</p>
-            </section>
-          )}
+          {active === "tasks" && <TasksPanel />}
 
-          {active === "memory" && (
-            <section className="panel large-panel">
-              <div className="panel-head">
-                <div><span className="eyebrow">MEMORY CORE</span><h2>User-approved memory</h2></div>
-              </div>
-              <p className="empty">Memory is handled through the existing authenticated backend routes. Secret values are never displayed by the dashboard.</p>
-            </section>
-          )}
+          {active === "memory" && <MemoryPanel />}
 
           {active === "system" && (
             <section className="panel large-panel">
               <div className="panel-head">
                 <div><span className="eyebrow">SYSTEM</span><h2>Verified Service State</h2></div>
+                <div className="cc-settings-actions">
+                  <button type="button" className="mini-button" onClick={refresh}>REFRESH STATUS</button>
+                  <button type="button" className="ghost-button" onClick={() => {
+                    const snapshot = {
+                      exported_at: new Date().toISOString(),
+                      connection_state: connectionState,
+                      system,
+                      agents: agents.map(({ id, name, risk, capabilities }) => ({ id, name, risk, capabilities })),
+                      task_count: tasks.length,
+                      memory_count: memories.length,
+                      radar_contact_count: radarFindings.length,
+                      radar_sensor_status: radarDiagnostics,
+                      gmail_status: gmailStatus,
+                    };
+                    const blob = new Blob([JSON.stringify(snapshot, null, 2)], { type: "application/json" });
+                    const url = URL.createObjectURL(blob);
+                    const link = document.createElement("a");
+                    link.href = url;
+                    link.download = "mr-ai-runtime-snapshot.json";
+                    link.click();
+                    URL.revokeObjectURL(url);
+                  }}>EXPORT SNAPSHOT</button>
+                </div>
               </div>
               <div className="service-grid">
                 {Object.entries(services).map(([name, value]) => (
