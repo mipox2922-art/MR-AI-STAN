@@ -243,8 +243,9 @@ async function main() {
   await page.route(`${API_ORIGIN}/**`, apiMock);
   await page.route("http://127.0.0.1:8765/**", bridgeMock);
   await page.goto(BASE_URL, { waitUntil: "domcontentloaded" });
-  await page.locator(".topbar h1").waitFor({ state: "visible", timeout: 15000 });
   await page.waitForFunction(() => document.querySelector(".sidebar nav button") !== null);
+  // Dashboard owns its HUD titlebar and intentionally hides the generic page topbar.
+  await page.locator(".cc-titlebar").waitFor({ state: "visible", timeout: 15000 });
   const nav = page.locator(".sidebar nav button");
   assert.equal(await nav.count(), 15, "All 15 main navigation entries should render.");
   completedChecks.push("authenticated app startup + 15 main navigation controls");
@@ -254,9 +255,17 @@ async function main() {
     "Creative Studio", "Tracking Map", "Security", "Toolbox", "Web Intelligence",
     "Gmail", "Calendar", "Tasks", "Memory", "Settings",
   ];
+  async function waitForDestination(label) {
+    if (label === "Dashboard") {
+      await page.locator(".cc-titlebar").waitFor({ state: "visible", timeout: 7000 });
+      return;
+    }
+    await page.waitForFunction(expected => document.querySelector(".topbar h1")?.textContent === expected, label, { timeout: 7000 });
+  }
+
   async function goTo(label) {
     await page.locator(".sidebar nav button").filter({ hasText: label }).first().click();
-    await page.waitForFunction(expected => document.querySelector(".topbar h1")?.textContent === expected, label, { timeout: 7000 });
+    await waitForDestination(label);
   }
   for (const destination of destinations) await goTo(destination);
   completedChecks.push("all 15 navigation routes open the matching module");
@@ -301,7 +310,7 @@ async function main() {
   for (const [action, destination] of paletteTargets) {
     await page.keyboard.press("Control+k");
     await page.locator(".palette-actions button").filter({ hasText: action }).click();
-    await page.waitForFunction(expected => document.querySelector(".topbar h1")?.textContent === expected, destination, { timeout: 7000 });
+    await waitForDestination(destination);
   }
   await page.keyboard.press("Control+k");
   await page.getByRole("button", { name: "ESC", exact: true }).click();
