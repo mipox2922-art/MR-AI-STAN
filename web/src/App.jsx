@@ -648,7 +648,7 @@ function App() {
                 .trim()
                 .toLowerCase()
                 .replace(/[.!?]+$/g, "")
-                .replace(/\\s+/g, " ");
+                .replace(/\s+/g, " ");
 
               if (["zima", "lala", "sleep", "sleep mode"].includes(command)) {
                 handlePowerCommand("sleep");
