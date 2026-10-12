@@ -178,10 +178,17 @@ export function getTasks() {
   return request("/tasks");
 }
 
-export function createTask(title) {
+export function createTask(title, options = {}) {
   return request("/tasks", {
     method: "POST",
-    body: JSON.stringify({ title })
+    body: JSON.stringify({ title, ...options })
+  });
+}
+
+export function updateTask(taskId, payload) {
+  return request(`/tasks/${taskId}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload)
   });
 }
 
@@ -193,6 +200,19 @@ export function createMemory(key, value) {
   return request("/memory", {
     method: "POST",
     body: JSON.stringify({ key, value })
+  });
+}
+
+export function updateMemory(memoryId, value) {
+  return request(`/memory/${memoryId}`, {
+    method: "PUT",
+    body: JSON.stringify({ value })
+  });
+}
+
+export function deleteMemory(memoryId) {
+  return request(`/memory/${memoryId}`, {
+    method: "DELETE"
   });
 }
 
