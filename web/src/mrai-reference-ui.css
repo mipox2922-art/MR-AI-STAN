@@ -856,3 +856,123 @@ canvas, svg { max-width: 100%; }
   *,*::before,*::after { scroll-behavior: auto !important; transition-duration: .01ms !important; }
 }
 @keyframes mrai-boot-unused { from { opacity: 0; } to { opacity: 1; } }
+
+
+/* Fine geometry pass: match the supplied one-screen dashboard composition. */
+@media (min-width: 761px) {
+  .command-center-reference .cc-mission {
+    grid-template-columns: minmax(0,1fr) minmax(0,1.2fr);
+    gap: 12px;
+    align-items: center;
+  }
+}
+.command-center-reference .cc-mission-summary {
+  display: block;
+  margin-top: 10px;
+  color: var(--dim);
+  font: 8px "Share Tech Mono",monospace;
+  letter-spacing: .5px;
+}
+.command-center-reference .cc-radar-overview {
+  display: grid;
+  grid-template-columns: 140px minmax(0,1fr);
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.command-center-reference .cc-radar-shell {
+  width: 140px;
+  max-width: 100%;
+  margin: 6px auto;
+}
+.command-center-reference .cc-radar-shell .cc-radar-scale {
+  font-size: 6px;
+  letter-spacing: 0;
+}
+.command-center-reference .cc-radar-shell .scale-top { top: -8px; }
+.command-center-reference .cc-radar-shell .scale-bottom { bottom: -8px; }
+.command-center-reference .cc-radar-shell .scale-right { right: -3px; }
+.command-center-reference .cc-radar-shell .scale-left { left: -3px; }
+.command-center-reference .cc-radar-info {
+  display: grid;
+  grid-template-columns: minmax(0,1fr);
+  gap: 7px;
+  min-width: 0;
+}
+.command-center-reference .cc-radar-contact-count {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: baseline;
+  gap: 4px 7px;
+  padding: 5px;
+}
+.command-center-reference .cc-radar-contact-count span { align-self: center; }
+.command-center-reference .cc-radar-contact-count strong { font: 700 25px "Share Tech Mono",monospace; text-align: right; line-height: 1; }
+.command-center-reference .cc-radar-contact-count small { grid-column: 1/-1; }
+.command-center-reference .cc-radar-source { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 4px; }
+.command-center-reference .cc-radar-source div { padding: 5px; }
+.command-center-reference .cc-radar-source span { font-size: 7px; }
+.command-center-reference .cc-radar-source strong { font: 600 12px "Share Tech Mono",monospace; }
+.command-center-reference .cc-radar-channels {
+  display: grid;
+  grid-template-columns: repeat(2,minmax(0,1fr));
+  gap: 5px;
+  min-width: 0;
+}
+.command-center-reference .cc-radar-channel {
+  min-width: 0;
+  padding: 6px;
+  border: 1px solid var(--ln);
+  background: rgba(0,0,0,.18);
+}
+.command-center-reference .cc-radar-channel-head { gap: 5px; }
+.command-center-reference .cc-radar-channel-head strong { font-size: 7px; letter-spacing: .4px; }
+.command-center-reference .cc-radar-channel > b { margin: 4px 0 0; font-size: 8px; line-height: 1.35; }
+.command-center-reference .cc-radar-empty {
+  display: grid;
+  gap: 4px;
+  padding: 7px;
+  border: 1px solid var(--ln);
+  background: rgba(0,0,0,.18);
+}
+.command-center-reference .cc-radar-empty strong { color: var(--av); font: 600 8px "Share Tech Mono",monospace; }
+.command-center-reference .cc-radar-empty span { color: var(--dim); font-size: 9px; line-height: 1.4; }
+.command-center-reference .cc-radar-contact-list { gap: 5px; }
+.command-center-reference .cc-radar-contact-row {
+  display: grid;
+  grid-template-columns: 52px minmax(0,1fr);
+  gap: 5px 8px;
+  padding: 6px;
+  border: 1px solid var(--ln);
+  background: rgba(0,0,0,.15);
+}
+.command-center-reference .cc-radar-contact-row > small { grid-column: 2; font-size: 8px; }
+.command-center-reference .cc-radar-contact-row strong { font-size: 9px; overflow-wrap: anywhere; }
+.command-center-reference .cc-radar-status { font-size: 7px; }
+.command-center-reference .cc-radar-note { font-size: 7px; }
+@media (max-width: 1100px) {
+  .command-center-reference .cc-top-grid > .cc-panel,
+  .command-center-reference .cc-top-grid > .cc-panel:last-child,
+  .command-center-reference .cc-main-grid > .cc-radar-panel,
+  .command-center-reference .cc-main-grid > .cc-map-panel,
+  .command-center-reference .cc-main-grid > .cc-chat-panel,
+  .command-center-reference .cc-main-grid > .cc-research-panel { grid-column: 1/-1; }
+  .command-center-reference .cc-system-layout,
+  .command-center-reference .cc-core-status,
+  .command-center-reference .cc-mission {
+    grid-template-columns: minmax(0,1fr);
+  }
+  .command-center-reference .cc-system-network {
+    padding: 8px 0 0;
+    border-left: 0;
+    border-top: 1px solid var(--ln);
+  }
+  .command-center-reference .mrai-hud-orb { max-width: 210px; }
+  .command-center-reference .cc-radar-overview { grid-template-columns: 140px minmax(0,1fr); }
+}
+@media (max-width: 420px) {
+  .command-center-reference .cc-radar-overview { grid-template-columns: 125px minmax(0,1fr); gap: 8px; }
+  .command-center-reference .cc-radar-shell { width: 125px; }
+  .command-center-reference .cc-radar-source { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .command-center-reference .cc-radar-channel-head strong { font-size: 6.5px; }
+}
