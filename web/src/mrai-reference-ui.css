@@ -990,3 +990,199 @@ canvas, svg { max-width: 100%; }
   color: var(--dim);
   border-color: var(--ln);
 }
+
+
+/* Functional Task and Memory workspaces */
+.app-shell .task-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3,minmax(0,1fr));
+  gap: 8px;
+  margin: 12px 0;
+}
+.app-shell .task-summary-grid > div {
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid var(--ln);
+  background: rgba(0,0,0,.22);
+}
+.app-shell .task-summary-grid span,
+.app-shell .task-summary-grid strong { display: block; }
+.app-shell .task-summary-grid span {
+  color: var(--dim);
+  font: 8px "Share Tech Mono",monospace;
+  letter-spacing: .5px;
+}
+.app-shell .task-summary-grid strong {
+  margin-top: 5px;
+  color: var(--c);
+  font: 700 19px Orbitron,sans-serif;
+}
+.app-shell .task-create-form,
+.app-shell .memory-create-form {
+  display: grid;
+  gap: 9px;
+  padding: 12px;
+  border: 1px solid var(--ln);
+  background: rgba(0,0,0,.2);
+}
+.app-shell .task-create-form label,
+.app-shell .memory-create-form label,
+.app-shell .managed-task-card label {
+  display: grid;
+  gap: 4px;
+  color: var(--dim);
+  font: 8px "Share Tech Mono",monospace;
+}
+.app-shell .task-create-form input,
+.app-shell .task-create-form textarea,
+.app-shell .task-create-form select,
+.app-shell .memory-create-form input,
+.app-shell .memory-create-form textarea,
+.app-shell .managed-task-card input,
+.app-shell .managed-task-card select,
+.app-shell .memory-record textarea,
+.app-shell .task-list-toolbar input,
+.app-shell .task-list-toolbar select,
+.app-shell .memory-list-toolbar input {
+  width: 100%;
+  min-width: 0;
+  min-height: 35px;
+  padding: 8px;
+  border: 1px solid var(--ln);
+  border-radius: 0;
+  background: rgba(0,0,0,.4);
+  color: var(--tx);
+  font: 11px Rajdhani,sans-serif;
+}
+.app-shell .task-create-form textarea,
+.app-shell .memory-create-form textarea { resize: vertical; }
+.app-shell .task-create-row {
+  display: grid;
+  grid-template-columns: minmax(0,1fr) minmax(0,1.2fr) auto;
+  align-items: end;
+  gap: 8px;
+}
+.app-shell .task-list-toolbar,
+.app-shell .memory-list-toolbar {
+  display: grid;
+  grid-template-columns: minmax(0,1fr) auto;
+  gap: 8px;
+  align-items: center;
+  margin: 12px 0 6px;
+}
+.app-shell .memory-list-toolbar > span {
+  color: var(--dim);
+  font: 8px "Share Tech Mono",monospace;
+}
+.app-shell .managed-task-list,
+.app-shell .memory-record-list {
+  display: grid;
+  gap: 9px;
+  margin-top: 8px;
+}
+.app-shell .managed-task-card,
+.app-shell .memory-record {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--ln);
+  background: linear-gradient(150deg,var(--pn),rgba(0,0,0,.36));
+}
+.app-shell .managed-task-head,
+.app-shell .managed-task-meta,
+.app-shell .memory-record-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 9px;
+}
+.app-shell .managed-task-head .task-id,
+.app-shell .memory-record-head > div:first-child > span {
+  color: var(--dim);
+  font: 8px "Share Tech Mono",monospace;
+  letter-spacing: .5px;
+}
+.app-shell .task-state {
+  display: inline-flex;
+  padding: 4px 6px;
+  border: 1px solid var(--ln);
+  color: var(--c);
+  font: 8px "Share Tech Mono",monospace;
+  overflow-wrap: anywhere;
+}
+.app-shell .task-state.state-completed { color: var(--ok); border-color: var(--ok); }
+.app-shell .task-state.state-failed { color: var(--av); border-color: var(--av); }
+.app-shell .managed-task-meta { justify-content: flex-start; margin: 8px 0; }
+.app-shell .managed-task-meta > span {
+  color: var(--dim);
+  font: 8px "Share Tech Mono",monospace;
+}
+.app-shell .managed-task-meta strong { color: var(--tx); font-weight: 600; }
+.app-shell .managed-task-description,
+.app-shell .memory-record-value {
+  color: var(--tx);
+  font: 11px/1.5 Rajdhani,sans-serif;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.app-shell .task-edit-row {
+  display: grid;
+  grid-template-columns: minmax(0,1fr) minmax(0,1.2fr) minmax(85px,.65fr) auto;
+  align-items: end;
+  gap: 8px;
+  margin-top: 9px;
+}
+.app-shell .task-progress-track {
+  height: 3px;
+  margin-top: 10px;
+  background: rgba(255,255,255,.08);
+}
+.app-shell .task-progress-track i {
+  display: block;
+  height: 100%;
+  background: var(--c);
+  box-shadow: 0 0 8px var(--gl);
+}
+.app-shell .task-completion-note,
+.app-shell .managed-task-card > small,
+.app-shell .memory-record > small {
+  display: block;
+  margin-top: 8px;
+  color: var(--dim);
+  font: 8px/1.5 "Share Tech Mono",monospace;
+}
+.app-shell .task-error { color: var(--av); font-size: 10px; }
+.app-shell .managed-task-card details { margin-top: 8px; color: var(--c); font: 9px "Share Tech Mono",monospace; }
+.app-shell .managed-task-card details pre {
+  max-width: 100%;
+  max-height: 200px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--tx);
+}
+.app-shell .memory-record-head { align-items: flex-start; }
+.app-shell .memory-record-head > div:first-child { display: grid; gap: 5px; min-width: 0; }
+.app-shell .memory-record-head > div:first-child > strong {
+  color: #fff;
+  font: 600 13px Rajdhani,sans-serif;
+  overflow-wrap: anywhere;
+}
+.app-shell .memory-record-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 5px; }
+.app-shell .memory-record-value { margin: 6px 0; }
+.app-shell .cc-settings-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+
+@media (max-width: 760px) {
+  .app-shell .task-summary-grid { gap: 5px; }
+  .app-shell .task-summary-grid > div { padding: 7px; }
+  .app-shell .task-summary-grid span { font-size: 7px; }
+  .app-shell .task-summary-grid strong { font-size: 15px; }
+  .app-shell .task-create-row,
+  .app-shell .task-edit-row { grid-template-columns: minmax(0,1fr) minmax(0,1fr); }
+  .app-shell .task-create-row button { grid-column: 1/-1; }
+  .app-shell .task-list-toolbar,
+  .app-shell .memory-list-toolbar { grid-template-columns: minmax(0,1fr); }
+  .app-shell .cc-settings-actions { width: 100%; justify-content: flex-start; }
+  .app-shell .cc-settings-actions button { flex: 1 1 140px; }
+}
