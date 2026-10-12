@@ -21,6 +21,9 @@ class Settings(BaseSettings):
 
     kimi_base_url: str = "https://api.moonshot.ai/v1"
 
+    openrouter_api_key: str = ""
+    openrouter_model: str = "openrouter/free"
+
     cors_origins: str = "http://localhost:5173,https://mr-ai-stan-web.onrender.com"
     searxng_url: str = ""
 

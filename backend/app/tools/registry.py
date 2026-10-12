@@ -99,6 +99,16 @@ def get_tool_registry() -> list[dict[str, Any]]:
             "description": "Primary AI provider. Uses the configured Gemini account and its available quota.",
         },
         {
+            "id": "openrouter",
+            "name": "OpenRouter Provider",
+            "category": "AI",
+            "status": "CONNECTED" if settings.openrouter_api_key else "NOT_CONNECTED",
+            "mode": "CLOUD_API",
+            "free": settings.openrouter_model == "openrouter/free" or settings.openrouter_model.endswith(":free"),
+            "model": settings.openrouter_model,
+            "description": "OpenAI-compatible AI gateway. The default free router selects an available free model; usage is subject to provider rate limits.",
+        },
+        {
             "id": "gmail",
             "name": "Gmail",
             "category": "COMMUNICATION",

@@ -54,7 +54,8 @@ def _database_status() -> str:
 def _service_status() -> dict:
     gemini_configured = bool(settings.gemini_api_key)
     kimi_configured = bool(settings.kimi_api_key)
-    ai_ready = gemini_configured or kimi_configured
+    openrouter_configured = bool(settings.openrouter_api_key)
+    ai_ready = gemini_configured or kimi_configured or openrouter_configured
 
     return {
         "ai_core": "READY" if ai_ready else "NOT_CONFIGURED",
@@ -66,6 +67,7 @@ def _service_status() -> dict:
         "extension": "NOT_CONNECTED",
         "gemini": "CONFIGURED" if gemini_configured else "NOT_CONFIGURED",
         "kimi": "CONFIGURED" if kimi_configured else "NOT_CONFIGURED",
+        "openrouter": "CONFIGURED" if openrouter_configured else "NOT_CONFIGURED",
     }
 
 @router.get('/status')
@@ -109,10 +111,10 @@ def system_status(current_user=Depends(get_current_user)):
         "telemetry": telemetry,
         "security": {"threats_detected": None, "source": "no_security_engine"},
         "ai": {
-            "provider": "gemini" if settings.gemini_api_key else ("kimi" if settings.kimi_api_key else None),
-            "model": settings.gemini_model if settings.gemini_api_key else (settings.kimi_model if settings.kimi_api_key else None),
-            "tier": settings.gemini_tier if settings.gemini_api_key else ("KIMI_CONFIGURED" if settings.kimi_api_key else None),
-            "ready": bool(settings.gemini_api_key or settings.kimi_api_key),
+            "provider": "openrouter" if settings.openrouter_api_key else ("gemini" if settings.gemini_api_key else ("kimi" if settings.kimi_api_key else None)),
+            "model": settings.openrouter_model if settings.openrouter_api_key else (settings.gemini_model if settings.gemini_api_key else (settings.kimi_model if settings.kimi_api_key else None)),
+            "tier": ("OPENROUTER_FREE" if settings.openrouter_model == "openrouter/free" else "OPENROUTER_CONFIGURED") if settings.openrouter_api_key else (settings.gemini_tier if settings.gemini_api_key else ("KIMI_CONFIGURED" if settings.kimi_api_key else None)),
+            "ready": bool(settings.openrouter_api_key or settings.gemini_api_key or settings.kimi_api_key),
         },
         "capabilities": {
             "street_view": "AVAILABLE_VIA_MAPS_URL",

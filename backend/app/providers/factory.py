@@ -4,6 +4,7 @@ from typing import Optional
 from .base import AIProvider, AIProviderError
 from .gemini import GeminiProvider
 from .kimi import KimiProvider
+from .openrouter import OpenRouterProvider
 
 logger = logging.getLogger("mrai.providers.factory")
 
@@ -15,6 +16,8 @@ def _build(name: str) -> AIProvider:
         return GeminiProvider()
     if name == "kimi":
         return KimiProvider()
+    if name == "openrouter":
+        return OpenRouterProvider()
     raise ValueError(f"Unknown AI provider: {name}")
 
 

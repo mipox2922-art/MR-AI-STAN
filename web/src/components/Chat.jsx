@@ -4,7 +4,7 @@ import VoiceControl from "./VoiceControl";
 
 export default function Chat({ onState, onModToggle, onPowerCommand }) {
   const [message, setMessage] = useState("");
-  const [provider, setProvider] = useState("gemini");
+  const [provider, setProvider] = useState("openrouter");
   const utteranceRef = useRef(null);
   const [toolStatus, setToolStatus] = useState("AI_ONLY");
   const [sending, setSending] = useState(false);
@@ -194,6 +194,7 @@ export default function Chat({ onState, onModToggle, onPowerCommand }) {
           value={provider}
           onChange={e => setProvider(e.target.value)}
         >
+          <option value="openrouter">OPENROUTER</option>
           <option value="gemini">GEMINI</option>
           <option value="kimi">KIMI</option>
         </select>
