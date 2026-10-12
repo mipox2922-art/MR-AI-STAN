@@ -83,7 +83,7 @@ async def shutdown_scheduler():
     await stop_scheduler()
 
 
-@app.get("/")
+@app.api_route("/", methods=["GET", "HEAD"])
 async def root():
     return {
         "name": "MR AI",
