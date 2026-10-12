@@ -265,7 +265,7 @@ async function main() {
   await page.locator(".cc-system-status button").click();
   await page.locator(".cc-system-footer").waitFor({ state: "visible" });
   for (const [buttonLabel, expected] of [
-    ["SCAN ALL", "ALL · COMPLETE"], ["WI-FI SCAN", "WIFI · COMPLETE"],
+    ["SCAN ALL", "ALL · COMPLETE"], ["WIFI SCAN", "WIFI · COMPLETE"],
     ["BLE SCAN", "BLUETOOTH · COMPLETE"], ["ANDROID SCAN", "ANDROID · COMPLETE"],
     ["FASTBOOT SCAN", "FASTBOOT · COMPLETE"], ["RADIO / RF", "RADIO · COMPLETE"],
     ["DATA LINK", "DATA · COMPLETE"],
