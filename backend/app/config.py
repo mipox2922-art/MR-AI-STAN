@@ -21,7 +21,7 @@ class Settings(BaseSettings):
 
     kimi_base_url: str = "https://api.moonshot.ai/v1"
 
-    cors_origins: str = "http://localhost:5173"
+    cors_origins: str = "http://localhost:5173,https://mr-ai-stan-web.onrender.com"
     searxng_url: str = ""
 
     gmail_client_id: str = ""
