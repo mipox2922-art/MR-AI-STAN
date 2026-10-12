@@ -762,7 +762,8 @@ canvas, svg { max-width: 100%; }
   .command-center-reference .cc-quick-grid { grid-template-columns: repeat(3,minmax(0,1fr)); }
 }
 @media (max-width: 1100px) {
-  .app-shell { grid-template-columns: minmax(0,1fr); padding: 8px; gap: 8px; }
+  /* Let the full mobile sidebar and its footer participate in page scrolling. */
+  .app-shell { grid-template-columns: minmax(0,1fr); padding: 8px; gap: 8px; overflow: visible; }
   .app-shell .sidebar {
     position: relative; top: auto; align-self: stretch; width: 100%; height: auto; max-height: none;
     flex-direction: column; align-items: stretch; overflow: visible;
@@ -774,10 +775,44 @@ canvas, svg { max-width: 100%; }
   .app-shell .sidebar .sidebar-voice-head { width: 100%; }
   .app-shell .sidebar .sidebar-wave { width: 100%; margin: 0; }
   .app-shell .sidebar .sidebar-voice-quote { flex: 1; min-width: 0; }
-  .app-shell .sidebar nav { flex: 0 0 auto; min-height: 0; flex-direction: row; overflow-x: auto; overflow-y: hidden; gap: 4px; padding: 3px 3px 7px; }
+  .app-shell .sidebar nav {
+    flex: 0 0 auto;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    min-height: 0;
+    box-sizing: border-box;
+    flex-direction: row;
+    overflow-x: auto;
+    overflow-y: hidden;
+    gap: 4px;
+    padding: 3px 3px 7px;
+  }
   .app-shell .sidebar nav button { width: auto; min-height: 35px; white-space: nowrap; }
-  .app-shell .sidebar-footer { display: flex; flex-direction: row; flex-wrap: wrap; gap: 6px; margin: 0; }
-  .app-shell .sidebar-footer button { flex: 1 1 145px; white-space: nowrap; }
+  .app-shell .sidebar-footer {
+    display: flex;
+    flex: 0 0 auto;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 6px;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    align-self: stretch;
+    position: static;
+    inset: auto;
+    transform: none;
+    margin: 0;
+    box-sizing: border-box;
+  }
+  .app-shell .sidebar-footer button {
+    flex: 1 1 145px;
+    width: auto;
+    max-width: 100%;
+    min-width: 0;
+    white-space: normal;
+    box-sizing: border-box;
+  }
   .command-center-reference .cc-titlebar { grid-template-columns: minmax(0,1fr) minmax(0,1fr); }
   .command-center-reference .cc-header-right { flex-wrap: wrap; }
   .command-center-reference .cc-system-layout { grid-template-columns: minmax(0,1.1fr) minmax(0,1fr); }
@@ -832,6 +867,8 @@ canvas, svg { max-width: 100%; }
 }
 @media (max-width: 420px) {
   .app-shell { padding: 5px; }
+  .app-shell .sidebar-footer { flex: 0 0 auto; width: 100%; max-width: 100%; min-width: 0; margin: 0; }
+  .app-shell .sidebar-footer button { flex: 1 1 calc(50% - 6px); width: auto; min-width: 0; max-width: 100%; white-space: normal; }
   .app-shell .sidebar nav button { font-size: 8px; padding: 6px 7px; }
   .app-shell .sidebar-footer { flex-wrap: wrap; }
   .app-shell .sidebar-footer button { flex: 1 1 calc(50% - 6px); font-size: 9px; padding: 7px 5px; letter-spacing: .2px; }
@@ -989,4 +1026,83 @@ canvas, svg { max-width: 100%; }
   background: transparent;
   color: var(--dim);
   border-color: var(--ln);
+}
+
+
+/* Functional Task + Memory module layouts in the existing MR AI HUD style. */
+.command-center-reference .task-create-form,
+.app-shell .task-create-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: end;
+  margin: 12px 0;
+}
+.task-create-form label,
+.memory-create-form label {
+  grid-column: 1 / -1;
+  color: var(--dim);
+  font: 9px "Share Tech Mono", monospace;
+  letter-spacing: .8px;
+}
+.task-create-form input,
+.memory-create-form input,
+.memory-create-form textarea,
+.memory-toolbar input {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--ln);
+  border-radius: 0;
+  padding: 9px 10px;
+  background: rgba(0,0,0,.4);
+  color: var(--tx);
+}
+.task-create-form button,
+.memory-create-form button { min-height: 38px; }
+.task-center-list,
+.memory-center-list { display: grid; gap: 8px; margin-top: 10px; }
+.task-center-row,
+.memory-center-row {
+  display: grid;
+  grid-template-columns: minmax(0,1fr) auto;
+  align-items: start;
+  gap: 12px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--ln);
+  background: rgba(0,0,0,.22);
+}
+.task-center-main,
+.task-center-progress,
+.memory-center-main { min-width: 0; display: grid; gap: 6px; }
+.task-center-main > strong,
+.memory-center-main > strong { color: #fff; font: 600 12px Rajdhani,sans-serif; overflow-wrap: anywhere; }
+.task-center-main > span,
+.memory-center-main p { margin: 0; color: var(--tx); font-size: 11px; line-height: 1.5; overflow-wrap: anywhere; white-space: pre-wrap; }
+.task-center-main small,
+.task-center-progress small,
+.memory-center-main small { color: var(--dim); font: 8px "Share Tech Mono",monospace; overflow-wrap: anywhere; }
+.task-center-progress { min-width: 140px; justify-items: end; }
+.task-center-state { display: inline-block; padding: 4px 6px; border: 1px solid var(--ln); color: var(--c); font: 8px "Share Tech Mono",monospace; }
+.task-center-state.state-completed { color: var(--ok); }
+.task-center-state.state-failed { color: var(--av); }
+.panel-head-actions,
+.memory-toolbar,
+.memory-center-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; min-width: 0; }
+.task-center .panel-head { align-items: flex-start; }
+.memory-create-form { display: grid; grid-template-columns: minmax(0,1fr); gap: 8px; margin: 12px 0; }
+.memory-create-form textarea,
+.memory-center-main textarea { resize: vertical; min-height: 74px; font: 11px/1.5 "Share Tech Mono",monospace; }
+.memory-toolbar { margin-top: 12px; }
+.memory-toolbar input { flex: 1 1 200px; }
+.memory-toolbar span { color: var(--dim); font: 8px "Share Tech Mono",monospace; white-space: nowrap; }
+.memory-center-actions { flex-direction: column; align-items: stretch; }
+.memory-center-actions button { min-width: 76px; }
+@media (max-width: 760px) {
+  .task-create-form { grid-template-columns: minmax(0,1fr); }
+  .task-center-row,
+  .memory-center-row { grid-template-columns: minmax(0,1fr); }
+  .task-center-progress { min-width: 0; justify-items: stretch; }
+  .panel-head-actions { justify-content: flex-start; }
+  .memory-center-actions { flex-direction: row; }
 }

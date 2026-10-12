@@ -57,6 +57,7 @@ jobs:
 
   frontend:
     runs-on: ubuntu-latest
+    timeout-minutes: 12
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -67,6 +68,32 @@ jobs:
       - name: Install frontend dependencies
         working-directory: web
         run: npm ci
+      - name: Install Playwright browser for interactive UI smoke tests
+        working-directory: web
+        run: |
+          npm install --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Start Vite for browser smoke test
+        working-directory: web
+        env:
+          VITE_API_URL: https://mr-ai-stan.onrender.com
+        run: |
+          npm run dev -- --host 127.0.0.1 > /tmp/mrai-vite.log 2>&1 &
+          echo $! > /tmp/mrai-vite.pid
+          for attempt in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:5173/ >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/mrai-vite.log
+          exit 1
+      - name: Exercise command center in Chromium with mocked external integrations
+        working-directory: web
+        env:
+          VITE_API_URL: https://mr-ai-stan.onrender.com
+          UI_SMOKE_URL: http://127.0.0.1:5173
+        run: node scripts/ui-smoke.mjs
       - name: Validate Render static site and frontend API configuration
         run: |
           node --check web/src/api.js

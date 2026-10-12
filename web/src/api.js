@@ -196,6 +196,19 @@ export function createMemory(key, value) {
   });
 }
 
+export function updateMemory(memoryId, value) {
+  return request(`/memory/${encodeURIComponent(memoryId)}`, {
+    method: "PUT",
+    body: JSON.stringify({ value })
+  });
+}
+
+export function deleteMemory(memoryId) {
+  return request(`/memory/${encodeURIComponent(memoryId)}`, {
+    method: "DELETE"
+  });
+}
+
 const DEVICE_BRIDGE_URL =
   import.meta.env.VITE_DEVICE_BRIDGE_URL || "http://127.0.0.1:8765";
 
