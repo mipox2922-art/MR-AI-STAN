@@ -164,7 +164,7 @@ jobs:
 
   production-smoke:
     name: Live Render smoke test
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
     needs: [backend, frontend, extension, device_bridge]
     runs-on: ubuntu-latest
     timeout-minutes: 8
