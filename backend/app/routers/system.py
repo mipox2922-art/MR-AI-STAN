@@ -55,7 +55,9 @@ def _service_status() -> dict:
     gemini_configured = bool(settings.gemini_api_key)
     kimi_configured = bool(settings.kimi_api_key)
     openrouter_configured = bool(settings.openrouter_api_key)
-    ai_ready = gemini_configured or kimi_configured or openrouter_configured
+    mistral_configured = bool(settings.mistral_api_key)
+    grok_configured = bool(settings.xai_api_key)
+    ai_ready = any((gemini_configured, kimi_configured, openrouter_configured, mistral_configured, grok_configured))
 
     return {
         "ai_core": "READY" if ai_ready else "NOT_CONFIGURED",
@@ -68,6 +70,8 @@ def _service_status() -> dict:
         "gemini": "CONFIGURED" if gemini_configured else "NOT_CONFIGURED",
         "kimi": "CONFIGURED" if kimi_configured else "NOT_CONFIGURED",
         "openrouter": "CONFIGURED" if openrouter_configured else "NOT_CONFIGURED",
+        "mistral": "CONFIGURED" if mistral_configured else "NOT_CONFIGURED",
+        "grok": "CONFIGURED" if grok_configured else "NOT_CONFIGURED",
     }
 
 @router.get('/status')
@@ -99,6 +103,19 @@ def system_status(current_user=Depends(get_current_user)):
             "uptime_seconds": max(0, int(time.time() - psutil.boot_time())),
             "source": "host_runtime",
         }
+    if settings.openrouter_api_key:
+        selected_provider, selected_model, selected_tier = "openrouter", settings.openrouter_model, ("OPENROUTER_FREE" if settings.openrouter_model == "openrouter/free" else "OPENROUTER_CONFIGURED")
+    elif settings.mistral_api_key:
+        selected_provider, selected_model, selected_tier = "mistral", settings.mistral_model, "MISTRAL_CONFIGURED"
+    elif settings.xai_api_key:
+        selected_provider, selected_model, selected_tier = "grok", settings.grok_model, "GROK_CONFIGURED"
+    elif settings.gemini_api_key:
+        selected_provider, selected_model, selected_tier = "gemini", settings.gemini_model, settings.gemini_tier
+    elif settings.kimi_api_key:
+        selected_provider, selected_model, selected_tier = "kimi", settings.kimi_model, "KIMI_CONFIGURED"
+    else:
+        selected_provider, selected_model, selected_tier = None, None, None
+
     return {
         "organization": {
             "owner": "Boss Ferisi",
@@ -111,10 +128,10 @@ def system_status(current_user=Depends(get_current_user)):
         "telemetry": telemetry,
         "security": {"threats_detected": None, "source": "no_security_engine"},
         "ai": {
-            "provider": "openrouter" if settings.openrouter_api_key else ("gemini" if settings.gemini_api_key else ("kimi" if settings.kimi_api_key else None)),
-            "model": settings.openrouter_model if settings.openrouter_api_key else (settings.gemini_model if settings.gemini_api_key else (settings.kimi_model if settings.kimi_api_key else None)),
-            "tier": ("OPENROUTER_FREE" if settings.openrouter_model == "openrouter/free" else "OPENROUTER_CONFIGURED") if settings.openrouter_api_key else (settings.gemini_tier if settings.gemini_api_key else ("KIMI_CONFIGURED" if settings.kimi_api_key else None)),
-            "ready": bool(settings.openrouter_api_key or settings.gemini_api_key or settings.kimi_api_key),
+            "provider": selected_provider,
+            "model": selected_model,
+            "tier": selected_tier,
+            "ready": selected_provider is not None,
         },
         "capabilities": {
             "street_view": "AVAILABLE_VIA_MAPS_URL",

@@ -5,6 +5,8 @@ from .base import AIProvider, AIProviderError
 from .gemini import GeminiProvider
 from .kimi import KimiProvider
 from .openrouter import OpenRouterProvider
+from .mistral import MistralProvider
+from .grok import GrokProvider
 
 logger = logging.getLogger("mrai.providers.factory")
 
@@ -18,6 +20,10 @@ def _build(name: str) -> AIProvider:
         return KimiProvider()
     if name == "openrouter":
         return OpenRouterProvider()
+    if name == "mistral":
+        return MistralProvider()
+    if name == "grok":
+        return GrokProvider()
     raise ValueError(f"Unknown AI provider: {name}")
 
 

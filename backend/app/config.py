@@ -24,6 +24,12 @@ class Settings(BaseSettings):
     openrouter_api_key: str = ""
     openrouter_model: str = "openrouter/free"
 
+    mistral_api_key: str = ""
+    mistral_model: str = "mistral-small-latest"
+
+    xai_api_key: str = ""
+    grok_model: str = "grok-4.7"
+
     cors_origins: str = "http://localhost:5173,https://mr-ai-stan-web.onrender.com"
     searxng_url: str = ""
 

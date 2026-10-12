@@ -194,7 +194,9 @@ export default function Chat({ onState, onModToggle, onPowerCommand }) {
           value={provider}
           onChange={e => setProvider(e.target.value)}
         >
-          <option value="openrouter">OPENROUTER</option>
+          <option value="openrouter">OPENROUTER (FREE ROUTER)</option>
+          <option value="mistral">MISTRAL</option>
+          <option value="grok">GROK / xAI</option>
           <option value="gemini">GEMINI</option>
           <option value="kimi">KIMI</option>
         </select>

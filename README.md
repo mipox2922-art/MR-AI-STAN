@@ -9,9 +9,9 @@ Owner: Boss Ferisi
 - Chrome MV3 extension (Browser Hands)
 - FastAPI backend hosted on Render
 - PostgreSQL for durable hosted data; SQLite for local development only
-- OpenRouter AI provider (defaults to the free-model router), with Gemini and Kimi also supported
+- OpenRouter AI provider (defaults to the free-model router), with Mistral, Grok/xAI, Gemini, and Kimi also supported
 
-AI provider keys and OAuth refresh tokens must remain server-side. Never put `OPENROUTER_API_KEY`, `GEMINI_API_KEY`, `KIMI_API_KEY`, or Gmail client secrets in React or extension code.
+AI provider keys and OAuth refresh tokens must remain server-side. Never put `OPENROUTER_API_KEY`, `MISTRAL_API_KEY`, `XAI_API_KEY`, `GEMINI_API_KEY`, `KIMI_API_KEY`, or Gmail client secrets in React or extension code.
 
 ## Local development
 
@@ -58,7 +58,7 @@ Required Render environment variables:
 - `CORS_ORIGINS`: `https://mr-ai-stan-web.onrender.com,http://localhost:5173`
 - `SCHEDULER_ENABLED`: `false` on the free web service.
 
-Optional AI variables: `OPENROUTER_API_KEY` (recommended when using OpenRouter) and `OPENROUTER_MODEL` (defaults to `openrouter/free`), or `GEMINI_API_KEY` / `KIMI_API_KEY`. Optional Gmail variables: `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`, `GMAIL_REDIRECT_URI`, and `GMAIL_SCOPES`. OpenRouter free models have usage limits and availability can vary.
+Optional AI variables: `OPENROUTER_API_KEY` (recommended when using OpenRouter) and `OPENROUTER_MODEL` (defaults to `openrouter/free`), `MISTRAL_API_KEY` / `MISTRAL_MODEL`, `XAI_API_KEY` / `GROK_MODEL`, or `GEMINI_API_KEY` / `KIMI_API_KEY`. OpenRouter is the default. Mistral and Grok model calls may incur charges based on your provider account and selected model, so check their pricing before selecting them. Optional Gmail variables: `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`, `GMAIL_REDIRECT_URI`, and `GMAIL_SCOPES`. OpenRouter free models have usage limits and availability can vary.
 
 Render Free instances can spin down when idle and their local filesystem is not durable. Configure PostgreSQL before creating the first owner account or relying on saved Tasks, Memory, or Gmail tokens.
 
