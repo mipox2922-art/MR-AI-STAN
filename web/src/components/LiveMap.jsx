@@ -137,11 +137,10 @@ export default function LiveMap({ onOpenMap, fullPage = false }) {
         </div>
         <div className="cc-street-view">
           <div className="cc-map-frame-label">STREET VIEW · CURRENT GPS</div>
-          <div className="cc-street-view-scene" aria-hidden="true">
-            <div className="cc-street-view-horizon" /><div className="cc-street-view-road" />
-            <div className="cc-street-view-road-edge edge-left" /><div className="cc-street-view-road-edge edge-right" />
-            <div className="cc-street-view-target">SV</div>
-            <span className="cc-street-view-scene-caption">{hasFix ? "GPS FIX RECEIVED" : "STREET PANORAMA OPENS EXTERNALLY"}</span>
+          <div className="cc-street-view-scene">
+            <div className="cc-street-view-target" aria-hidden="true">SV</div>
+            <strong>{hasFix ? "GPS LOCK ACQUIRED" : "WAITING FOR GPS FIX"}</strong>
+            <span className="cc-street-view-scene-caption">REAL STREET PANORAMA · EXTERNAL VIEWER</span>
           </div>
           <div className="cc-street-view-info">
             <strong>{hasFix ? `${center.lat.toFixed(5)}, ${center.lng.toFixed(5)}` : "Awaiting location permission"}</strong>
