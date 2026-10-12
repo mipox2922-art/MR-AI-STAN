@@ -5997,3 +5997,312 @@ button { cursor: pointer; }
   .command-center-reference .cc-header-avatar { animation: none !important; }
   *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; }
 }
+
+
+/* === MR AI reference HUD convergence: responsive layout and consistent module styling === */
+.app-shell {
+  grid-template-columns: 205px minmax(0, 1fr);
+  gap: 10px;
+  padding: 10px;
+  max-width: 1600px;
+}
+.app-shell .sidebar {
+  position: sticky;
+  top: 10px;
+  align-self: start;
+  height: calc(100dvh - 20px);
+  max-height: calc(100dvh - 20px);
+  min-height: 0;
+  overflow: hidden;
+  padding: 12px 10px;
+}
+.app-shell .sidebar nav {
+  flex: 1 1 auto;
+  min-height: 100px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--accent-strong) transparent;
+}
+.app-shell .sidebar nav button {
+  min-height: 32px;
+  font-size: 10px;
+  letter-spacing: .8px;
+}
+.app-shell .sidebar nav button span { font-size: 14px; }
+.app-shell .sidebar-footer button { min-height: 36px; }
+.app-shell .sidebar-voice { flex: 0 0 auto; }
+.app-shell .mrai-hud-frame { pointer-events: none; }
+
+.app-shell .panel,
+.app-shell .tool-panel,
+.app-shell .studio,
+.app-shell .large-panel {
+  border: 1px solid var(--line);
+  border-radius: 0;
+  background: linear-gradient(160deg, var(--panel), rgba(0,0,0,.42));
+  box-shadow: 0 0 20px var(--gl), inset 0 0 26px rgba(0,0,0,.38);
+}
+.app-shell .panel-head {
+  gap: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--line);
+}
+.app-shell .panel-head h2,
+.app-shell .topbar h1,
+.app-shell .panel-title {
+  color: var(--hd);
+  font-family: Orbitron, sans-serif;
+  letter-spacing: 1.2px;
+  text-shadow: 0 0 8px var(--gl);
+}
+.app-shell .eyebrow,
+.app-shell .badge {
+  color: var(--dim);
+  font-family: "Share Tech Mono", monospace;
+  letter-spacing: 1px;
+}
+.app-shell input,
+.app-shell select,
+.app-shell textarea {
+  border-radius: 0;
+  border-color: var(--line);
+  background: rgba(0,0,0,.42);
+  color: var(--tx);
+}
+.app-shell .mini-button,
+.app-shell .ghost-button,
+.app-shell .tool-grid button,
+.app-shell .tool-row button,
+.app-shell .planner button,
+.app-shell .studio-controls > button,
+.app-shell .state-grid button {
+  border-radius: 0;
+}
+.app-shell .primary-button,
+.app-shell .danger-button {
+  border-radius: 0;
+  background: linear-gradient(135deg, var(--accent-strong), rgba(0,0,0,.5));
+  border-color: var(--accent);
+  color: #fff;
+}
+.app-shell .ghost-button { border-color: var(--line); color: var(--tx); }
+
+.command-center-reference {
+  gap: 10px;
+  font-size: 12px;
+  line-height: 1.42;
+}
+.command-center-reference .cc-titlebar {
+  min-height: 68px;
+  padding: 11px 14px;
+  gap: 12px;
+}
+.command-center-reference .cc-top-grid,
+.command-center-reference .cc-main-grid,
+.command-center-reference .cc-operations-grid { gap: 10px; }
+.command-center-reference .cc-panel { padding: 12px 13px; }
+.command-center-reference .cc-panel-head { margin-bottom: 10px; padding-bottom: 8px; }
+.command-center-reference .cc-panel h2 { font-size: 11px; letter-spacing: 1.2px; }
+.command-center-reference .cc-eyebrow { font-size: 9px; letter-spacing: 1px; }
+.command-center-reference .cc-core-readout span,
+.command-center-reference .cc-metric-top span,
+.command-center-reference .cc-map-readout span,
+.command-center-reference .cc-radar-status,
+.command-center-reference .cc-radar-scale,
+.command-center-reference .cc-bottom-strip span { font-size: 9px; }
+.command-center-reference .cc-core-readout strong,
+.command-center-reference .cc-map-readout strong { font-size: 11px; }
+.command-center-reference .cc-metric-top strong { font-size: 13px; }
+.command-center-reference .cc-main-grid > .cc-radar-panel { grid-column: span 3; }
+.command-center-reference .cc-main-grid > .cc-map-panel { grid-column: span 4; }
+.command-center-reference .cc-main-grid > .cc-chat-panel { grid-column: span 3; }
+.command-center-reference .cc-main-grid > .cc-research-panel { grid-column: span 2; }
+.command-center-reference .cc-chat-panel .messages { min-height: 210px; max-height: 320px; }
+.command-center-reference .cc-chat-panel .chat-input input { min-height: 38px; font-size: 12px; }
+.command-center-reference .cc-chat-panel .chat-input button { min-height: 38px; font-size: 9px; }
+.command-center-reference .cc-map-panel .cc-real-map { min-height: 245px; }
+.command-center-reference .cc-radar-panel .cc-radar-shell { max-width: 250px; }
+.command-center-reference .cc-quick-grid button { min-height: 40px; font-size: 9px; }
+.command-center-reference .cc-footerline { font-size: 8px; }
+
+/* MR AI branded boot sequence. This indicates UI startup only, not service health. */
+.mrai-boot {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  display: grid;
+  place-items: center;
+  padding: max(20px, env(safe-area-inset-top)) max(14px, env(safe-area-inset-right)) max(20px, env(safe-area-inset-bottom)) max(14px, env(safe-area-inset-left));
+  overflow-y: auto;
+  color: var(--tx, #d9f9ff);
+  background:
+    radial-gradient(ellipse at 50% 25%, var(--gl, rgba(77,243,255,.18)), transparent 45%),
+    rgba(0,3,8,.97);
+  backdrop-filter: blur(10px);
+}
+.mrai-boot-card {
+  width: min(520px, 100%);
+  padding: clamp(20px, 4vw, 34px);
+  border: 1px solid var(--line, rgba(77,243,255,.4));
+  background: linear-gradient(155deg, var(--panel, rgba(3,28,52,.8)), rgba(0,0,0,.82));
+  box-shadow: 0 0 34px var(--gl, rgba(77,243,255,.18)), inset 0 0 35px rgba(0,0,0,.55);
+  text-align: center;
+  clip-path: polygon(0 14px,14px 0,calc(100% - 14px) 0,100% 14px,100% calc(100% - 14px),calc(100% - 14px) 100%,14px 100%,0 calc(100% - 14px));
+}
+.mrai-boot-orbit {
+  display: block;
+  width: min(170px, 44vw);
+  margin: 0 auto 14px;
+  overflow: visible;
+  filter: drop-shadow(0 0 10px var(--accent, #4df3ff));
+}
+.mrai-boot-orbit circle,
+.mrai-boot-orbit path,
+.mrai-boot-orbit polygon { fill: none; stroke: var(--accent, #4df3ff); stroke-width: 1.2; }
+.mrai-boot-orbit .orbit-outer { stroke-dasharray: 3 8; animation: mrai-spin 18s linear infinite; transform-origin: center; }
+.mrai-boot-orbit .orbit-dash { stroke-width: 3; stroke-dasharray: 42 13 4 14; animation: mrai-spin 9s linear infinite reverse; transform-origin: center; }
+.mrai-boot-orbit .orbit-inner { stroke-width: 2; stroke-dasharray: 2 5; }
+.mrai-boot-orbit .orbit-cross { opacity: .45; }
+.mrai-boot-orbit .orbit-core { fill: var(--gl, rgba(77,243,255,.2)); stroke-width: 2; }
+.mrai-boot-orbit .orbit-dot { fill: var(--accent, #4df3ff); stroke-width: 0; }
+.mrai-boot-brand {
+  color: #fff;
+  font: 900 clamp(30px, 7vw, 44px)/1.1 Orbitron, sans-serif;
+  letter-spacing: 7px;
+  text-shadow: 0 0 16px var(--accent, #4df3ff), 0 0 36px var(--gl, rgba(77,243,255,.25));
+}
+.mrai-boot-subtitle {
+  margin-top: 8px;
+  color: var(--hd, #8ffaff);
+  font: 700 12px Orbitron, sans-serif;
+  letter-spacing: 2.2px;
+}
+.mrai-boot-owner {
+  margin-top: 9px;
+  color: var(--dim, #7fc4d8);
+  font: 10px "Share Tech Mono", monospace;
+  letter-spacing: 1px;
+}
+.mrai-boot-progress { height: 4px; margin-top: 22px; background: rgba(255,255,255,.12); overflow: hidden; }
+.mrai-boot-progress span {
+  display: block;
+  height: 100%;
+  background: var(--accent, #4df3ff);
+  box-shadow: 0 0 12px var(--accent, #4df3ff);
+  transition: width .12s linear;
+}
+.mrai-boot-progress-line {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 8px;
+  color: var(--dim, #7fc4d8);
+  font: 9px "Share Tech Mono", monospace;
+  letter-spacing: .7px;
+}
+.mrai-boot-progress-line strong { color: var(--accent, #4df3ff); }
+.mrai-boot-terminal {
+  min-height: 126px;
+  margin-top: 18px;
+  padding: 12px;
+  border: 1px solid var(--line, rgba(77,243,255,.4));
+  background: rgba(0,0,0,.26);
+  text-align: left;
+  font: 10px/1.75 "Share Tech Mono", monospace;
+  letter-spacing: .3px;
+}
+.mrai-boot-terminal div { color: var(--dim, #7fc4d8); }
+.mrai-boot-terminal div.current { color: var(--hd, #8ffaff); }
+.mrai-boot-terminal div span { display: inline-block; width: 17px; color: var(--accent, #4df3ff); }
+.mrai-boot-terminal div b { float: right; color: var(--good, #6dffe0); font-weight: 500; }
+.mrai-boot-terminal small { display: block; margin-top: 10px; color: var(--dim, #7fc4d8); font-size: 8px; line-height: 1.5; }
+.mrai-boot-skip {
+  margin-top: 14px;
+  min-height: 38px;
+  padding: 8px 13px;
+  border: 1px solid var(--line, rgba(77,243,255,.4));
+  background: rgba(0,0,0,.25);
+  color: var(--tx, #d9f9ff);
+  font: 600 10px Orbitron, sans-serif;
+  letter-spacing: 1px;
+}
+.mrai-boot-skip:hover { border-color: var(--accent, #4df3ff); background: var(--gl, rgba(77,243,255,.18)); }
+.app-shell.mode-working .mrai-boot { background: radial-gradient(ellipse at 50% 25%, rgba(255,60,40,.18), transparent 45%), rgba(5,0,2,.97); }
+
+@media (max-width: 1370px) {
+  .app-shell { grid-template-columns: 190px minmax(0,1fr); }
+}
+@media (max-width: 1200px) {
+  .app-shell .sidebar { height: auto; max-height: none; }
+  .command-center-reference .cc-titlebar { grid-template-columns: minmax(0,1fr) minmax(0,1fr); }
+  .command-center-reference .cc-header-right { grid-column: 1 / -1; justify-content: space-between; border-top: 1px solid var(--line); padding-top: 8px; }
+  .command-center-reference .cc-top-grid > .cc-panel { grid-column: span 6; }
+  .command-center-reference .cc-top-grid > .cc-panel:last-child { grid-column: 1 / -1; }
+  .command-center-reference .cc-main-grid > .cc-radar-panel,
+  .command-center-reference .cc-main-grid > .cc-map-panel,
+  .command-center-reference .cc-main-grid > .cc-chat-panel,
+  .command-center-reference .cc-main-grid > .cc-research-panel { grid-column: span 6; }
+}
+@media (max-width: 1100px) {
+  .app-shell { grid-template-columns: minmax(0,1fr); padding: 8px; }
+  .app-shell .sidebar {
+    position: relative; top: auto; height: auto; max-height: none;
+    flex-direction: row; align-items: center; flex-wrap: wrap; overflow: visible;
+    padding: 8px; border-right: 0; border-bottom: 1px solid var(--line);
+  }
+  .app-shell .sidebar .brand,
+  .app-shell .sidebar .operator,
+  .app-shell .sidebar .sidebar-voice { display: none; }
+  .app-shell .sidebar nav {
+    flex: 1 1 100%; min-width: 0; display: flex; flex-direction: row;
+    overflow-x: auto; overflow-y: hidden; gap: 4px; padding: 2px 0 6px;
+  }
+  .app-shell .sidebar nav button { flex: 0 0 auto; width: auto; min-height: 36px; white-space: nowrap; }
+  .app-shell .sidebar-footer { display: flex; flex: 1 1 100%; flex-direction: row; gap: 6px; margin: 0; }
+  .app-shell .sidebar-footer button { flex: 1 1 auto; width: auto; min-width: 0; white-space: nowrap; }
+  .command-center-reference .cc-header-right { flex-wrap: wrap; }
+}
+@media (max-width: 760px) {
+  .app-shell { padding: 7px; gap: 7px; }
+  .command-center-reference { gap: 8px; }
+  .command-center-reference .cc-titlebar { grid-template-columns: minmax(0,1fr); gap: 9px; padding: 10px; }
+  .command-center-reference .cc-mode-chip,
+  .command-center-reference .cc-header-right { grid-column: 1; justify-self: start; }
+  .command-center-reference .cc-header-right { justify-content: flex-start; gap: 10px; }
+  .command-center-reference .cc-header-tools { display: none; }
+  .command-center-reference .cc-top-grid > .cc-panel,
+  .command-center-reference .cc-top-grid > .cc-panel:last-child,
+  .command-center-reference .cc-main-grid > .cc-radar-panel,
+  .command-center-reference .cc-main-grid > .cc-map-panel,
+  .command-center-reference .cc-main-grid > .cc-chat-panel,
+  .command-center-reference .cc-main-grid > .cc-research-panel { grid-column: 1 / -1; }
+  .command-center-reference .cc-operations-grid,
+  .command-center-reference .cc-owner-board-grid,
+  .command-center-reference .cc-agent-fleet-summary,
+  .command-center-reference .cc-agent-fleet-grid { grid-template-columns: minmax(0,1fr); }
+  .command-center-reference .cc-core-status { grid-template-columns: minmax(0,1fr); }
+  .command-center-reference .ai-core-hologram { max-width: 170px; height: 160px; }
+  .command-center-reference .cc-panel { padding: 11px; }
+  .command-center-reference .cc-chat-panel .messages { max-height: 280px; }
+  .command-center-reference .cc-real-map { height: 240px; }
+  .command-center-reference .cc-quick-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .command-center-reference .cc-bottom-strip { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .app-shell .sidebar-footer button { font-size: 9px; padding: 8px 6px; }
+}
+@media (max-width: 420px) {
+  .app-shell .sidebar-footer { flex-wrap: wrap; }
+  .app-shell .sidebar-footer button { flex: 1 1 calc(50% - 6px); }
+  .command-center-reference .cc-brand-lockup { flex-wrap: wrap; gap: 7px; }
+  .command-center-reference .cc-brand-lockup .cc-logo { font-size: 20px; }
+  .command-center-reference .cc-title { font-size: 9px; }
+  .command-center-reference .cc-core-readout > div { grid-template-columns: minmax(80px,.8fr) minmax(0,1fr); }
+  .command-center-reference .cc-radar-shell { width: min(100%,230px); }
+  .command-center-reference .cc-real-map { height: 220px; }
+  .mrai-boot-terminal { font-size: 9px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mrai-boot-orbit circle,
+  .mrai-boot-orbit path { animation: none !important; }
+  .mrai-boot-progress span { transition: none; }
+}
