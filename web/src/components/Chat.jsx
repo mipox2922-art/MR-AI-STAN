@@ -33,16 +33,24 @@ export default function Chat({ onState, onModToggle, onPowerCommand }) {
     };
   }, []);
 
-  function handleModCommand(text) {
-    if (text.toLowerCase().includes("mod on") || text.toLowerCase().includes("washa mod")) {
-      onModToggle(true);
-      return true;
-    }
-    if (text.toLowerCase().includes("mod off") || text.toLowerCase().includes("zima mod")) {
-      onModToggle(false);
-      return true;
-    }
-    return false;
+  function getModeCommand(text) {
+    const value = String(text || "")
+      .trim()
+      .toLowerCase()
+      .replace(/[.!?]+$/g, "")
+      .replace(/\\s+/g, " ");
+
+    if ([
+      "vip", "vip mode", "vip kaka", "vip on", "washa vip",
+      "mod on", "washa mod", "working mode", "washa working mode"
+    ].includes(value)) return true;
+
+    if ([
+      "vip off", "mod off", "zima mod", "normal", "normal mode",
+      "washa normal mode"
+    ].includes(value)) return false;
+
+    return null;
   }
 
   function getPowerCommand(text) {
@@ -79,12 +87,20 @@ export default function Chat({ onState, onModToggle, onPowerCommand }) {
       return;
     }
 
-    // Check for MOD commands first
-    if (handleModCommand(text)) {
+    // Operational mode aliases are handled locally so "VIP" never gets
+    // misrouted as a question about paid membership.
+    const modeCommand = getModeCommand(text);
+    if (modeCommand !== null) {
+      onModToggle?.(modeCommand);
       setMessages(prev => [
         ...prev,
         { role: "user", content: text },
-        { role: "assistant", content: "MOD status updated 🔴" }
+        {
+          role: "assistant",
+          content: modeCommand
+            ? "VIP MODE ACTIVATED, boss. WORKING MODE iko ONLINE. Nipo tayari kwa kazi."
+            : "NORMAL MODE imerejeshwa, boss."
+        }
       ]);
       setMessage("");
       return;
@@ -226,7 +242,7 @@ export default function Chat({ onState, onModToggle, onPowerCommand }) {
         <VoiceControl
           onTranscript={(text) => {
             setMessage(text);
-            if (getPowerCommand(text)) send(text);
+            if (getPowerCommand(text) || getModeCommand(text) !== null) send(text);
           }}
         />
         <button onClick={send} disabled={sending}>
