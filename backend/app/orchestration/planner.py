@@ -22,10 +22,16 @@ ROUTES = (
 def select_agents(text: str) -> list[str]:
     value = text.casefold()
     selected: list[str] = ["orchestrator"]
+    matched_route = False
     for keywords, agent_id in ROUTES:
-        if any(keyword in value for keyword in keywords) and agent_id not in selected:
-            selected.append(agent_id)
-    if len(selected) == 1:
+        if any(keyword in value for keyword in keywords):
+            matched_route = True
+            if agent_id not in selected:
+                selected.append(agent_id)
+
+    # Fall back to research only when no route matched at all. A system-health
+    # request matches the orchestrator route, even though it adds no second agent.
+    if not matched_route:
         selected.append("research")
     return selected
 
