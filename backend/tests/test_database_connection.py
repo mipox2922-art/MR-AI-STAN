@@ -1,6 +1,10 @@
 import ssl
 
-from app.database import create_postgres_ssl_context, normalize_database_url
+from app.database import (
+    create_postgres_ssl_context,
+    normalize_database_url,
+    postgres_connect_args,
+)
 
 
 def test_normalize_postgres_url_for_pg8000_and_tls():
@@ -22,13 +26,37 @@ def test_normalize_existing_psycopg_url_to_pg8000():
     assert "sslmode=" not in url
 
 
+def test_render_internal_postgres_uses_private_network_without_forced_tls():
+    connect_args = postgres_connect_args(
+        "postgresql://mr_ai_stan_db_user:secret@dpg-db6inl5g1s2s739fdf40-a/mr_ai_stan_db"
+    )
+
+    assert connect_args == {}
+
+
+def test_external_postgres_url_keeps_verified_tls():
+    connect_args = postgres_connect_args(
+        "postgresql://postgres.project-ref:secret@pooler.example.com:5432/postgres"
+    )
+
+    assert isinstance(connect_args["ssl_context"], ssl.SSLContext)
+    assert connect_args["ssl_context"].verify_mode == ssl.CERT_REQUIRED
+    assert connect_args["ssl_context"].check_hostname is True
+
+
+def test_explicit_tls_request_for_render_internal_postgres_is_respected():
+    connect_args = postgres_connect_args(
+        "postgresql://mr_ai_stan_db_user:secret@dpg-db6inl5g1s2s739fdf40-a/mr_ai_stan_db?sslmode=require"
+    )
+
+    assert isinstance(connect_args["ssl_context"], ssl.SSLContext)
+
 
 def test_postgres_tls_verifies_certificate_and_hostname():
     context = create_postgres_ssl_context()
 
     assert context.verify_mode == ssl.CERT_REQUIRED
     assert context.check_hostname is True
-
 
 
 def test_postgres_tls_can_load_an_explicit_pem_ca(monkeypatch):
