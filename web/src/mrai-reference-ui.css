@@ -1,0 +1,978 @@
+/* MR AI authored Command Center skin.
+   The React components remain connected to the existing authenticated runtime.
+   This stylesheet recreates the supplied cyan/red HUD layout without demo telemetry. */
+
+:root {
+  color-scheme: dark;
+  font-family: Rajdhani, "Segoe UI", system-ui, sans-serif;
+  font-synthesis: none;
+}
+html, body, #root { min-width: 320px; min-height: 100%; }
+body {
+  overflow-x: hidden;
+  background: #000;
+  color: #d9f9ff;
+  font: 500 14px/1.35 Rajdhani, "Segoe UI", system-ui, sans-serif;
+  letter-spacing: .4px;
+}
+button, input, select, textarea { font: inherit; }
+button { color: inherit; cursor: pointer; }
+button:disabled { cursor: not-allowed; opacity: .55; }
+canvas, svg { max-width: 100%; }
+:focus-visible { outline: 2px solid var(--hd, #8ffaff); outline-offset: 2px; }
+
+.app-shell {
+  --c: #4df3ff;
+  --c2: #0a6fb5;
+  --bg: #03213a;
+  --pn: rgba(3,28,52,.68);
+  --ln: rgba(77,243,255,.42);
+  --gl: rgba(77,243,255,.22);
+  --ok: #6dffe0;
+  --tx: #d9f9ff;
+  --dim: #7fc4d8;
+  --hd: #8ffaff;
+  --av: #ffb52e;
+  --accent: var(--c);
+  --accent-strong: var(--c2);
+  --line: var(--ln);
+  --panel: var(--pn);
+  --good: var(--ok);
+  --muted: var(--dim);
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  grid-template-columns: 200px minmax(0,1fr);
+  gap: 10px;
+  width: 100%;
+  max-width: 1600px;
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding: 10px;
+  margin-inline: auto;
+  overflow: clip;
+  color: var(--tx);
+  background:
+    linear-gradient(var(--gl) 1px, transparent 1px),
+    linear-gradient(90deg, var(--gl) 1px, transparent 1px),
+    radial-gradient(ellipse at 50% 0%, var(--bg), #000 72%);
+  background-size: 48px 48px, 48px 48px, auto;
+}
+.app-shell.mode-working {
+  --c: #ff3d2e;
+  --c2: #a30f0f;
+  --bg: #2a0707;
+  --pn: rgba(44,6,8,.68);
+  --ln: rgba(255,80,50,.55);
+  --gl: rgba(255,60,40,.3);
+  --ok: #ffc04a;
+  --tx: #ffe6dc;
+  --dim: #e0a08a;
+  --hd: #ffc04a;
+  --av: #ffd36a;
+  background:
+    linear-gradient(rgba(255,61,46,.028) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,61,46,.028) 1px, transparent 1px),
+    radial-gradient(ellipse at 50% 0%, var(--bg), #000 72%);
+  background-size: 48px 48px, 48px 48px, auto;
+}
+.app-shell.mode-sleep {
+  --c: #718087;
+  --c2: #37454d;
+  --ln: rgba(113,128,135,.18);
+  --gl: rgba(113,128,135,.08);
+}
+.app-shell > .mrai-ambient,
+.app-shell > .mrai-hud-frame,
+.app-shell > .mrai-scanlines { position: fixed; inset: 0; pointer-events: none; }
+.app-shell > .mrai-ambient {
+  z-index: 0;
+  display: grid;
+  place-items: center;
+  opacity: .34;
+  overflow: hidden;
+}
+.app-shell .mrai-ambient::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: linear-gradient(var(--gl) 1px, transparent 1px), linear-gradient(90deg, var(--gl) 1px, transparent 1px);
+  background-size: 48px 48px;
+  opacity: .4;
+  -webkit-mask: radial-gradient(ellipse at center,#000 20%,transparent 75%);
+  mask: radial-gradient(ellipse at center,#000 20%,transparent 75%);
+}
+.app-shell .mrai-ambient::after {
+  content: "";
+  position: absolute;
+  left: 50%; top: 50%;
+  width: 30vmin; height: 30vmin;
+  margin: -15vmin 0 0 -15vmin;
+  border: 1px solid var(--c);
+  border-radius: 50%;
+  animation: mrai-reference-ripple 5s ease-out infinite;
+}
+.app-shell .mrai-ambient svg { width: min(125vh,125vw); opacity: .4; filter: drop-shadow(0 0 6px var(--c)); }
+.app-shell .mrai-ambient svg * { stroke: var(--c); fill: none; }
+.app-shell .mrai-ambient svg .mrai-orb-core { fill: var(--gl); }
+.app-shell .mrai-ambient svg .mrai-orb-dot { fill: var(--c); }
+.app-shell .mrai-rot { transform-box: fill-box; transform-origin: center; animation: mrai-reference-spin 45s linear infinite; }
+.app-shell .mrai-rot.reverse { animation-duration: 70s; animation-direction: reverse; }
+.app-shell > .mrai-hud-frame {
+  z-index: 80;
+  inset: 5px;
+  background:
+    linear-gradient(var(--c),var(--c)) left top/44px 2px,
+    linear-gradient(var(--c),var(--c)) left top/2px 44px,
+    linear-gradient(var(--c),var(--c)) right top/44px 2px,
+    linear-gradient(var(--c),var(--c)) right top/2px 44px,
+    linear-gradient(var(--c),var(--c)) left bottom/44px 2px,
+    linear-gradient(var(--c),var(--c)) left bottom/2px 44px,
+    linear-gradient(var(--c),var(--c)) right bottom/44px 2px,
+    linear-gradient(var(--c),var(--c)) right bottom/2px 44px;
+  background-repeat: no-repeat;
+  filter: drop-shadow(0 0 5px var(--c));
+}
+.app-shell .mrai-hud-frame::after {
+  content: "";
+  position: absolute;
+  left: 0; right: 0; top: -120px;
+  height: 120px;
+  background: linear-gradient(transparent,var(--gl),transparent);
+  animation: mrai-reference-sweep 7s linear infinite;
+}
+.app-shell > .mrai-scanlines {
+  z-index: 79;
+  background: repeating-linear-gradient(0deg,rgba(0,0,0,.18) 0 1px,transparent 1px 3px),radial-gradient(ellipse at center,transparent 55%,rgba(0,0,0,.65));
+  opacity: .32;
+}
+.app-shell > .sidebar,
+.app-shell > .main-area { position: relative; z-index: 1; min-width: 0; }
+.app-shell .sidebar {
+  position: sticky;
+  top: 10px;
+  align-self: start;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 200px;
+  height: calc(100dvh - 20px);
+  max-height: calc(100dvh - 20px);
+  min-height: 0;
+  padding: 12px 9px;
+  overflow: hidden;
+  border: 1px solid var(--ln);
+  background: linear-gradient(160deg,var(--pn),rgba(0,0,0,.65));
+  box-shadow: 0 0 22px var(--gl),inset 0 0 28px rgba(0,0,0,.5);
+  backdrop-filter: blur(4px);
+}
+.app-shell .brand-mark {
+  color: #fff;
+  font: 900 22px/1.25 Orbitron,sans-serif;
+  letter-spacing: 4px;
+  text-align: center;
+  text-shadow: 0 0 12px var(--c),0 0 28px var(--c);
+}
+.app-shell .brand-sub,
+.app-shell .eyebrow {
+  color: var(--dim);
+  font: 500 9px/1.4 "Share Tech Mono",monospace;
+  letter-spacing: 1px;
+}
+.app-shell .brand-sub { margin-top: 4px; text-align: center; }
+.app-shell .operator {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  min-height: 68px;
+  padding: 9px;
+  border: 1px solid var(--ln);
+  background: linear-gradient(160deg,var(--pn),rgba(0,0,0,.42));
+  box-shadow: 0 0 14px var(--gl);
+}
+.app-shell .operator > div:last-child { min-width: 0; }
+.app-shell .operator strong { display: block; color: #fff; font: 700 11px Orbitron,sans-serif; letter-spacing: .3px; }
+.app-shell .operator span,
+.app-shell .operator small { display: block; margin-top: 4px; color: var(--dim); font-size: 9px; line-height: 1.4; overflow-wrap: anywhere; }
+.app-shell .operator .ai-core-hologram {
+  position: relative;
+  flex: 0 0 46px;
+  width: 46px;
+  min-width: 46px;
+  height: 46px;
+  margin: 0;
+  overflow: hidden;
+  border: 2px solid var(--av);
+  border-radius: 50%;
+  background: radial-gradient(circle,#fff6d6 0 10%,var(--av) 12% 22%,transparent 24%),repeating-conic-gradient(var(--av) 0 10deg,transparent 10deg 30deg);
+  box-shadow: 0 0 12px var(--av);
+  animation: mrai-reference-spin 10s linear infinite;
+  filter: none;
+}
+.app-shell .operator .ai-core-hologram::before {
+  inset: 0;
+  border: 0;
+  border-radius: 50%;
+  background: radial-gradient(circle,transparent 0 21%,rgba(0,0,0,.48) 23% 29%,transparent 32%),radial-gradient(circle,rgba(255,255,255,.75) 0 4%,transparent 8%);
+  box-shadow: none;
+}
+.app-shell .operator .core-hologram-scan,
+.app-shell .operator .core-hologram-svg,
+.app-shell .operator .core-hologram-label,
+.app-shell .operator .core-hologram-state { display: none; }
+.app-shell .sidebar nav {
+  flex: 1 1 auto;
+  min-height: 80px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 4px;
+  overflow: auto;
+  border: 1px solid var(--ln);
+  background: rgba(0,0,0,.18);
+  scrollbar-width: thin;
+  scrollbar-color: var(--c2) transparent;
+}
+.app-shell .sidebar nav button {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex: 0 0 auto;
+  width: 100%;
+  min-height: 31px;
+  padding: 6px 8px;
+  border: 1px solid transparent;
+  border-radius: 0;
+  background: none;
+  color: var(--tx);
+  text-align: left;
+  white-space: nowrap;
+  font: 600 10px/1.3 Rajdhani,sans-serif;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  transition: border-color .2s,background .2s,color .2s;
+}
+.app-shell .sidebar nav button span { flex: 0 0 18px; width: 18px; color: var(--c); text-align: center; font-size: 14px; }
+.app-shell .sidebar nav button:hover,
+.app-shell .sidebar nav button.active {
+  border-color: var(--c);
+  color: #fff;
+  background: linear-gradient(90deg,var(--c2),transparent);
+  box-shadow: 0 0 10px var(--gl);
+}
+.app-shell .sidebar-voice {
+  flex: 0 0 auto;
+  min-width: 0;
+  padding: 9px;
+  border: 1px solid var(--ln);
+  background: linear-gradient(160deg,var(--pn),rgba(0,0,0,.42));
+}
+.app-shell .sidebar-voice-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.app-shell .sidebar-voice-head .eyebrow { font: 500 9px "Share Tech Mono",monospace; text-transform: uppercase; }
+.app-shell .voice-state-dot { color: var(--ok); font-size: 10px; text-shadow: 0 0 8px var(--ok); }
+.app-shell .sidebar-wave { display: flex; align-items: center; gap: 2px; height: 25px; margin: 7px 0; }
+.app-shell .sidebar-wave span { flex: 1; height: 20%; border-radius: 1px; background: var(--c); box-shadow: 0 0 6px var(--gl); animation: mrai-reference-wave 1s ease-in-out infinite; }
+.app-shell .sidebar-wave span:nth-child(4n) { animation-delay: .2s; }
+.app-shell .sidebar-wave span:nth-child(3n) { animation-delay: .4s; }
+.app-shell .sidebar-voice-quote strong { display: block; color: #fff; font: 600 12px Rajdhani,sans-serif; overflow-wrap: anywhere; }
+.app-shell .sidebar-voice-quote span { display: block; margin-top: 3px; color: var(--dim); font-size: 10px; }
+.app-shell .sidebar-voice .voice-control { margin-top: 6px; }
+.app-shell .sidebar-footer { display: grid; gap: 6px; margin-top: auto; }
+.app-shell .sidebar-footer button,
+.app-shell .primary-button,
+.app-shell .danger-button,
+.app-shell .ghost-button {
+  min-height: 34px;
+  padding: 8px 9px;
+  border: 1px solid var(--ln);
+  border-radius: 0;
+  background: rgba(0,0,0,.28);
+  color: var(--tx);
+  font: 600 10px Orbitron,sans-serif;
+  letter-spacing: .65px;
+}
+.app-shell .sidebar-footer .primary-button,
+.app-shell .sidebar-footer .danger-button {
+  border-color: var(--c);
+  background: linear-gradient(135deg,var(--c2),rgba(0,0,0,.4));
+  color: #fff;
+  box-shadow: 0 0 12px var(--gl);
+}
+.app-shell .ghost-button:hover,
+.app-shell .sidebar-footer button:hover { border-color: var(--c); background: var(--gl); color: #fff; }
+.app-shell .main-area { min-width: 0; background: transparent; }
+.app-shell .dashboard-main .topbar { display: none; }
+.app-shell .dashboard-main .content { display: block; min-width: 0; padding: 0; }
+.app-shell .content { min-width: 0; }
+.app-shell .topbar {
+  min-height: 62px;
+  margin-bottom: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--ln);
+  background: linear-gradient(160deg,var(--pn),rgba(0,0,0,.5));
+  box-shadow: 0 0 16px var(--gl);
+}
+.app-shell .topbar h1 { color: var(--hd); font: 700 15px Orbitron,sans-serif; letter-spacing: 1.3px; }
+.app-shell .top-status strong { color: #fff; font: 500 15px "Share Tech Mono",monospace; }
+.app-shell .top-status span { color: var(--dim); font: 9px "Share Tech Mono",monospace; letter-spacing: .6px; }
+.app-shell .mode-indicator { border-left: 1px solid var(--ln); padding-left: 12px; }
+.app-shell .mode-label { display: block; color: var(--hd)!important; }
+.app-shell .live-dot { color: var(--ok)!important; border: 1px solid var(--ln); padding: 5px 8px; background: var(--gl); }
+
+.command-center-reference {
+  display: grid;
+  grid-template-columns: repeat(12,minmax(0,1fr));
+  gap: 10px;
+  min-width: 0;
+  color: var(--tx);
+  font: 500 12px/1.38 Rajdhani,"Segoe UI",sans-serif;
+}
+.command-center-reference > .cc-titlebar,
+.command-center-reference > .cc-top-grid,
+.command-center-reference > .cc-main-grid,
+.command-center-reference > .cc-operations-grid,
+.command-center-reference > .cc-panel,
+.command-center-reference > .cc-quick,
+.command-center-reference > .cc-bottom-strip,
+.command-center-reference > .cc-footerline { grid-column: 1/-1; min-width: 0; }
+.command-center-reference .cc-titlebar {
+  display: grid;
+  grid-template-columns: minmax(145px,.8fr) minmax(140px,.8fr) minmax(290px,1.5fr);
+  align-items: center;
+  gap: 12px;
+  min-height: 64px;
+  padding: 9px 13px;
+  border: 1px solid var(--ln);
+  background: linear-gradient(90deg,var(--gl),transparent 48%,var(--gl));
+  box-shadow: 0 0 18px var(--gl),inset 0 0 24px rgba(0,0,0,.32);
+  clip-path: polygon(0 10px,10px 0,calc(100% - 10px) 0,100% 10px,100% calc(100% - 10px),calc(100% - 10px) 100%,10px 100%,0 calc(100% - 10px));
+}
+.command-center-reference .cc-brand-lockup { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.command-center-reference .cc-logo {
+  color: #fff;
+  font: 900 22px/1.15 Orbitron,sans-serif;
+  letter-spacing: 3px;
+  white-space: nowrap;
+  text-shadow: 0 0 14px var(--c),0 0 30px var(--c);
+}
+.command-center-reference .cc-logo::before {
+  content: "";
+  display: inline-block;
+  width: 29px; height: 29px;
+  margin-right: 10px;
+  vertical-align: middle;
+  border-radius: 50%;
+  background: radial-gradient(circle,#fff 0 12%,var(--c) 14% 30%,transparent 33%),repeating-conic-gradient(var(--c) 0 12deg,transparent 12deg 30deg);
+  box-shadow: 0 0 18px var(--c),inset 0 0 8px var(--c);
+  animation: mrai-reference-pulse 2s ease-in-out infinite;
+}
+.command-center-reference .cc-title { color: var(--hd); font: 700 10px/1.4 Orbitron,sans-serif; letter-spacing: 1.8px; text-align: left; }
+.command-center-reference .cc-mode-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-self: center;
+  gap: 8px;
+  padding: 8px 20px;
+  border: 1px solid var(--c);
+  background: var(--gl);
+  color: #fff;
+  font: 600 10px Orbitron,sans-serif;
+  letter-spacing: 1.5px;
+  clip-path: polygon(10px 0,100% 0,calc(100% - 10px) 100%,0 100%);
+}
+.command-center-reference .cc-mode-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 9px var(--ok); }
+.command-center-reference .cc-header-right { display: flex; align-items: center; justify-content: flex-end; gap: 14px; min-width: 0; }
+.command-center-reference .cc-header-tools { display: flex; gap: 12px; color: var(--c); font-size: 17px; }
+.command-center-reference .cc-header-clock { text-align: right; white-space: nowrap; }
+.command-center-reference .cc-header-clock strong { color: #fff; font: 500 15px "Share Tech Mono",monospace; }
+.command-center-reference .cc-header-clock span { display: block; margin-top: 3px; color: var(--dim); font: 9px "Share Tech Mono",monospace; }
+.command-center-reference .cc-header-operator { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.command-center-reference .cc-header-avatar {
+  display: grid; place-items: center; flex: 0 0 auto;
+  width: 36px; height: 36px;
+  border: 2px solid var(--av); border-radius: 50%; color: var(--av);
+  background: radial-gradient(var(--c2),#000);
+  font: 700 11px Orbitron,sans-serif;
+  box-shadow: 0 0 12px var(--av),inset 0 0 8px var(--gl);
+  animation: mrai-reference-spin 10s linear infinite;
+}
+.command-center-reference .cc-header-operator strong { display: block; color: #fff; font: 700 10px Orbitron,sans-serif; }
+.command-center-reference .cc-header-operator span,
+.command-center-reference .cc-header-operator small { display: block; margin-top: 2px; color: var(--dim); font: 9px Rajdhani,sans-serif; letter-spacing: .7px; }
+.command-center-reference .cc-header-operator small { color: var(--ok); }
+.command-center-reference .cc-top-grid {
+  display: grid;
+  grid-template-columns: repeat(12,minmax(0,1fr));
+  gap: 10px;
+  min-width: 0;
+}
+.command-center-reference .cc-top-grid > .cc-panel { grid-column: span 4; min-width: 0; }
+.command-center-reference .cc-main-grid {
+  display: grid;
+  grid-template-columns: repeat(12,minmax(0,1fr));
+  gap: 10px;
+  align-items: stretch;
+  min-width: 0;
+}
+.command-center-reference .cc-main-grid > .cc-radar-panel { grid-column: span 3; }
+.command-center-reference .cc-main-grid > .cc-map-panel { grid-column: span 4; }
+.command-center-reference .cc-main-grid > .cc-chat-panel { grid-column: span 3; }
+.command-center-reference .cc-main-grid > .cc-research-panel { grid-column: span 2; }
+.command-center-reference .cc-operations-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; align-items: stretch; }
+.command-center-reference .cc-panel {
+  position: relative;
+  min-width: 0;
+  padding: 12px 13px;
+  border: 1px solid var(--ln);
+  border-radius: 0;
+  background: linear-gradient(160deg,var(--pn),rgba(0,0,0,.42));
+  box-shadow: 0 0 22px var(--gl),inset 0 0 30px rgba(0,0,0,.45);
+  backdrop-filter: blur(3px);
+  clip-path: polygon(0 10px,10px 0,calc(100% - 10px) 0,100% 10px,100% calc(100% - 10px),calc(100% - 10px) 100%,10px 100%,0 calc(100% - 10px));
+}
+.command-center-reference .cc-panel::after {
+  content: "";
+  position: absolute; inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(var(--c),var(--c)) left top/16px 2px,
+    linear-gradient(var(--c),var(--c)) left top/2px 16px,
+    linear-gradient(var(--c),var(--c)) right top/16px 2px,
+    linear-gradient(var(--c),var(--c)) right top/2px 16px,
+    linear-gradient(var(--c),var(--c)) left bottom/16px 2px,
+    linear-gradient(var(--c),var(--c)) left bottom/2px 16px,
+    linear-gradient(var(--c),var(--c)) right bottom/16px 2px,
+    linear-gradient(var(--c),var(--c)) right bottom/2px 16px;
+  background-repeat: no-repeat;
+}
+.command-center-reference .cc-panel > * { position: relative; z-index: 1; }
+.command-center-reference .cc-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--ln);
+}
+.command-center-reference .cc-eyebrow { color: var(--dim); font: 500 9px/1.35 "Share Tech Mono",monospace; letter-spacing: 1px; }
+.command-center-reference .cc-panel h2 { margin: 3px 0 0; color: var(--hd); font: 700 11px/1.35 Orbitron,sans-serif; letter-spacing: 1.35px; text-transform: uppercase; text-shadow: 0 0 8px var(--gl); }
+.command-center-reference .cc-badge {
+  max-width: 48%;
+  padding: 2px 5px;
+  color: var(--dim);
+  border: 1px solid var(--ln);
+  background: rgba(0,0,0,.18);
+  border-radius: 0;
+  font: 500 8px/1.4 "Share Tech Mono",monospace;
+  letter-spacing: .5px;
+  white-space: normal;
+  text-align: right;
+}
+.command-center-reference .cc-panel-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.command-center-reference .cc-inline-button {
+  min-height: 29px;
+  padding: 5px 8px;
+  border: 1px solid var(--ln);
+  border-radius: 0;
+  background: rgba(0,0,0,.25);
+  color: var(--tx);
+  font: 600 9px Orbitron,sans-serif;
+  letter-spacing: .55px;
+}
+.command-center-reference .cc-inline-button:hover { border-color: var(--c); background: var(--gl); color: #fff; }
+.command-center-reference .cc-system-status { display: grid; gap: 8px; min-width: 0; }
+.command-center-reference .cc-system-layout { display: grid; grid-template-columns: minmax(0,1.05fr) minmax(0,1fr); align-items: start; gap: 12px; }
+.command-center-reference .cc-system-metrics { display: grid; gap: 3px; min-width: 0; }
+.command-center-reference .cc-system-network { min-width: 0; padding-left: 10px; border-left: 1px solid var(--ln); }
+.command-center-reference .cc-system-network-title { display: block; margin-bottom: 8px; color: var(--hd); font-size: 11px; }
+.command-center-reference .cc-metric { min-width: 0; padding: 5px 0; }
+.command-center-reference .cc-metric-top { display: flex; justify-content: space-between; align-items: baseline; gap: 7px; }
+.command-center-reference .cc-metric-top span { min-width: 0; color: var(--dim); font: 500 9px/1.3 "Share Tech Mono",monospace; overflow-wrap: anywhere; }
+.command-center-reference .cc-metric-top strong { color: #fff; font: 500 12px "Share Tech Mono",monospace; white-space: nowrap; }
+.command-center-reference .cc-meter { height: 3px; margin-top: 6px; background: rgba(255,255,255,.1); overflow: hidden; }
+.command-center-reference .cc-meter i { display: block; height: 100%; background: var(--c); box-shadow: 0 0 8px var(--c); transition: width .5s; }
+.command-center-reference .cc-network-metric { display: grid; gap: 8px; }
+.command-center-reference .cc-network-rates { display: flex; flex-wrap: wrap; gap: 5px 10px; justify-content: space-between; }
+.command-center-reference .cc-network-rates span,
+.command-center-reference .cc-network-summary span { color: var(--dim); font: 9px "Share Tech Mono",monospace; overflow-wrap: anywhere; }
+.command-center-reference .cc-network-spark { width: 100%; height: 90px; margin-top: 5px; border: 1px solid rgba(77,243,255,.09); background: rgba(0,0,0,.18); }
+.command-center-reference .cc-network-spark svg { display: block; width: 100%; height: 100%; }
+.command-center-reference .cc-network-summary { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 8px; margin-top: 8px; }
+.command-center-reference .cc-telemetry-source { color: var(--dim); font: 8px/1.4 "Share Tech Mono",monospace; letter-spacing: .2px; }
+.command-center-reference .cc-system-footer { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 5px 10px; border-top: 1px solid var(--ln); padding-top: 7px; }
+.command-center-reference .cc-system-footer span,
+.command-center-reference .cc-system-footer strong { color: var(--dim); font: 8px/1.4 "Share Tech Mono",monospace; }
+.command-center-reference .cc-inline-button:disabled { opacity: .5; }
+.command-center-reference .cc-core-status { display: grid; grid-template-columns: minmax(0,1fr) minmax(145px,.92fr); align-items: center; gap: 8px; min-width: 0; }
+.command-center-reference .cc-core-readout { display: grid; gap: 4px; min-width: 0; }
+.command-center-reference .cc-core-readout > div { display: grid; grid-template-columns: minmax(70px,.8fr) minmax(0,1fr); gap: 8px; align-items: center; padding: 4px 0; border-bottom: 1px solid rgba(77,243,255,.08); }
+.command-center-reference .cc-core-readout span { color: var(--dim); font: 500 9px/1.3 "Share Tech Mono",monospace; letter-spacing: .4px; }
+.command-center-reference .cc-core-readout strong { color: #fff; font: 600 11px/1.35 Rajdhani,sans-serif; overflow-wrap: anywhere; }
+.command-center-reference .cc-core-readout .st { color: var(--ok)!important; }
+.command-center-reference .mrai-hud-orb { position: relative; display: grid; place-items: center; width: 100%; max-width: 210px; min-width: 0; margin: auto; aspect-ratio: 1; filter: drop-shadow(0 0 16px var(--av)); }
+.command-center-reference .mrai-hud-orb canvas { display: block; width: 100%; height: auto; aspect-ratio: 1; }
+.command-center-reference .mrai-hud-orb.is-working { filter: drop-shadow(0 0 19px var(--av)); }
+
+.command-center-reference .cc-mission { position: relative; display: grid; grid-template-columns: minmax(0,1fr) minmax(90px,1.1fr) 66px; gap: 10px; align-items: center; min-width: 0; }
+.command-center-reference .cc-mission-copy { min-width: 0; }
+.command-center-reference .cc-mission-copy p { margin: 0 0 9px; color: var(--dim); font-size: 11px; line-height: 1.5; }
+.command-center-reference .cc-mission-copy span { display: block; color: var(--dim); font: 500 8px "Share Tech Mono",monospace; letter-spacing: .8px; }
+.command-center-reference .cc-mission-copy strong { display: block; margin-top: 5px; color: #fff; font-size: 11px; line-height: 1.4; overflow-wrap: anywhere; }
+.command-center-reference .cc-mission-graph { position: relative; min-width: 0; min-height: 92px; border: 1px solid rgba(77,243,255,.1); overflow: hidden; }
+.command-center-reference .cc-graph-grid { position: absolute; inset: 0; background: linear-gradient(rgba(255,255,255,.04) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.04) 1px,transparent 1px); background-size: 20px 20px; }
+.command-center-reference .cc-mission-graph svg { position: absolute; inset: 5px 6px 22px; width: calc(100% - 12px); height: calc(100% - 27px); }
+.command-center-reference .cc-chart-empty { position: absolute; inset: 0; display: grid; place-items: center; padding: 5px; color: var(--dim); font: 8px "Share Tech Mono",monospace; text-align: center; }
+.command-center-reference .cc-chart-axis { position: absolute; bottom: 4px; left: 5px; right: 5px; display: flex; justify-content: space-between; color: var(--dim); font: 8px "Share Tech Mono",monospace; }
+.command-center-reference .cc-mission-globe { position: relative; width: 62px; height: 62px; justify-self: end; border: 1px solid var(--c); border-radius: 50%; box-shadow: inset 0 0 18px var(--gl),0 0 12px var(--gl); overflow: hidden; }
+.command-center-reference .cc-globe-ring { position: absolute; left: 50%; top: 50%; width: 88%; height: 44%; transform: translate(-50%,-50%); border: 1px solid var(--ln); border-radius: 50%; }
+.command-center-reference .cc-globe-ring.ring-b { width: 48%; height: 88%; }
+.command-center-reference .cc-globe-arc { position: absolute; left: -12%; top: 22%; width: 124%; height: 54%; border: 1px solid var(--gl); border-radius: 50%; transform: rotate(18deg); }
+.command-center-reference .cc-globe-arc.arc-b { transform: rotate(-18deg); }
+.command-center-reference .cc-globe-gridline { position: absolute; background: var(--gl); }
+.command-center-reference .cc-globe-gridline.grid-h { left: 0; right: 0; top: 50%; height: 1px; }
+.command-center-reference .cc-globe-gridline.grid-v { top: 0; bottom: 0; left: 50%; width: 1px; }
+.command-center-reference .cc-mission-stats { grid-column: 1/-1; display: grid; grid-template-columns: repeat(3,1fr); padding-top: 7px; border-top: 1px solid var(--ln); }
+.command-center-reference .cc-mission-stats div { text-align: center; }
+.command-center-reference .cc-mission-stats span { display: block; color: var(--dim); font: 8px "Share Tech Mono",monospace; }
+.command-center-reference .cc-mission-stats strong { display: block; color: var(--c); font: 700 16px Orbitron,sans-serif; }
+
+.command-center-reference .cc-radar-panel { overflow: hidden; }
+.command-center-reference .cc-radar-wrap { display: grid; gap: 8px; min-width: 0; }
+.command-center-reference .cc-radar-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; }
+.command-center-reference .cc-radar-controls button { min-height: 28px; padding: 5px 7px; border: 1px solid var(--ln); border-radius: 0; background: rgba(0,0,0,.26); color: var(--tx); font: 600 8px Orbitron,sans-serif; letter-spacing: .35px; }
+.command-center-reference .cc-radar-controls button.active,
+.command-center-reference .cc-radar-controls button:hover:not(:disabled) { background: var(--gl); border-color: var(--c); color: #fff; }
+.command-center-reference .cc-radar-shell { position: relative; width: min(100%,230px); aspect-ratio: 1; margin: 2px auto; }
+.command-center-reference .cc-radar { position: absolute; inset: 0; overflow: hidden; border: 1px solid var(--ln); border-radius: 50%; background: radial-gradient(circle,var(--gl) 0 1%,transparent 2%),repeating-radial-gradient(circle,transparent 0 20%,var(--ln) 20.5% 21%,transparent 21.5% 32%); box-shadow: 0 0 20px var(--gl),inset 0 0 25px rgba(0,0,0,.3); }
+.command-center-reference .cc-radar-cross { position: absolute; background: var(--ln); opacity: .7; }
+.command-center-reference .cc-radar-cross.cross-x { left: 0; right: 0; top: 50%; height: 1px; }
+.command-center-reference .cc-radar-cross.cross-y { top: 0; bottom: 0; left: 50%; width: 1px; }
+.command-center-reference .cc-radar-ring { position: absolute; left: 50%; top: 50%; width: 25%; height: 25%; transform: translate(-50%,-50%); border: 1px solid var(--ln); border-radius: 50%; }
+.command-center-reference .cc-radar-ring.ring-2 { width: 50%; height: 50%; }
+.command-center-reference .cc-radar-ring.ring-3 { width: 75%; height: 75%; }
+.command-center-reference .cc-radar-ring.ring-4 { width: 100%; height: 100%; }
+.command-center-reference .cc-radar-sweep { position: absolute; inset: 0; border-radius: 50%; opacity: .68; background: conic-gradient(from 0deg,transparent 0 295deg,var(--c) 360deg); animation: mrai-reference-spin 3s linear infinite; mask: radial-gradient(circle,transparent 0 3%,#000 4%); }
+.command-center-reference .cc-radar-origin { position: absolute; left: 50%; top: 50%; width: 6px; height: 6px; transform: translate(-50%,-50%); border-radius: 50%; background: var(--c); box-shadow: 0 0 12px var(--c); }
+.command-center-reference .cc-radar-contact { position: absolute; display: grid; place-items: center; width: 10px; height: 10px; margin: -5px 0 0 -5px; border: 1px solid var(--ok); border-radius: 50%; background: var(--gl); box-shadow: 0 0 8px var(--ok); }
+.command-center-reference .cc-radar-contact i { width: 3px; height: 3px; border-radius: 50%; background: #fff; }
+.command-center-reference .cc-radar-corner { position: absolute; width: 12px; height: 12px; border-color: var(--c); border-style: solid; opacity: .8; }
+.command-center-reference .cc-radar-corner.corner-tl { top: 3px; left: 3px; border-width: 1px 0 0 1px; }
+.command-center-reference .cc-radar-corner.corner-tr { top: 3px; right: 3px; border-width: 1px 1px 0 0; }
+.command-center-reference .cc-radar-corner.corner-bl { bottom: 3px; left: 3px; border-width: 0 0 1px 1px; }
+.command-center-reference .cc-radar-corner.corner-br { bottom: 3px; right: 3px; border-width: 0 1px 1px 0; }
+.command-center-reference .cc-radar-core { position: absolute; left: 50%; top: 50%; display: grid; place-items: center; width: 34px; height: 34px; transform: translate(-50%,-50%); border: 1px solid var(--c); border-radius: 50%; background: rgba(0,0,0,.8); color: var(--c); font: 700 10px Orbitron,sans-serif; box-shadow: 0 0 12px var(--gl); }
+.command-center-reference .cc-radar-scale { position: absolute; color: var(--dim); font: 8px "Share Tech Mono",monospace; letter-spacing: .3px; }
+.command-center-reference .cc-radar-scale.scale-top { top: -10px; left: 50%; transform: translateX(-50%); }
+.command-center-reference .cc-radar-scale.scale-right { right: -5px; top: 50%; transform: translate(50%,-50%) rotate(90deg); transform-origin: center; }
+.command-center-reference .cc-radar-scale.scale-bottom { bottom: -10px; left: 50%; transform: translateX(-50%); }
+.command-center-reference .cc-radar-scale.scale-left { left: -5px; top: 50%; transform: translate(-50%,-50%) rotate(-90deg); transform-origin: center; }
+.command-center-reference .cc-radar-channels { display: grid; gap: 7px; }
+.command-center-reference .cc-radar-channel { min-width: 0; padding: 7px 0; border-top: 1px solid var(--ln); }
+.command-center-reference .cc-radar-channel-head { display: flex; align-items: center; gap: 7px; color: var(--c); }
+.command-center-reference .cc-radar-channel-head strong { color: var(--dim); font: 500 8px "Share Tech Mono",monospace; letter-spacing: .6px; }
+.command-center-reference .cc-radar-channel > b { display: block; margin: 4px 0; font: 600 9px "Share Tech Mono",monospace; overflow-wrap: anywhere; }
+.command-center-reference .cc-radar-channel small { display: block; color: var(--dim); font-size: 9px; line-height: 1.4; }
+.command-center-reference .channel-good { color: var(--ok); }
+.command-center-reference .channel-warn { color: var(--av); }
+.command-center-reference .channel-neutral { color: var(--dim); }
+.command-center-reference .cc-radar-wave { display: flex; height: 15px; align-items: center; gap: 2px; margin-top: 5px; opacity: .7; }
+.command-center-reference .cc-radar-wave i { width: 3px; height: 4px; background: var(--c); opacity: .25; }
+.command-center-reference .cc-radar-wave.is-active i { animation: mrai-reference-wave .8s ease-in-out infinite; opacity: .8; }
+.command-center-reference .cc-radar-wave i:nth-child(2n) { animation-delay: .12s; }
+.command-center-reference .cc-radar-wave i:nth-child(3n) { animation-delay: .25s; }
+.command-center-reference .cc-radar-info { display: grid; grid-template-columns: minmax(0,.8fr) minmax(0,1.2fr); gap: 7px; }
+.command-center-reference .cc-radar-contact-count,
+.command-center-reference .cc-radar-source div { min-width: 0; padding: 7px; border: 1px solid var(--ln); background: rgba(0,0,0,.18); }
+.command-center-reference .cc-radar-contact-count span,
+.command-center-reference .cc-radar-contact-count small,
+.command-center-reference .cc-radar-source span { display: block; color: var(--dim); font: 8px/1.4 "Share Tech Mono",monospace; }
+.command-center-reference .cc-radar-contact-count strong,
+.command-center-reference .cc-radar-source strong { display: block; color: var(--c); font: 700 15px Orbitron,sans-serif; }
+.command-center-reference .cc-radar-source { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 5px; }
+.command-center-reference .cc-radar-contact-list { display: grid; gap: 5px; }
+.command-center-reference .cc-radar-contact-row { display: grid; grid-template-columns: 55px minmax(0,1fr); gap: 8px; padding: 7px; border: 1px solid var(--ln); }
+.command-center-reference .cc-radar-contact-row strong { color: #fff; font-size: 10px; }
+.command-center-reference .cc-radar-contact-row small { color: var(--dim); font-size: 9px; overflow-wrap: anywhere; }
+.command-center-reference .cc-radar-status { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px; padding-top: 7px; border-top: 1px solid var(--ln); color: var(--dim); font: 8px "Share Tech Mono",monospace; }
+.command-center-reference .cc-radar-status strong { color: var(--ok); }
+.command-center-reference .cc-radar-error { padding: 7px; border: 1px solid rgba(255,181,46,.3); color: var(--av); font-size: 10px; overflow-wrap: anywhere; }
+.command-center-reference .cc-radar-note { color: var(--dim); font: 8px/1.45 "Share Tech Mono",monospace; letter-spacing: .2px; }
+.command-center-reference .cc-map-panel { overflow: hidden; }
+.command-center-reference .cc-live-map { display: grid; align-content: start; gap: 8px; min-height: 0; height: 100%; }
+.command-center-reference .cc-map-toolbar { display: flex; gap: 5px; flex-wrap: wrap; align-items: center; }
+.command-center-reference .cc-map-toolbar button { min-height: 28px; padding: 5px 7px; border: 1px solid var(--ln); border-radius: 0; background: rgba(0,0,0,.25); color: var(--tx); font-size: 9px; }
+.command-center-reference .cc-map-toolbar button:hover { border-color: var(--c); background: var(--gl); }
+.command-center-reference .cc-map-state { color: var(--dim); font: 8px "Share Tech Mono",monospace; overflow-wrap: anywhere; }
+.command-center-reference .cc-map-frame-grid { display: grid; grid-template-columns: minmax(0,1fr); gap: 7px; height: auto; min-height: 0; }
+.command-center-reference .cc-real-map { width: 100%; height: 260px; border: 1px solid var(--ln); border-radius: 0; background: #061321; }
+.command-center-reference .cc-street-view { width: 100%; height: 132px; border: 1px solid var(--ln); border-radius: 0; }
+.command-center-reference .cc-map-frame-label { border: 1px solid var(--ln); color: var(--c); background: rgba(0,0,0,.65); font: 8px "Share Tech Mono",monospace; }
+.command-center-reference .cc-map-readout { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 6px; }
+.command-center-reference .cc-map-readout div { min-width: 0; padding: 6px; border: 1px solid var(--ln); background: rgba(0,0,0,.18); }
+.command-center-reference .cc-map-readout span,
+.command-center-reference .cc-map-readout strong { display: block; overflow-wrap: anywhere; }
+.command-center-reference .cc-map-readout span { color: var(--dim); font: 8px "Share Tech Mono",monospace; }
+.command-center-reference .cc-map-readout strong { margin-top: 3px; color: #fff; font: 600 10px Rajdhani,sans-serif; }
+.command-center-reference .cc-chat-panel .chat-panel { margin: 0; height: 100%; border: 0; background: transparent; }
+.command-center-reference .cc-chat-panel .chat-header { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+.command-center-reference .cc-chat-panel .chat-header strong { color: var(--hd); font: 700 10px Orbitron,sans-serif; }
+.command-center-reference .cc-chat-panel .chat-header span { color: var(--dim); font: 8px "Share Tech Mono",monospace; }
+.command-center-reference .cc-chat-panel .chat-header select { width: 100%; max-width: 100%; min-width: 0; min-height: 33px; padding: 7px; border: 1px solid var(--ln); border-radius: 0; background: rgba(0,0,0,.45); color: var(--tx); font: 9px Rajdhani,sans-serif; }
+.command-center-reference .cc-chat-panel .messages { display: flex; flex-direction: column; gap: 8px; min-height: 210px; max-height: 320px; overflow: auto; padding: 8px; border: 1px solid var(--ln); background: rgba(0,0,0,.25); }
+.command-center-reference .cc-chat-panel .message { padding: 7px 9px; border: 1px solid var(--ln); border-radius: 0; background: rgba(0,0,0,.25); overflow-wrap: anywhere; }
+.command-center-reference .cc-chat-panel .message > span { color: var(--c); font: 500 9px "Share Tech Mono",monospace; }
+.command-center-reference .cc-chat-panel .message p { margin: 4px 0 0; color: var(--tx); font-size: 12px; line-height: 1.5; white-space: pre-wrap; }
+.command-center-reference .cc-chat-panel .chat-input { display: flex; align-items: stretch; gap: 5px; flex-wrap: wrap; margin-top: 8px; }
+.command-center-reference .cc-chat-panel .chat-input input { flex: 1 1 100px; min-width: 0; min-height: 38px; border: 1px solid var(--ln); border-radius: 0; background: rgba(0,0,0,.45); color: #fff; padding: 8px; font-size: 11px; }
+.command-center-reference .cc-chat-panel .chat-input button { min-height: 38px; border: 1px solid var(--c); border-radius: 0; background: var(--gl); color: #fff; padding: 7px 10px; font: 600 9px Orbitron,sans-serif; }
+.command-center-reference .cc-chat-panel .chat-input button:hover { box-shadow: 0 0 12px var(--gl); }
+.command-center-reference .cc-chat-panel .voice-control { min-height: 38px; }
+.command-center-reference .cc-research { display: grid; gap: 8px; min-width: 0; }
+.command-center-reference .cc-research-search { display: flex; align-items: stretch; min-width: 0; border: 1px solid var(--ln); border-radius: 0; background: rgba(0,0,0,.35); }
+.command-center-reference .cc-research-search input { flex: 1; width: 100%; min-width: 0; min-height: 35px; padding: 8px; border: 0; background: transparent; color: var(--tx); font: 11px Rajdhani,sans-serif; }
+.command-center-reference .cc-research-search button { width: 32px; border: 0; border-left: 1px solid var(--ln); border-radius: 0; color: var(--c); background: transparent; font-size: 16px; }
+.command-center-reference .cc-research-status { color: var(--dim); font: 8px "Share Tech Mono",monospace; overflow-wrap: anywhere; }
+.command-center-reference .cc-research-empty { padding: 8px 2px; color: var(--dim); font-size: 10px; line-height: 1.5; }
+.command-center-reference .cc-research-item { display: grid; grid-template-columns: 25px minmax(0,1fr); gap: 7px; padding: 8px 2px; border-top: 1px solid var(--ln); }
+.command-center-reference .cc-research-item a { color: var(--tx); text-decoration: none; }
+.command-center-reference .cc-research-item a:hover { color: var(--c); }
+.command-center-reference .cc-research-icon { display: grid; place-items: center; width: 25px; height: 25px; border: 1px solid var(--ln); color: var(--c); }
+.command-center-reference .cc-research-item strong { display: block; color: #fff; font-size: 10px; line-height: 1.3; overflow-wrap: anywhere; }
+.command-center-reference .cc-research-item small { display: block; margin-top: 3px; color: var(--dim); font-size: 9px; line-height: 1.4; }
+.command-center-reference .cc-quick { min-width: 0; padding: 12px 13px; border: 1px solid var(--ln); border-radius: 0; background: linear-gradient(160deg,var(--pn),rgba(0,0,0,.4)); box-shadow: 0 0 22px var(--gl),inset 0 0 28px rgba(0,0,0,.35); }
+.command-center-reference .cc-quick-head { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 9px; }
+.command-center-reference .cc-quick-head .cc-eyebrow { color: var(--c); font: 500 9px "Share Tech Mono",monospace; }
+.command-center-reference .cc-quick-head strong { color: var(--dim); font-size: 9px; }
+.command-center-reference .cc-quick-grid { display: grid; grid-template-columns: repeat(6,minmax(0,1fr)); gap: 8px; }
+.command-center-reference .cc-quick-grid button { min-width: 0; min-height: 40px; padding: 8px; border: 1px solid var(--ln); border-radius: 0; background: linear-gradient(180deg,var(--gl),rgba(0,0,0,.2)); color: var(--tx); font: 600 9px Orbitron,sans-serif; letter-spacing: .55px; overflow-wrap: anywhere; }
+.command-center-reference .cc-quick-grid button:hover:not(:disabled) { border-color: var(--c); color: #fff; box-shadow: 0 0 14px var(--gl); }
+.command-center-reference .cc-quick-result { margin-top: 10px; padding: 8px; border: 1px solid var(--ln); background: rgba(0,0,0,.25); color: var(--tx); font: 10px/1.5 "Share Tech Mono",monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
+.command-center-reference .cc-owner-board-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 8px; }
+.command-center-reference .cc-owner-capability { min-width: 0; padding: 10px; border: 1px solid var(--ln); border-radius: 0; background: rgba(0,0,0,.18); }
+.command-center-reference .cc-owner-capability-head { display: flex; align-items: center; gap: 7px; }
+.command-center-reference .cc-owner-capability-head span { color: var(--c); }
+.command-center-reference .cc-owner-capability-head strong { color: #fff; font: 600 10px Rajdhani,sans-serif; }
+.command-center-reference .cc-owner-state { display: inline-block; max-width: 100%; margin: 7px 0 5px; padding: 3px 5px; border: 1px solid var(--ln); color: var(--dim); font: 500 8px "Share Tech Mono",monospace; overflow-wrap: anywhere; }
+.command-center-reference .cc-owner-capability p { color: var(--dim); font-size: 10px; line-height: 1.45; }
+.command-center-reference .cc-agent-fleet-summary { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 7px; }
+.command-center-reference .cc-agent-fleet-summary div,
+.command-center-reference .cc-agent-tile { min-width: 0; border: 1px solid var(--ln); border-radius: 0; background: rgba(0,0,0,.2); }
+.command-center-reference .cc-agent-fleet-summary div { padding: 8px; }
+.command-center-reference .cc-agent-fleet-summary span { color: var(--dim); font: 8px "Share Tech Mono",monospace; }
+.command-center-reference .cc-agent-fleet-summary strong { color: var(--c); font: 700 15px Orbitron,sans-serif; }
+.command-center-reference .cc-agent-fleet-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 7px; }
+.command-center-reference .cc-agent-tile { padding: 9px; }
+.command-center-reference .cc-agent-name { color: #fff; font: 600 10px Rajdhani,sans-serif; }
+.command-center-reference .cc-agent-tile p,
+.command-center-reference .cc-agent-current strong { color: var(--dim); font-size: 10px; overflow-wrap: anywhere; }
+.command-center-reference .cc-agent-current { border-top: 1px solid var(--ln); margin-top: 7px; padding-top: 7px; }
+.command-center-reference .cc-agent-current span { color: var(--dim); font: 8px "Share Tech Mono",monospace; }
+.command-center-reference .cc-agent-current strong { display: block; margin-top: 3px; }
+.command-center-reference .cc-agent-capabilities { color: var(--dim); font-size: 9px; }
+.command-center-reference .cc-workbench-intro p,
+.command-center-reference .cc-owner-board-intro p { color: var(--dim); font-size: 11px; line-height: 1.5; }
+.command-center-reference .cc-mission-form input { min-height: 40px; border: 1px solid var(--ln); border-radius: 0; background: rgba(0,0,0,.35); color: var(--tx); }
+.command-center-reference .cc-mission-actions button { min-height: 34px; border: 1px solid var(--ln); border-radius: 0; background: rgba(0,0,0,.25); color: var(--tx); }
+.command-center-reference .cc-mission-actions button.primary-button { border-color: var(--c); background: var(--c2); color: #fff; }
+.command-center-reference .cc-mission-examples button { border: 1px solid var(--ln); border-radius: 0; background: rgba(0,0,0,.25); color: var(--dim); }
+.command-center-reference .cc-mission-result,
+.command-center-reference .cc-mission-step { border: 1px solid var(--ln); border-radius: 0; background: rgba(0,0,0,.2); }
+.command-center-reference .cc-next-action { border-left-color: var(--c); background: var(--gl); }
+.command-center-reference .cc-bottom-strip { display: grid; grid-template-columns: repeat(5,minmax(0,1fr)); gap: 7px; }
+.command-center-reference .cc-bottom-strip div { min-width: 0; padding: 9px; border: 1px solid var(--ln); border-radius: 0; background: rgba(0,0,0,.25); }
+.command-center-reference .cc-bottom-strip span { display: block; color: var(--dim); font: 8px "Share Tech Mono",monospace; }
+.command-center-reference .cc-bottom-strip strong { display: block; margin-top: 4px; color: var(--tx); font-size: 10px; line-height: 1.4; overflow-wrap: anywhere; }
+.command-center-reference .cc-footerline { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 14px; padding: 4px 3px 0; color: var(--dim); font: 8px "Share Tech Mono",monospace; }
+.command-center-reference .cc-panel,
+.command-center-reference .cc-quick { animation: mrai-reference-power .8s both; animation-delay: var(--delay,0s); }
+.command-center-reference .cc-panel:nth-child(2) { --delay: .05s; }
+.command-center-reference .cc-panel:nth-child(3) { --delay: .10s; }
+
+.app-shell .panel,
+.app-shell .tool-panel,
+.app-shell .studio,
+.app-shell .large-panel {
+  border: 1px solid var(--ln);
+  border-radius: 0;
+  background: linear-gradient(160deg,var(--pn),rgba(0,0,0,.42));
+  box-shadow: 0 0 20px var(--gl),inset 0 0 26px rgba(0,0,0,.38);
+  backdrop-filter: blur(3px);
+}
+.app-shell .panel-head { gap: 10px; padding-bottom: 8px; border-bottom: 1px solid var(--ln); }
+.app-shell .panel-head h2,
+.app-shell .topbar h1,
+.app-shell .panel-title { color: var(--hd); font-family: Orbitron,sans-serif; letter-spacing: 1.2px; text-shadow: 0 0 8px var(--gl); }
+.app-shell .eyebrow,
+.app-shell .badge { color: var(--dim); font-family: "Share Tech Mono",monospace; letter-spacing: 1px; }
+.app-shell input,
+.app-shell select,
+.app-shell textarea { border-radius: 0; border-color: var(--ln); background-color: rgba(0,0,0,.4); color: var(--tx); }
+.app-shell input:focus,
+.app-shell select:focus,
+.app-shell textarea:focus { border-color: var(--c); }
+.app-shell .agent-card,
+.app-shell .service-card,
+.app-shell .state-grid button,
+.app-shell .memory-card,
+.app-shell .schedule-row,
+.app-shell .task-row { border-radius: 0; border-color: var(--ln); background: rgba(0,0,0,.22); }
+.app-shell .primary-button,
+.app-shell .danger-button { border-color: var(--c); background: linear-gradient(135deg,var(--c2),rgba(0,0,0,.42)); color: #fff; }
+.app-shell .ghost-button,
+.app-shell .mini-button { border-color: var(--ln); color: var(--tx); }
+.app-shell .split-grid { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 10px; min-width: 0; }
+.app-shell .planner-row { display: grid; grid-template-columns: minmax(0,1fr) auto auto; gap: 8px; }
+.app-shell .plan-output,
+.app-shell .telemetry-json { white-space: pre-wrap; overflow-wrap: anywhere; }
+
+@keyframes mrai-reference-ripple { from { transform:scale(.3); opacity:.7; } to { transform:scale(3.4); opacity:0; } }
+@keyframes mrai-reference-spin { to { transform:rotate(360deg); } }
+@keyframes mrai-reference-sweep { to { top:100%; } }
+@keyframes mrai-reference-wave { 50% { height:100%; } }
+@keyframes mrai-reference-pulse { 50% { filter:brightness(1.7); } }
+@keyframes mrai-reference-power {
+  0% { opacity:0; filter:brightness(3); }
+  30% { opacity:.9; }
+  45% { opacity:.15; }
+  65% { opacity:1; filter:brightness(1.6); }
+  100% { opacity:1; filter:none; }
+}
+
+@media (max-width: 1370px) {
+  .app-shell { grid-template-columns: 190px minmax(0,1fr); }
+  .app-shell .sidebar { width: 190px; }
+  .command-center-reference .cc-titlebar { grid-template-columns: minmax(135px,.65fr) minmax(125px,.6fr) minmax(240px,1.25fr); }
+  .command-center-reference .cc-header-right { gap: 9px; }
+}
+@media (max-width: 1200px) {
+  .command-center-reference .cc-titlebar { grid-template-columns: minmax(0,1fr) minmax(0,1fr); }
+  .command-center-reference .cc-header-right { grid-column: 1/-1; justify-content: space-between; border-top: 1px solid var(--ln); padding-top: 8px; }
+  .command-center-reference .cc-top-grid > .cc-panel { grid-column: span 6; }
+  .command-center-reference .cc-top-grid > .cc-panel:last-child { grid-column: 1/-1; }
+  .command-center-reference .cc-main-grid > .cc-radar-panel,
+  .command-center-reference .cc-main-grid > .cc-map-panel,
+  .command-center-reference .cc-main-grid > .cc-chat-panel,
+  .command-center-reference .cc-main-grid > .cc-research-panel { grid-column: span 6; }
+  .command-center-reference .cc-quick-grid { grid-template-columns: repeat(3,minmax(0,1fr)); }
+}
+@media (max-width: 1100px) {
+  .app-shell { grid-template-columns: minmax(0,1fr); padding: 8px; gap: 8px; }
+  .app-shell .sidebar {
+    position: relative; top: auto; align-self: stretch; width: 100%; height: auto; max-height: none;
+    flex-direction: column; align-items: stretch; overflow: visible;
+    padding: 8px; border-right: 0; border-bottom: 1px solid var(--ln);
+  }
+  .app-shell .sidebar .brand { display: none; }
+  .app-shell .sidebar .operator { display: flex; }
+  .app-shell .sidebar .sidebar-voice { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  .app-shell .sidebar .sidebar-voice-head { width: 100%; }
+  .app-shell .sidebar .sidebar-wave { width: 100%; margin: 0; }
+  .app-shell .sidebar .sidebar-voice-quote { flex: 1; min-width: 0; }
+  .app-shell .sidebar nav { flex: 0 0 auto; min-height: 0; flex-direction: row; overflow-x: auto; overflow-y: hidden; gap: 4px; padding: 3px 3px 7px; }
+  .app-shell .sidebar nav button { width: auto; min-height: 35px; white-space: nowrap; }
+  .app-shell .sidebar-footer { display: flex; flex-direction: row; flex-wrap: wrap; gap: 6px; margin: 0; }
+  .app-shell .sidebar-footer button { flex: 1 1 145px; white-space: nowrap; }
+  .command-center-reference .cc-titlebar { grid-template-columns: minmax(0,1fr) minmax(0,1fr); }
+  .command-center-reference .cc-header-right { flex-wrap: wrap; }
+  .command-center-reference .cc-system-layout { grid-template-columns: minmax(0,1.1fr) minmax(0,1fr); }
+}
+@media (max-width: 760px) {
+  .app-shell { padding: 6px; gap: 7px; }
+  .app-shell .sidebar { padding: 6px; gap: 7px; }
+  .app-shell .sidebar .operator { min-height: 58px; }
+  .app-shell .sidebar nav button { font-size: 9px; padding: 7px 8px; }
+  .app-shell .sidebar .sidebar-voice { padding: 8px; }
+  .command-center-reference { gap: 8px; }
+  .command-center-reference .cc-titlebar { grid-template-columns: minmax(0,1fr); gap: 9px; padding: 10px; }
+  .command-center-reference .cc-brand-lockup { flex-wrap: wrap; gap: 7px; }
+  .command-center-reference .cc-brand-lockup .cc-logo { font-size: 21px; }
+  .command-center-reference .cc-brand-lockup .cc-title { padding-left: 10px; border-left: 1px solid var(--ln); }
+  .command-center-reference .cc-mode-chip { justify-self: start; }
+  .command-center-reference .cc-mode-chip,
+  .command-center-reference .cc-header-right { grid-column: 1; }
+  .command-center-reference .cc-header-right { flex-wrap: wrap; justify-content: space-between; }
+  .command-center-reference .cc-header-tools { display: none; }
+  .command-center-reference .cc-top-grid > .cc-panel,
+  .command-center-reference .cc-top-grid > .cc-panel:last-child,
+  .command-center-reference .cc-main-grid > .cc-radar-panel,
+  .command-center-reference .cc-main-grid > .cc-map-panel,
+  .command-center-reference .cc-main-grid > .cc-chat-panel,
+  .command-center-reference .cc-main-grid > .cc-research-panel { grid-column: 1/-1; }
+  .command-center-reference .cc-operations-grid { grid-template-columns: minmax(0,1fr); }
+  .command-center-reference .cc-system-layout,
+  .command-center-reference .cc-core-status { grid-template-columns: minmax(0,1fr); }
+  .command-center-reference .cc-system-network { padding-left: 0; border-left: 0; border-top: 1px solid var(--ln); padding-top: 8px; }
+  .command-center-reference .mrai-hud-orb { max-width: 210px; }
+  .command-center-reference .cc-mission { grid-template-columns: minmax(0,1fr); }
+  .command-center-reference .cc-mission-globe { justify-self: center; }
+  .command-center-reference .cc-panel { padding: 10px; }
+  .command-center-reference .cc-radar-info { grid-template-columns: minmax(0,1fr); }
+  .command-center-reference .cc-radar-shell { width: min(100%,250px); }
+  .command-center-reference .cc-map-frame-grid { grid-template-columns: minmax(0,1fr); }
+  .command-center-reference .cc-real-map { height: 240px; }
+  .command-center-reference .cc-street-view { height: 145px; }
+  .command-center-reference .cc-chat-panel .messages { max-height: 280px; }
+  .command-center-reference .cc-quick-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .command-center-reference .cc-owner-board-grid,
+  .command-center-reference .cc-agent-fleet-summary,
+  .command-center-reference .cc-agent-fleet-grid { grid-template-columns: minmax(0,1fr); }
+  .command-center-reference .cc-bottom-strip { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .command-center-reference .cc-footerline { justify-content: flex-start; }
+  .app-shell .split-grid { grid-template-columns: minmax(0,1fr); }
+  .app-shell .planner-row { grid-template-columns: minmax(0,1fr); }
+  .app-shell .topbar { padding: 10px; flex-wrap: wrap; }
+  .app-shell .top-status { flex-wrap: wrap; }
+  .mrai-boot { padding: 16px; }
+}
+@media (max-width: 420px) {
+  .app-shell { padding: 5px; }
+  .app-shell .sidebar nav button { font-size: 8px; padding: 6px 7px; }
+  .app-shell .sidebar-footer { flex-wrap: wrap; }
+  .app-shell .sidebar-footer button { flex: 1 1 calc(50% - 6px); font-size: 9px; padding: 7px 5px; letter-spacing: .2px; }
+  .command-center-reference .cc-logo::before { width: 24px; height: 24px; margin-right: 7px; }
+  .command-center-reference .cc-title { font-size: 8px; }
+  .command-center-reference .cc-core-readout > div { grid-template-columns: minmax(86px,.85fr) minmax(0,1fr); }
+  .command-center-reference .cc-real-map { height: 220px; }
+  .command-center-reference .cc-bottom-strip { grid-template-columns: minmax(0,1fr) minmax(0,1fr); }
+  .mrai-boot-terminal { font-size: 9px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .app-shell .mrai-ambient::after,
+  .app-shell .mrai-rot,
+  .app-shell .mrai-hud-frame::after,
+  .app-shell .sidebar-wave span,
+  .command-center-reference .cc-panel,
+  .command-center-reference .cc-quick,
+  .command-center-reference .cc-header-avatar,
+  .command-center-reference .cc-logo::before,
+  .command-center-reference .cc-radar-sweep,
+  .mrai-hud-orb canvas { animation: none !important; }
+  *,*::before,*::after { scroll-behavior: auto !important; transition-duration: .01ms !important; }
+}
+@keyframes mrai-boot-unused { from { opacity: 0; } to { opacity: 1; } }
+
+
+/* Fine geometry pass: match the supplied one-screen dashboard composition. */
+@media (min-width: 761px) {
+  .command-center-reference .cc-mission {
+    grid-template-columns: minmax(0,1fr) minmax(0,1.2fr);
+    gap: 12px;
+    align-items: center;
+  }
+}
+.command-center-reference .cc-mission-summary {
+  display: block;
+  margin-top: 10px;
+  color: var(--dim);
+  font: 8px "Share Tech Mono",monospace;
+  letter-spacing: .5px;
+}
+.command-center-reference .cc-radar-overview {
+  display: grid;
+  grid-template-columns: 140px minmax(0,1fr);
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.command-center-reference .cc-radar-shell {
+  width: 140px;
+  max-width: 100%;
+  margin: 6px auto;
+}
+.command-center-reference .cc-radar-shell .cc-radar-scale {
+  font-size: 6px;
+  letter-spacing: 0;
+}
+.command-center-reference .cc-radar-shell .scale-top { top: -8px; }
+.command-center-reference .cc-radar-shell .scale-bottom { bottom: -8px; }
+.command-center-reference .cc-radar-shell .scale-right { right: -3px; }
+.command-center-reference .cc-radar-shell .scale-left { left: -3px; }
+.command-center-reference .cc-radar-info {
+  display: grid;
+  grid-template-columns: minmax(0,1fr);
+  gap: 7px;
+  min-width: 0;
+}
+.command-center-reference .cc-radar-contact-count {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: baseline;
+  gap: 4px 7px;
+  padding: 5px;
+}
+.command-center-reference .cc-radar-contact-count span { align-self: center; }
+.command-center-reference .cc-radar-contact-count strong { font: 700 25px "Share Tech Mono",monospace; text-align: right; line-height: 1; }
+.command-center-reference .cc-radar-contact-count small { grid-column: 1/-1; }
+.command-center-reference .cc-radar-source { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 4px; }
+.command-center-reference .cc-radar-source div { padding: 5px; }
+.command-center-reference .cc-radar-source span { font-size: 7px; }
+.command-center-reference .cc-radar-source strong { font: 600 12px "Share Tech Mono",monospace; }
+.command-center-reference .cc-radar-channels {
+  display: grid;
+  grid-template-columns: repeat(2,minmax(0,1fr));
+  gap: 5px;
+  min-width: 0;
+}
+.command-center-reference .cc-radar-channel {
+  min-width: 0;
+  padding: 6px;
+  border: 1px solid var(--ln);
+  background: rgba(0,0,0,.18);
+}
+.command-center-reference .cc-radar-channel-head { gap: 5px; }
+.command-center-reference .cc-radar-channel-head strong { font-size: 7px; letter-spacing: .4px; }
+.command-center-reference .cc-radar-channel > b { margin: 4px 0 0; font-size: 8px; line-height: 1.35; }
+.command-center-reference .cc-radar-empty {
+  display: grid;
+  gap: 4px;
+  padding: 7px;
+  border: 1px solid var(--ln);
+  background: rgba(0,0,0,.18);
+}
+.command-center-reference .cc-radar-empty strong { color: var(--av); font: 600 8px "Share Tech Mono",monospace; }
+.command-center-reference .cc-radar-empty span { color: var(--dim); font-size: 9px; line-height: 1.4; }
+.command-center-reference .cc-radar-contact-list { gap: 5px; }
+.command-center-reference .cc-radar-contact-row {
+  display: grid;
+  grid-template-columns: 52px minmax(0,1fr);
+  gap: 5px 8px;
+  padding: 6px;
+  border: 1px solid var(--ln);
+  background: rgba(0,0,0,.15);
+}
+.command-center-reference .cc-radar-contact-row > small { grid-column: 2; font-size: 8px; }
+.command-center-reference .cc-radar-contact-row strong { font-size: 9px; overflow-wrap: anywhere; }
+.command-center-reference .cc-radar-status { font-size: 7px; }
+.command-center-reference .cc-radar-note { font-size: 7px; }
+@media (max-width: 1100px) {
+  .command-center-reference .cc-top-grid > .cc-panel,
+  .command-center-reference .cc-top-grid > .cc-panel:last-child,
+  .command-center-reference .cc-main-grid > .cc-radar-panel,
+  .command-center-reference .cc-main-grid > .cc-map-panel,
+  .command-center-reference .cc-main-grid > .cc-chat-panel,
+  .command-center-reference .cc-main-grid > .cc-research-panel { grid-column: 1/-1; }
+  .command-center-reference .cc-system-layout,
+  .command-center-reference .cc-core-status,
+  .command-center-reference .cc-mission {
+    grid-template-columns: minmax(0,1fr);
+  }
+  .command-center-reference .cc-system-network {
+    padding: 8px 0 0;
+    border-left: 0;
+    border-top: 1px solid var(--ln);
+  }
+  .command-center-reference .mrai-hud-orb { max-width: 210px; }
+  .command-center-reference .cc-radar-overview { grid-template-columns: 140px minmax(0,1fr); }
+}
+@media (max-width: 420px) {
+  .command-center-reference .cc-radar-overview { grid-template-columns: 125px minmax(0,1fr); gap: 8px; }
+  .command-center-reference .cc-radar-shell { width: 125px; }
+  .command-center-reference .cc-radar-source { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .command-center-reference .cc-radar-channel-head strong { font-size: 6.5px; }
+}

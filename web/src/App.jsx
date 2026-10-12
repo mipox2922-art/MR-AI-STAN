@@ -60,7 +60,7 @@ const NAV = [
   ["calendar", "□", "Calendar"],
   ["tasks", "✓", "Tasks"],
   ["memory", "◇", "Memory"],
-  ["system", "⌘", "System"],
+  ["system", "⌘", "Settings"],
 ];
 
 function SleepOverlay({ onWake }) {
