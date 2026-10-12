@@ -585,6 +585,25 @@ async function main() {
   }
   assert.ok(layoutReport.document <= layoutReport.viewport + 12,
     `Mobile layout has horizontal overflow: viewport=${layoutReport.viewport}px, document=${layoutReport.document}px`);
+  const mobilePresentation = await page.evaluate(() => {
+    const sidebar = document.querySelector(".app-shell .sidebar");
+    const brand = document.querySelector(".app-shell .sidebar .brand");
+    const nav = document.querySelector(".app-shell .sidebar nav");
+    const footerButtons = [...document.querySelectorAll(".app-shell .sidebar-footer button")];
+    return {
+      brandVisible: !!brand && getComputedStyle(brand).display !== "none" && brand.getBoundingClientRect().height > 0,
+      sidebarWithinViewport: !!sidebar && sidebar.getBoundingClientRect().width <= window.innerWidth,
+      horizontalNav: !!nav && getComputedStyle(nav).overflowX === "auto" && nav.scrollWidth > nav.clientWidth,
+      footerButtons: footerButtons.length,
+      footerTouchTargets: footerButtons.map(button => Math.round(button.getBoundingClientRect().height)),
+    };
+  });
+  assert.ok(mobilePresentation.brandVisible, "Mobile Command Center should show the MR AI identity header.");
+  assert.ok(mobilePresentation.sidebarWithinViewport, "Mobile navigation must fit the viewport width.");
+  assert.ok(mobilePresentation.horizontalNav, "Mobile navigation should be a horizontal swipe rail rather than a tall desktop menu.");
+  assert.equal(mobilePresentation.footerButtons, 3, "Working mode, sleep and disconnect controls must remain available on mobile.");
+  assert.ok(mobilePresentation.footerTouchTargets.every(height => height >= 36),
+    `Mobile sidebar actions must remain touch-friendly: ${JSON.stringify(mobilePresentation.footerTouchTargets)}`);
   const voiceControlCount = await page.locator(".sidebar-voice .voice-button, .sidebar-voice .voice-disabled").count();
   assert.ok(voiceControlCount > 0, "Voice control should either be actionable or explain that the browser API is unavailable.");
   await page.getByRole("button", { name: "DISCONNECT SESSION", exact: true }).click();
