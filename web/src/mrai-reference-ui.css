@@ -775,7 +775,19 @@ canvas, svg { max-width: 100%; }
   .app-shell .sidebar .sidebar-voice-head { width: 100%; }
   .app-shell .sidebar .sidebar-wave { width: 100%; margin: 0; }
   .app-shell .sidebar .sidebar-voice-quote { flex: 1; min-width: 0; }
-  .app-shell .sidebar nav { flex: 0 0 auto; min-height: 0; flex-direction: row; overflow-x: auto; overflow-y: hidden; gap: 4px; padding: 3px 3px 7px; }
+  .app-shell .sidebar nav {
+    flex: 0 0 auto;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    min-height: 0;
+    box-sizing: border-box;
+    flex-direction: row;
+    overflow-x: auto;
+    overflow-y: hidden;
+    gap: 4px;
+    padding: 3px 3px 7px;
+  }
   .app-shell .sidebar nav button { width: auto; min-height: 35px; white-space: nowrap; }
   .app-shell .sidebar-footer { display: flex; flex-direction: row; flex-wrap: wrap; gap: 6px; margin: 0; }
   .app-shell .sidebar-footer button { flex: 1 1 145px; white-space: nowrap; }
