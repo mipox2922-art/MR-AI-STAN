@@ -195,7 +195,7 @@ async function mockApi(route) {
 async function mockBridge(route) {
   const request = route.request();
   const url = new URL(request.url());
-  const pathName = url.pathname.replace(/^\\/__bridge/, "");
+  const pathName = url.pathname.replace(/^\/__bridge/, "");
   calls.push({ method: request.method(), path: "BRIDGE " + pathName });
   if (pathName === "/health") return json(route, { status: "healthy", service: "local_device_bridge", bind: "127.0.0.1:8765", adb: true, fastboot: true });
   if (pathName === "/radar/scan") return json(route, {
