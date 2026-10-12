@@ -796,6 +796,29 @@ function App() {
             <section className="panel large-panel">
               <div className="panel-head">
                 <div><span className="eyebrow">SYSTEM</span><h2>Verified Service State</h2></div>
+                <div className="settings-actions">
+                  <button type="button" className="mini-button" onClick={refresh}>REFRESH STATUS</button>
+                  <button type="button" className="ghost-button" onClick={() => {
+                    const snapshot = {
+                      exported_at: new Date().toISOString(),
+                      connection_state: connectionState,
+                      system,
+                      agents: agents.map(({ id, name, risk, capabilities }) => ({ id, name, risk, capabilities })),
+                      task_count: tasks.length,
+                      memory_count: memories.length,
+                      radar_contact_count: radarFindings.length,
+                      radar_sensor_status: radarDiagnostics,
+                      gmail_status: gmailStatus,
+                    };
+                    const blob = new Blob([JSON.stringify(snapshot, null, 2)], { type: "application/json" });
+                    const url = URL.createObjectURL(blob);
+                    const link = document.createElement("a");
+                    link.href = url;
+                    link.download = "mr-ai-runtime-snapshot.json";
+                    link.click();
+                    URL.revokeObjectURL(url);
+                  }}>EXPORT SNAPSHOT</button>
+                </div>
               </div>
               <div className="service-grid">
                 {Object.entries(services).map(([name, value]) => (
