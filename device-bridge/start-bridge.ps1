@@ -30,7 +30,8 @@ if (-not $env:MR_AI_BRIDGE_TOKEN) {
 }
 
 if (-not $env:MR_AI_WEB_ORIGIN) {
-  $env:MR_AI_WEB_ORIGIN = "http://localhost:5173"
+  # Render-hosted dashboard origin. Override this for local Vite or another deployment.
+  $env:MR_AI_WEB_ORIGIN = "https://mr-ai-stan-web.onrender.com"
 }
 
 Write-Host ""
