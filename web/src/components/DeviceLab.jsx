@@ -18,14 +18,19 @@ export default function DeviceLab() {
   const [token, setToken] = useState(localStorage.getItem("mr_ai_bridge_token") || "");
   const [result, setResult] = useState(null);
   const [selected, setSelected] = useState("");
+  const [running, setRunning] = useState(false);
 
   async function run(label, fn) {
+    if (running) return;
+    setRunning(true);
     setResult({ label, status: "RUNNING" });
     try {
       const data = await fn();
       setResult({ label, status: "COMPLETED", data });
     } catch (error) {
       setResult({ label, status: "ERROR", error: error.message });
+    } finally {
+      setRunning(false);
     }
   }
 
@@ -42,25 +47,25 @@ export default function DeviceLab() {
         <button onClick={saveToken}>SAVE</button>
       </div>
       <div className="tool-grid">
-        <button onClick={() => run("BRIDGE", getDeviceBridgeHealth)}>BRIDGE</button>
-        <button onClick={() => run("ANDROID", async () => {
+        <button disabled={running} onClick={() => run("BRIDGE", getDeviceBridgeHealth)}>BRIDGE</button>
+        <button disabled={running} onClick={() => run("ANDROID", async () => {
           const data = await getAndroidDevices();
           const first = data.devices?.[0]?.serial;
           if (first) setSelected(first);
           return data;
         })}>ADB DEVICES</button>
-        <button onClick={() => run("FASTBOOT", getFastbootDevices)}>FASTBOOT</button>
-        <button onClick={() => run("WI-FI", scanWifi)}>WI-FI SCAN</button>
-        <button onClick={() => run("BLUETOOTH", scanBluetooth)}>BLE SCAN</button>
-        <button onClick={() => run("RADIO / RF", getRadioStatus)}>RADIO / RF</button>
-        <button onClick={() => run("RADAR", scanRadar)}>RADAR SCAN</button>
+        <button disabled={running} onClick={() => run("FASTBOOT", getFastbootDevices)}>FASTBOOT</button>
+        <button disabled={running} onClick={() => run("WI-FI", scanWifi)}>WI-FI SCAN</button>
+        <button disabled={running} onClick={() => run("BLUETOOTH", scanBluetooth)}>BLE SCAN</button>
+        <button disabled={running} onClick={() => run("RADIO / RF", getRadioStatus)}>RADIO / RF</button>
+        <button disabled={running} onClick={() => run("RADAR", scanRadar)}>RADAR SCAN</button>
       </div>
       {selected && (
         <div className="tool-grid">
-          <button onClick={() => run("INFO", () => getAndroidDeviceInfo(selected))}>DEVICE INFO</button>
-          <button onClick={() => run("DIAGNOSTICS", () => getAndroidDiagnostics(selected))}>DIAGNOSTICS</button>
-          <button onClick={() => run("BOOT STATE", () => getBootState(selected))}>BOOT STATE</button>
-          <button onClick={() => {
+          <button disabled={running} onClick={() => run("INFO", () => getAndroidDeviceInfo(selected))}>DEVICE INFO</button>
+          <button disabled={running} onClick={() => run("DIAGNOSTICS", () => getAndroidDiagnostics(selected))}>DIAGNOSTICS</button>
+          <button disabled={running} onClick={() => run("BOOT STATE", () => getBootState(selected))}>BOOT STATE</button>
+          <button disabled={running} onClick={() => {
           if (window.confirm(`Reboot Android device ${selected}? Unsaved work may be lost.`)) {
             run("REBOOT", () => rebootAndroid(selected, "system"));
           }
