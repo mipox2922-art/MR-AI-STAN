@@ -26,12 +26,14 @@ export default function SchedulerPanel() {
   const [status, setStatus] = useState("READY");
   const [busy, setBusy] = useState(false);
 
-  async function load() {
+  async function load({ quiet = false } = {}) {
     try {
       setJobs(await getSchedules());
-      setStatus("SCHEDULES LOADED");
+      if (!quiet) setStatus("SCHEDULES LOADED");
+      return true;
     } catch (error) {
       setStatus("ERROR / " + error.message);
+      return false;
     }
   }
 
@@ -66,8 +68,8 @@ export default function SchedulerPanel() {
       setCommand("");
       setRunAt("");
       setInterval("");
-      setStatus("SCHEDULE CREATED");
-      await load();
+      const loaded = await load({ quiet: true });
+      setStatus(loaded ? "SCHEDULE CREATED" : "CREATED · REFRESH FAILED");
     } catch (error) {
       setStatus("CREATE FAILED / " + error.message);
     } finally {
@@ -81,7 +83,8 @@ export default function SchedulerPanel() {
       await updateSchedule(job.id, {
         status: job.status === "ACTIVE" ? "PAUSED" : "ACTIVE",
       });
-      await load();
+      const loaded = await load({ quiet: true });
+      setStatus(loaded ? "SCHEDULE UPDATED" : "UPDATED · REFRESH FAILED");
     } catch (error) {
       setStatus("UPDATE FAILED / " + error.message);
     }
@@ -91,8 +94,8 @@ export default function SchedulerPanel() {
     setStatus("QUEUING NOW...");
     try {
       await runScheduleNow(job.id);
-      setStatus("SCHEDULE QUEUED");
-      await load();
+      const loaded = await load({ quiet: true });
+      setStatus(loaded ? "SCHEDULE QUEUED" : "QUEUED · REFRESH FAILED");
     } catch (error) {
       setStatus("RUN NOW FAILED / " + error.message);
     }
@@ -102,7 +105,8 @@ export default function SchedulerPanel() {
     setStatus("DELETING...");
     try {
       await deleteSchedule(job.id);
-      await load();
+      const loaded = await load({ quiet: true });
+      setStatus(loaded ? "SCHEDULE DELETED" : "DELETED · REFRESH FAILED");
     } catch (error) {
       setStatus("DELETE FAILED / " + error.message);
     }
