@@ -878,6 +878,26 @@ export default function DashboardHome({
         </Panel>
       </div>
 
+      <div className="cc-main-grid">
+        <Panel eyebrow="RADAR SCAN" title="Radar Scan" badge={`${radarFindings.length} CONTACTS`} className="cc-radar-panel">
+          <Radar findings={radarFindings} onRadarScan={onRadarScan} sensorStatus={sensorStatus} />
+        </Panel>
+
+        <Panel eyebrow="LIVE MAP" title="OpenStreetMap + Street View" className="cc-map-panel">
+          <LiveMap onOpenMap={onOpenMap} />
+        </Panel>
+
+        <Panel eyebrow="MR AI CHAT" title="MR AI Chat" className="cc-chat-panel">
+          <Chat onState={onState} onModToggle={onModToggle} onPowerCommand={onPowerCommand} />
+        </Panel>
+
+        <Panel eyebrow="WEB RESEARCH" title="Web Research" className="cc-research-panel">
+          <WebResearch />
+        </Panel>
+      </div>
+
+      <QuickCommands system={system} />
+
       <div className="cc-operations-grid">
         <Panel eyebrow="MISSION CONTROL" title="Mission Workbench">
           <MissionWorkbench onMissionUpdate={setMissionSnapshot} />
@@ -895,26 +915,6 @@ export default function DashboardHome({
       <Panel eyebrow="BOSS REQUIREMENTS" title="Your Command Center Priorities" badge="LIVE STATE">
         <OwnerRequirements system={system} agents={agents} tasks={tasks} memories={memories} radarFindings={radarFindings} gmailStatus={gmailStatus} missionSnapshot={missionSnapshot} />
       </Panel>
-
-      <div className="cc-main-grid">
-        <Panel eyebrow="RADAR SCAN" title="Radar Scan" badge={`${radarFindings.length} CONTACTS`}>
-          <Radar findings={radarFindings} onRadarScan={onRadarScan} sensorStatus={sensorStatus} />
-        </Panel>
-
-        <Panel eyebrow="LIVE MAP" title="OpenStreetMap + Street View">
-          <LiveMap onOpenMap={onOpenMap} />
-        </Panel>
-
-        <Panel eyebrow="MR AI CHAT" title="MR AI Chat" className="cc-chat-panel">
-          <Chat onState={onState} onModToggle={onModToggle} onPowerCommand={onPowerCommand} />
-        </Panel>
-
-        <Panel eyebrow="WEB RESEARCH" title="Web Research">
-          <WebResearch />
-        </Panel>
-      </div>
-
-      <QuickCommands system={system} />
 
       <div className="cc-bottom-strip">
         <div><span>AGENTS</span><strong>{agents.length}</strong></div>
