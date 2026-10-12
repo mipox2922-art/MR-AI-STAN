@@ -231,7 +231,7 @@ async function bridgeRequest(path, options = {}) {
   } catch (error) {
     if (error instanceof TypeError) {
       throw new Error(
-        `Cannot reach the local MR AI Device Bridge at ${DEVICE_BRIDGE_URL}. Start device-bridge on this same PC and keep it running. If Chrome asks to let MR AI access your local network, allow it. For CORS, set MR_AI_WEB_ORIGIN to the MR AI website origin and restart the bridge. Browser detail: ${error.message || "network request blocked"}`
+        `Cannot reach the local MR AI Device Bridge at ${DEVICE_BRIDGE_URL}. Start device-bridge on this same PC and keep it running. If Chrome asks to let MR AI access your local network, allow it; if previously blocked, change Local Network Access to Allow in this site's Chrome settings. For a custom web domain, add it to MR_AI_WEB_ORIGIN and restart the bridge. Browser detail: ${error.message || "network request blocked"}`
       );
     }
     throw error;
