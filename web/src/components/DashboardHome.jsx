@@ -1,17 +1,23 @@
 import { useMemo, useState } from "react";
-import { dispatchTool, searchToolWeb } from "../api";
+import { dispatchTool, searchToolWeb, planAgentWork, executeMission } from "../api";
 import Core from "./Core";
 import Chat from "./Chat";
 import LiveMap from "./LiveMap";
 
+function finiteNumber(value) {
+  if (value === null || value === undefined || value === "") return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
 function pct(value) {
-  const n = Number(value);
-  return Number.isFinite(n) ? Math.max(0, Math.min(100, n)) : null;
+  const n = finiteNumber(value);
+  return n === null ? null : Math.max(0, Math.min(100, n));
 }
 
 function formatUptime(seconds) {
-  const n = Number(seconds);
-  if (!Number.isFinite(n)) return "N/A";
+  const n = finiteNumber(seconds);
+  if (n === null) return "N/A";
   const d = Math.floor(n / 86400);
   const h = Math.floor((n % 86400) / 3600);
   const m = Math.floor((n % 3600) / 60);
@@ -63,8 +69,8 @@ function Metric({ label, value }) {
 }
 
 function formatBytes(value) {
-  const n = Number(value);
-  if (!Number.isFinite(n)) return "N/A";
+  const n = finiteNumber(value);
+  if (n === null) return "N/A";
   if (n >= 1024 ** 3) return `${(n / 1024 ** 3).toFixed(2)} GB`;
   if (n >= 1024 ** 2) return `${(n / 1024 ** 2).toFixed(2)} MB`;
   if (n >= 1024) return `${(n / 1024).toFixed(1)} KB`;
@@ -72,29 +78,31 @@ function formatBytes(value) {
 }
 
 function formatRate(bytesPerSecond) {
-  if (!Number.isFinite(bytesPerSecond) || bytesPerSecond < 0) return "WAITING";
+  if (finiteNumber(bytesPerSecond) === null || bytesPerSecond < 0) return "WAITING";
   return `${formatBytes(bytesPerSecond)}/s`;
 }
 
 function NetworkMetric({ telemetry, telemetryHistory = [] }) {
-  const currentSent = Number(telemetry?.network?.bytes_sent);
-  const currentReceived = Number(telemetry?.network?.bytes_received);
+  const currentSent = finiteNumber(telemetry?.network?.bytes_sent);
+  const currentReceived = finiteNumber(telemetry?.network?.bytes_received);
   const previous = telemetryHistory.length > 1 ? telemetryHistory[telemetryHistory.length - 2] : null;
+  const previousSent = finiteNumber(previous?.network?.bytes_sent);
+  const previousReceived = finiteNumber(previous?.network?.bytes_received);
   const elapsedSeconds = previous?.captured_at
     ? Math.max(0.1, (Date.now() - Number(previous.captured_at)) / 1000)
     : null;
 
-  const txRate = previous && elapsedSeconds && Number.isFinite(currentSent) && Number.isFinite(Number(previous.network?.bytes_sent))
-    ? Math.max(0, currentSent - Number(previous.network.bytes_sent)) / elapsedSeconds
+  const txRate = previous && elapsedSeconds && currentSent !== null && previousSent !== null
+    ? Math.max(0, currentSent - previousSent) / elapsedSeconds
     : null;
-  const rxRate = previous && elapsedSeconds && Number.isFinite(currentReceived) && Number.isFinite(Number(previous.network?.bytes_received))
-    ? Math.max(0, currentReceived - Number(previous.network.bytes_received)) / elapsedSeconds
+  const rxRate = previous && elapsedSeconds && currentReceived !== null && previousReceived !== null
+    ? Math.max(0, currentReceived - previousReceived) / elapsedSeconds
     : null;
 
   const sparkValues = telemetryHistory.slice(-10).map(item => {
-    const sent = Number(item?.network?.bytes_sent);
-    const received = Number(item?.network?.bytes_received);
-    return Number.isFinite(sent) && Number.isFinite(received) ? sent + received : null;
+    const sent = finiteNumber(item?.network?.bytes_sent);
+    const received = finiteNumber(item?.network?.bytes_received);
+    return sent !== null && received !== null ? sent + received : null;
   }).filter(value => value !== null);
   const maxSpark = sparkValues.length ? Math.max(...sparkValues) : 1;
   const minSpark = sparkValues.length ? Math.min(...sparkValues) : 0;
@@ -130,11 +138,18 @@ function SystemStatus({ telemetry, telemetryHistory, connectionState, lastRefres
   const refreshLabel = lastRefreshAt ? new Date(lastRefreshAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit" }) : "WAITING";
   return (
     <div className="cc-system-status">
-      <Metric label="CPU USAGE" value={telemetry?.cpu_percent} />
-      <Metric label="MEMORY" value={telemetry?.memory_percent} />
+      <Metric label="BACKEND CPU" value={telemetry?.cpu_percent} />
+      <Metric label="BACKEND MEMORY" value={telemetry?.memory_percent} />
       <NetworkMetric telemetry={telemetry} telemetryHistory={telemetryHistory} />
-      <Metric label="STORAGE" value={telemetry?.storage_percent} />
+      <Metric label="BACKEND STORAGE" value={telemetry?.storage_percent} />
       <Metric label="GPU" value={telemetry?.gpu?.utilization_percent} />
+      <div className="cc-telemetry-source">
+        {telemetry?.source === "host_runtime"
+          ? "BACKEND HOST TELEMETRY · NOT PERSONAL PC SENSOR DATA"
+          : telemetry?.source === "serverless_runtime"
+            ? "HOST METRICS UNAVAILABLE IN THIS RUNTIME"
+            : "WAITING FOR TELEMETRY SOURCE"}
+      </div>
       <div className="cc-system-footer">
         <span>RUNTIME · {connectionState || "CONNECTING"} · {refreshLabel}</span>
         <strong>
@@ -216,6 +231,7 @@ function radarRadius(finding) {
 function Radar({ findings = [], onRadarScan }) {
   const points = findings.slice(0, 18);
   const [scanState, setScanState] = useState("READY");
+  const [scanError, setScanError] = useState("");
 
   const counts = {
     wifi: points.filter(item => item?.type === "wifi").length,
@@ -226,12 +242,17 @@ function Radar({ findings = [], onRadarScan }) {
 
   async function runScan(source) {
     if (!onRadarScan) return;
+    setScanError("");
     setScanState(`SCANNING · ${source.toUpperCase()}`);
     try {
-      await onRadarScan(source);
+      const result = await onRadarScan(source);
       setScanState(`${source.toUpperCase()} · COMPLETE`);
+      if (Array.isArray(result?.findings) && result.findings.length === 0) {
+        setScanError("Scan completed but no contacts were returned by the connected sensor.");
+      }
     } catch (error) {
       setScanState(`${source.toUpperCase()} · ERROR`);
+      setScanError(error?.message || "The sensor scan failed.");
     }
   }
 
@@ -282,10 +303,10 @@ function Radar({ findings = [], onRadarScan }) {
           })}
           <div className="cc-radar-core">MR</div>
         </div>
-        <div className="cc-radar-scale scale-top">100 KM</div>
-        <div className="cc-radar-scale scale-right">75 KM</div>
-        <div className="cc-radar-scale scale-bottom">50 KM</div>
-        <div className="cc-radar-scale scale-left">25 KM</div>
+        <div className="cc-radar-scale scale-top">OUTER RING</div>
+        <div className="cc-radar-scale scale-right">BEARING N/A</div>
+        <div className="cc-radar-scale scale-bottom">INNER RING</div>
+        <div className="cc-radar-scale scale-left">RANGE N/A</div>
       </div>
       <div className="cc-radar-info">
         <div className="cc-radar-contact-count">
@@ -299,8 +320,29 @@ function Radar({ findings = [], onRadarScan }) {
           <div><span>FASTBOOT</span><strong>{counts.fastboot}</strong></div>
         </div>
       </div>
-      <div className="cc-radar-status"><span>{scanState}</span><strong>{findings.length ? "LIVE SENSOR SNAPSHOT" : "WAITING FOR SENSOR SCAN"}</strong></div>
-      <div className="cc-radar-note">CONTACT PLOT IS A VISUAL PROXIMITY VIEW. DIRECTION IS NOT CLAIMED WITHOUT DIRECTIONAL SENSOR DATA.</div>
+      <div className="cc-radar-contact-list" aria-live="polite">
+        {points.length ? points.slice(0, 4).map((finding, index) => {
+          const rawSignal = finiteNumber(finding?.signal);
+          const distance = finiteNumber(finding?.distance_estimate_m);
+          const signalText = rawSignal === null ? "SIGNAL N/A" : `SIGNAL ${rawSignal}${rawSignal >= 0 ? "%" : " dBm"}`;
+          const rangeText = distance === null ? "RANGE NOT MEASURED" : `EST. ${distance.toFixed(1)} m · ${String(finding?.distance_confidence || "LOW").toUpperCase()} CONFIDENCE`;
+          return (
+            <div className="cc-radar-contact-row" key={finding.id || finding.address || finding.label || index}>
+              <span className={`cc-contact-type type-${String(finding.type || "unknown").toLowerCase()}`}>{String(finding.type || "sensor").toUpperCase()}</span>
+              <div><strong>{finding.label || finding.address || "Unnamed contact"}</strong><small>{finding.source || "LOCAL SENSOR"} · {signalText}</small></div>
+              <small>{rangeText}</small>
+            </div>
+          );
+        }) : (
+          <div className="cc-radar-empty">
+            <strong>NO VERIFIED CONTACTS</strong>
+            <span>Radar needs the MR AI Device Bridge running on your computer for Wi-Fi, Bluetooth, ADB and Fastboot scans. The hosted website cannot scan nearby devices by itself.</span>
+          </div>
+        )}
+      </div>
+      <div className="cc-radar-status"><span>{scanState}</span><strong>{findings.length ? "SENSOR RESULTS RECEIVED" : "NO SENSOR RESULTS"}</strong></div>
+      {scanError && <div className="cc-radar-error" role="status">{scanError}</div>}
+      <div className="cc-radar-note">CONTACT POSITIONS ARE SCHEMATIC ONLY. NO DIRECTION OR DISTANCE IS CLAIMED UNLESS THE SENSOR RETURNS A MEASUREMENT.</div>
     </div>
   );
 }
@@ -393,6 +435,178 @@ function QuickCommands() {
   );
 }
 
+function statusLabel(value) {
+  return String(value || "READY").replaceAll("_", " ").replaceAll("-", " ");
+}
+
+function isTaskActive(task) {
+  return !["COMPLETED", "FAILED", "CANCELLED"].includes(String(task?.status || "").toUpperCase());
+}
+
+function AgentFleet({ agents = [], tasks = [], missionSnapshot = null, onOpenAgents }) {
+  const steps = Array.isArray(missionSnapshot?.steps)
+    ? missionSnapshot.steps
+    : Array.isArray(missionSnapshot?.plan?.steps)
+      ? missionSnapshot.plan.steps
+      : [];
+  const activeTaskCount = tasks.filter(isTaskActive).length;
+  const waitingCount = steps.filter(step => String(step.status || "").toUpperCase().includes("WAITING")).length;
+
+  return (
+    <div className="cc-agent-fleet-wrap">
+      <div className="cc-agent-fleet-summary">
+        <div><span>REGISTERED</span><strong>{agents.length}</strong></div>
+        <div><span>ACTIVE TASKS</span><strong>{activeTaskCount}</strong></div>
+        <div><span>MISSION STEPS</span><strong>{steps.length}</strong></div>
+        <div><span>WAITING / HANDOFF</span><strong>{waitingCount}</strong></div>
+      </div>
+      <div className="cc-agent-fleet-grid">
+        {agents.map(agent => {
+          const id = String(agent.id || "").toLowerCase();
+          const name = String(agent.name || id);
+          const assigned = tasks.filter(task => {
+            const owner = String(task.agent || "").toLowerCase().trim();
+            return owner === id || owner === name.toLowerCase() || owner.replaceAll(" ", "_") === id;
+          });
+          const task = assigned.find(isTaskActive) || assigned[0];
+          const step = [...steps].reverse().find(item => String(item.agent || "").toLowerCase() === id);
+          let state = "STANDBY";
+          let currentWork = "No task assigned";
+          if (step) {
+            state = statusLabel(step.status);
+            currentWork = step.evidence?.message || step.tool || (Array.isArray(step.tools) ? step.tools.slice(0, 2).join(" · ") : "") || "Mission step assigned";
+          } else if (task) {
+            state = statusLabel(task.status);
+            currentWork = task.title || "Assigned task";
+          }
+          const statusClass = state.toLowerCase().replaceAll(" ", "-");
+          return (
+            <article className="cc-agent-tile" key={agent.id}>
+              <div className="cc-agent-tile-top">
+                <span className="cc-agent-glyph">{id === "device" ? "⌁" : id === "creative" ? "✦" : id === "research" ? "◎" : id === "security" ? "◈" : id === "orchestrator" ? "MR" : "◆"}</span>
+                <span className={`cc-agent-state state-${statusClass}`}>{state}</span>
+              </div>
+              <strong className="cc-agent-name">{name}</strong>
+              <p>{agent.description || "Registered specialist agent."}</p>
+              <div className="cc-agent-current"><span>CURRENT WORK</span><strong>{currentWork}</strong></div>
+              <div className="cc-agent-capabilities">{(agent.capabilities || []).slice(0, 3).join(" · ")}</div>
+            </article>
+          );
+        })}
+      </div>
+      {!agents.length && <div className="cc-agent-empty">Agent registry could not be loaded. Check backend connection and refresh the dashboard.</div>}
+      <button type="button" className="cc-inline-button cc-agent-open" onClick={onOpenAgents}>OPEN FULL AGENT CONTROL →</button>
+      <p className="cc-agent-legend">STANDBY means registered but not assigned active work. WAITING means a permissioned integration or device/browser hand is required.</p>
+    </div>
+  );
+}
+
+function MissionWorkbench({ onMissionUpdate }) {
+  const [request, setRequest] = useState("");
+  const [planResult, setPlanResult] = useState(null);
+  const [missionResult, setMissionResult] = useState(null);
+  const [busy, setBusy] = useState("");
+  const [error, setError] = useState("");
+  const current = missionResult || planResult;
+  const steps = Array.isArray(missionResult?.steps)
+    ? missionResult.steps
+    : Array.isArray(planResult?.steps)
+      ? planResult.steps
+      : [];
+
+  async function createPlan(event) {
+    event?.preventDefault();
+    const value = request.trim();
+    if (!value || busy) return;
+    setBusy("PLAN");
+    setError("");
+    setMissionResult(null);
+    try {
+      const result = await planAgentWork(value);
+      setPlanResult(result);
+      onMissionUpdate?.(result);
+    } catch (err) {
+      setError(err?.message || "Unable to build a mission plan.");
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function runMission() {
+    const value = request.trim();
+    if (!value || busy) return;
+    setBusy("RUN");
+    setError("");
+    try {
+      const result = await executeMission(value);
+      setMissionResult(result);
+      if (result?.plan) setPlanResult(result.plan);
+      onMissionUpdate?.(result);
+    } catch (err) {
+      setError(err?.message || "Mission could not be started.");
+    } finally {
+      setBusy("");
+    }
+  }
+
+  const examples = [
+    "Kagua afya ya mfumo wa MR AI",
+    "Tafuta ajira za remote za Python na React",
+    "Chambua repo ya MR-AI-STAN kwa makosa",
+  ];
+
+  return (
+    <div className="cc-workbench">
+      <div className="cc-workbench-intro">
+        <p>Andika kazi unayotaka MR AI ifanye. Panga kwanza ili kuona agents watakaohusika; endesha mission ili runtime ijaribu hatua zinazoungwa mkono. Hatua zinazohitaji browser/device integration zitaonyeshwa kama WAITING badala ya kudai zimekamilika.</p>
+      </div>
+      <form className="cc-mission-form" onSubmit={createPlan}>
+        <label htmlFor="cc-mission-request">MISSION / LENGO LA BOSS FERISI</label>
+        <input
+          id="cc-mission-request"
+          value={request}
+          onChange={event => setRequest(event.target.value)}
+          placeholder="Mfano: kagua mfumo, tafuta taarifa, au panga mradi wangu..."
+          maxLength={1000}
+          required
+        />
+        <div className="cc-mission-actions">
+          <button type="submit" disabled={Boolean(busy) || !request.trim()}>{busy === "PLAN" ? "INAPANGA..." : "PLAN MISSION"}</button>
+          <button type="button" className="primary-button" disabled={Boolean(busy) || !request.trim()} onClick={runMission}>{busy === "RUN" ? "INAENDESHA..." : "RUN MISSION"}</button>
+        </div>
+      </form>
+      <div className="cc-mission-examples">
+        <span>QUICK START</span>
+        {examples.map(example => <button type="button" key={example} onClick={() => setRequest(example)}>{example}</button>)}
+      </div>
+      {error && <div className="cc-workbench-error" role="alert">{error}</div>}
+      {current ? (
+        <div className="cc-mission-result" aria-live="polite">
+          <div className="cc-mission-result-head">
+            <div><span>MISSION STATE</span><strong>{statusLabel(missionResult?.status || planResult?.status || "PLANNED")}</strong></div>
+            {missionResult?.mission?.id && <div><span>MISSION ID</span><strong>#{missionResult.mission.id}</strong></div>}
+            {missionResult?.mission?.progress !== undefined && <div><span>PROGRESS</span><strong>{missionResult.mission.progress}%</strong></div>}
+          </div>
+          {steps.length ? (
+            <div className="cc-mission-steps">
+              {steps.map((step, index) => (
+                <div className="cc-mission-step" key={step.step || `${step.agent}-${index}`}>
+                  <span className="cc-step-number">{String(step.step || index + 1).padStart(2, "0")}</span>
+                  <div><strong>{step.name || step.agent || "Agent step"}</strong><small>{step.tool || (Array.isArray(step.tools) ? step.tools.slice(0, 3).join(" · ") : "") || (Array.isArray(step.capabilities) ? step.capabilities.slice(0, 3).join(" · ") : "Waiting for runtime details")}</small></div>
+                  <span className={`cc-agent-state state-${statusLabel(step.status).toLowerCase().replaceAll(" ", "-")}`}>{statusLabel(step.status)}</span>
+                </div>
+              ))}
+            </div>
+          ) : <p className="cc-agent-empty">Plan returned no specialist steps.</p>}
+          {missionResult?.next_action && <div className="cc-next-action"><strong>NEXT ACTION</strong><span>{missionResult.next_action}</span></div>}
+        </div>
+      ) : (
+        <div className="cc-workbench-empty"><strong>WAITING FOR YOUR MISSION</strong><span>Agent plan and run evidence will appear here. Nothing runs until you press a mission button.</span></div>
+      )}
+    </div>
+  );
+}
+
 function ActiveTasks({ tasks = [] }) {
   const active = tasks.filter(t => !["COMPLETED", "FAILED"].includes(String(t.status || "").toUpperCase())).slice(0, 4);
   return (
@@ -430,9 +644,11 @@ export default function DashboardHome({
   onModToggle,
   onPowerCommand,
   onOpenMap,
+  onOpenAgents,
   onRadarScan,
   clock = null,
 }) {
+  const [missionSnapshot, setMissionSnapshot] = useState(null);
   const telemetry = system?.telemetry || {};
   const services = system?.services || {};
   const uptime = formatUptime(telemetry.uptime_seconds);
@@ -480,7 +696,7 @@ export default function DashboardHome({
       </div>
 
       <div className="cc-top-grid">
-        <Panel eyebrow="SYSTEM STATUS" title="System Status">
+        <Panel eyebrow="BACKEND TELEMETRY" title="Runtime Status">
           <SystemStatus
             telemetry={telemetry}
             telemetryHistory={telemetryHistory}
@@ -506,6 +722,20 @@ export default function DashboardHome({
 
         <Panel eyebrow="MISSION OVERVIEW" title="Mission Overview">
           <MissionOverview tasks={tasks} />
+        </Panel>
+      </div>
+
+      <div className="cc-operations-grid">
+        <Panel eyebrow="MISSION CONTROL" title="Mission Workbench">
+          <MissionWorkbench onMissionUpdate={setMissionSnapshot} />
+        </Panel>
+        <Panel
+          eyebrow="AGENT CREW"
+          title="Specialist Fleet"
+          badge={`${agents.length} REGISTERED`}
+          action={<button type="button" className="cc-inline-button" onClick={onOpenAgents}>AGENT CONTROL</button>}
+        >
+          <AgentFleet agents={agents} tasks={tasks} missionSnapshot={missionSnapshot} onOpenAgents={onOpenAgents} />
         </Panel>
       </div>
 
