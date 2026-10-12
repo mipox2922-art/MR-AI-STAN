@@ -175,8 +175,7 @@ function SystemStatus({ telemetry, telemetryHistory, connectionState, lastRefres
 
 function MissionOverview({ tasks = [] }) {
   const active = tasks.filter(t => !["COMPLETED", "FAILED"].includes(String(t.status || "").toUpperCase()));
-  const completed = tasks.filter(t => String(t.status || "").toUpperCase() === "COMPLETED").length;
-  const values = active.slice(0, 8).map(t => pct(t.progress)).filter(v => v !== null);
+  const values = active.slice(0, 16).map(t => pct(t.progress)).filter(v => v !== null);
   const chart = values.length
     ? values.map((v, i) => {
         const x = values.length === 1 ? 8 : 8 + (i / (values.length - 1)) * 84;
@@ -192,32 +191,20 @@ function MissionOverview({ tasks = [] }) {
         <p>Execute, monitor and verify assigned operations with evidence from the MR AI runtime.</p>
         <span>CURRENT FOCUS</span>
         <strong>{focus}</strong>
+        <small className="cc-mission-summary">{active.length} ACTIVE · {tasks.length} TOTAL TASKS</small>
       </div>
       <div className="cc-mission-graph">
         <div className="cc-graph-grid" />
-        <svg viewBox="0 0 100 50" preserveAspectRatio="none" aria-label="Task progress history">
-          {chart && <polyline points={chart} fill="none" stroke="var(--accent)" strokeWidth="1.2" />}
+        <svg viewBox="0 0 100 50" preserveAspectRatio="none" aria-label="Verified task progress history">
+          {chart && <polyline points={chart} fill="none" stroke="var(--c)" strokeWidth="1.2" />}
           {values.map((v, i) => {
             const x = values.length === 1 ? 8 : 8 + (i / (values.length - 1)) * 84;
             const y = 45 - v * 0.36;
-            return <circle key={i} cx={x} cy={y} r="1.35" fill="var(--accent)" />;
+            return <circle key={i} cx={x} cy={y} r="1.35" fill="var(--c)" />;
           })}
         </svg>
-        {!chart && <span className="cc-chart-empty">WAITING FOR TASK DATA</span>}
+        {!chart && <span className="cc-chart-empty">WAITING FOR VERIFIED TASK PROGRESS</span>}
         <div className="cc-chart-axis"><span>00</span><span>04</span><span>08</span><span>12</span><span>16</span><span>20</span><span>24</span></div>
-      </div>
-      <div className="cc-mission-globe" aria-hidden="true">
-        <div className="cc-globe-ring ring-a" />
-        <div className="cc-globe-ring ring-b" />
-        <div className="cc-globe-arc arc-a" />
-        <div className="cc-globe-arc arc-b" />
-        <div className="cc-globe-gridline grid-h" />
-        <div className="cc-globe-gridline grid-v" />
-      </div>
-      <div className="cc-mission-stats">
-        <div><span>ACTIVE</span><strong>{active.length}</strong></div>
-        <div><span>DONE</span><strong>{completed}</strong></div>
-        <div><span>TOTAL</span><strong>{tasks.length}</strong></div>
       </div>
     </div>
   );
