@@ -6306,3 +6306,15 @@ button { cursor: pointer; }
   .mrai-boot-orbit path { animation: none !important; }
   .mrai-boot-progress span { transition: none; }
 }
+
+
+.settings-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 7px;
+}
+@media (max-width: 760px) {
+  .settings-actions { width: 100%; justify-content: flex-start; }
+  .settings-actions button { flex: 1 1 140px; }
+}
