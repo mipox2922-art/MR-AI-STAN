@@ -13,6 +13,7 @@ let nextTaskId = 1;
 let nextMemoryId = 2;
 let nextScheduleId = 1;
 let rebootRequests = 0;
+let radarScanRequests = 0;
 
 const services = {
   ai_core: "READY", database: "ONLINE", memory: "ONLINE", web_app: "ONLINE",
@@ -95,6 +96,7 @@ async function apiMock(route) {
   let body = {};
   try { body = request.postDataJSON() || {}; } catch { body = {}; }
 
+  if (method === "GET" && path === "/auth/status") return sendJson(route, { setup_required: false });
   if (method === "GET" && path === "/system/status") return sendJson(route, systemStatus);
   if (method === "GET" && path === "/agents") return sendJson(route, agents);
   if (method === "GET" && path === "/tasks") return sendJson(route, mockTasks);
@@ -187,6 +189,7 @@ async function bridgeMock(route) {
   if (path === "/bluetooth/scan") return sendJson(route, { devices: [{ name: "Smoke BLE", address: "00:11:22:33", rssi: -51, distance_estimate_m: 1.3, distance_confidence: 55, direction: "UNKNOWN" }] });
   if (path === "/radio/status") return sendJson(route, { status: "READY", receive_only: true, scan_status: "NOT_IMPLEMENTED", detected_signals: [], note: "Mock status only." });
   if (path === "/radar/scan") {
+    radarScanRequests += 1;
     return sendJson(route, {
       status: "READY",
       findings: [{ type: "wifi", label: "Smoke Wi-Fi", signal: 79, source: "ui-smoke" }, { type: "bluetooth", label: "Smoke BLE", signal: -51, source: "ui-smoke", distance_estimate_m: 1.3, distance_confidence: 55, direction: "UNKNOWN" }],
@@ -246,6 +249,7 @@ async function main() {
   await page.waitForFunction(() => document.querySelector(".sidebar nav button") !== null);
   // Dashboard owns its HUD titlebar and intentionally hides the generic page topbar.
   await page.locator(".cc-titlebar").waitFor({ state: "visible", timeout: 15000 });
+  assert.equal(radarScanRequests, 0, "Dashboard telemetry polling must not scan local sensor hardware.");
   const nav = page.locator(".sidebar nav button");
   assert.equal(await nav.count(), 15, "All 15 main navigation entries should render.");
   completedChecks.push("authenticated app startup + 15 main navigation controls");
