@@ -21,7 +21,15 @@ ALLOWED_PARTITIONS = {
 
 app = FastAPI(title="MR AI STAN Local Device Bridge", version="0.1.0")
 
-origins = [WEB_ORIGIN] if WEB_ORIGIN else ["http://localhost:5173"]
+# The local bridge is accessed by the hosted MR AI dashboard and by local dev.
+# Keep the bridge bound to loopback; CORS does not replace its bearer-token checks.
+origins = [
+    "https://mr-ai-stan-web.onrender.com",
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+]
+if WEB_ORIGIN and WEB_ORIGIN not in origins:
+    origins.append(WEB_ORIGIN)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
