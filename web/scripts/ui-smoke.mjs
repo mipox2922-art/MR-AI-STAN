@@ -281,7 +281,7 @@ async function main() {
   await page.waitForFunction(() => {
     const footer = document.querySelector(".cc-system-footer")?.textContent || "";
     return footer.includes("ONLINE") && !footer.includes("WAITING");
-  }, { timeout: 7000 });
+  }, undefined, { timeout: 7000 });
   assert.equal(radarScanRequests, 0, "After initial telemetry refresh completes, dashboard polling must not scan local sensor hardware.");
   const nav = page.locator(".sidebar nav button");
   assert.equal(await nav.count(), 15, "All 15 main navigation entries should render.");
@@ -366,9 +366,9 @@ async function main() {
 
   await goTo("Dashboard");
   await page.locator(".sidebar-voice .voice-button").click();
-  await page.waitForFunction(() => document.querySelector(".top-status .mode-label")?.textContent.includes("WORKING MODE"), { timeout: 5000 });
+  await page.waitForFunction(() => document.querySelector(".top-status .mode-label")?.textContent.includes("WORKING MODE"), undefined, { timeout: 5000 });
   await page.locator(".sidebar-footer button").filter({ hasText: "NORMAL MODE" }).click();
-  await page.waitForFunction(() => document.querySelector(".top-status .mode-label")?.textContent.includes("NORMAL MODE"), { timeout: 5000 });
+  await page.waitForFunction(() => document.querySelector(".top-status .mode-label")?.textContent.includes("NORMAL MODE"), undefined, { timeout: 5000 });
   completedChecks.push("sidebar voice control emits a recognized VIP command and normal-mode reset");
 
   await goTo("AI Core");
