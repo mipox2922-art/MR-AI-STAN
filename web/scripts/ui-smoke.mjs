@@ -495,8 +495,31 @@ async function main() {
 
   await page.setViewportSize({ width: 390, height: 844 });
   await goTo("Dashboard");
-  const widths = await page.evaluate(() => ({ viewport: window.innerWidth, document: document.documentElement.scrollWidth }));
-  assert.ok(widths.document <= widths.viewport + 12, `Mobile layout has horizontal overflow: viewport=${widths.viewport}px, document=${widths.document}px`);
+  const layoutReport = await page.evaluate(() => {
+    const viewport = window.innerWidth;
+    const elements = [...document.querySelectorAll("body *")].map(element => {
+      const rect = element.getBoundingClientRect();
+      const style = getComputedStyle(element);
+      return {
+        tag: element.tagName.toLowerCase(),
+        id: element.id || "",
+        className: typeof element.className === "string" ? element.className.slice(0, 100) : "",
+        left: Math.round(rect.left),
+        right: Math.round(rect.right),
+        width: Math.round(rect.width),
+        scrollWidth: element.scrollWidth,
+        overflowX: style.overflowX,
+      };
+    }).filter(item => item.width > 0 && (item.left < -4 || item.right > viewport + 4))
+      .sort((a, b) => b.right - a.right)
+      .slice(0, 35);
+    return { viewport, document: document.documentElement.scrollWidth, offenders: elements };
+  });
+  if (layoutReport.document > layoutReport.viewport + 12) {
+    console.error("MOBILE_OVERFLOW_REPORT " + JSON.stringify(layoutReport));
+  }
+  assert.ok(layoutReport.document <= layoutReport.viewport + 12,
+    `Mobile layout has horizontal overflow: viewport=${layoutReport.viewport}px, document=${layoutReport.document}px`);
   const voiceControlCount = await page.locator(".sidebar-voice .voice-button, .sidebar-voice .voice-disabled").count();
   assert.ok(voiceControlCount > 0, "Voice control should either be actionable or explain that the browser API is unavailable.");
   await page.getByRole("button", { name: "DISCONNECT SESSION", exact: true }).click();
