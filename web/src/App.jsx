@@ -662,6 +662,7 @@ function App() {
               onModToggle={toggleMode}
               onPowerCommand={handlePowerCommand}
               onOpenMap={() => setActive("map")}
+              onOpenAgents={() => setActive("agents")}
               onRadarScan={handleRadarScan}
               clock={clock}
             />
