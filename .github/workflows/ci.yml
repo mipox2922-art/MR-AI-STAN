@@ -173,6 +173,7 @@ jobs:
         env:
           WEB_URL: https://mr-ai-stan-web.onrender.com
           API_URL: https://mr-ai-stan.onrender.com
+          REQUIRE_POSTGRES: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
         run: |
           python - <<'PY'
           import json
@@ -208,6 +209,10 @@ jobs:
               raise SystemExit("FAIL frontend: deployed static site did not serve the expected MR AI shell")
 
           # A Render Free service may need a cold start. /health probes the real DB.
+          # On pushes to main (after deploy), also prove production is using PostgreSQL,
+          # not an ephemeral SQLite fallback. PR checks tolerate the old response until
+          # the candidate is merged and deployed.
+          require_postgres = os.environ.get("REQUIRE_POSTGRES", "false").lower() == "true"
           health = None
           for attempt in range(1, 19):
               code, body = get(api_url + "/health", timeout=20)
@@ -215,15 +220,21 @@ jobs:
                   payload = json.loads(body)
               except (TypeError, ValueError):
                   payload = {}
-              if code == 200 and payload.get("status") == "healthy" and payload.get("database") == "reachable":
+              healthy = code == 200 and payload.get("status") == "healthy" and payload.get("database") == "reachable"
+              engine = payload.get("database_engine")
+              engine_ok = engine == "postgresql" if require_postgres else engine in (None, "postgresql")
+              if healthy and engine_ok:
                   health = payload
-                  print(f"PASS API/database: HTTP {code}, database reachable (attempt {attempt})")
+                  label = f"PostgreSQL ({engine})" if engine else "database reachable (legacy health response)"
+                  print(f"PASS API/database: HTTP {code}, {label} (attempt {attempt})")
                   break
               detail = str(payload.get("detail") or payload.get("status") or body[:100]).replace("\\n", " ")
+              if healthy and require_postgres and engine != "postgresql":
+                  detail = f"expected database_engine=postgresql, got {engine!r}"
               print(f"API health attempt {attempt}/18: HTTP {code}; {detail}; retrying")
               time.sleep(10)
           if health is None:
-              raise SystemExit("FAIL API/database: /health never confirmed a healthy API and reachable database")
+              raise SystemExit("FAIL API/database: /health did not confirm a healthy PostgreSQL database")
 
           code, body = get(api_url + "/", timeout=20)
           try:
