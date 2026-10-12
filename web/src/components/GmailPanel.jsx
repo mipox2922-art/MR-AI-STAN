@@ -37,10 +37,22 @@ export default function GmailPanel() {
   async function connect() {
     setBusy(true);
     setError("");
+    // Open the tab synchronously inside the click gesture. Some browsers block
+    // window.open after an awaited OAuth request has yielded control.
+    const popup = window.open("about:blank", "_blank");
     try {
       const result = await startGmailConnect();
-      window.open(result.authorization_url, "_blank", "noopener,noreferrer");
+      if (!result?.authorization_url) {
+        popup?.close();
+        throw new Error("Gmail OAuth did not return an authorization URL.");
+      }
+      if (popup) {
+        popup.location.href = result.authorization_url;
+      } else {
+        window.location.assign(result.authorization_url);
+      }
     } catch (err) {
+      popup?.close();
       setError(err.message);
     } finally {
       setBusy(false);
