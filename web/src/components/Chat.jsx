@@ -6,6 +6,7 @@ export default function Chat({ onState, onModToggle, onPowerCommand }) {
   const [message, setMessage] = useState("");
   const [provider, setProvider] = useState("openrouter");
   const utteranceRef = useRef(null);
+  const messageListRef = useRef(null);
   const [toolStatus, setToolStatus] = useState("AI_ONLY");
   const [sending, setSending] = useState(false);
   const [messages, setMessages] = useState([
@@ -32,6 +33,12 @@ export default function Chat({ onState, onModToggle, onPowerCommand }) {
       active = false;
     };
   }, []);
+
+  // Keep the embedded dashboard chat pinned to the newest exchange.
+  useEffect(() => {
+    const container = messageListRef.current;
+    if (container) container.scrollTop = container.scrollHeight;
+  }, [messages]);
 
   function getModeCommand(text) {
     const value = String(text || "")
@@ -217,7 +224,7 @@ export default function Chat({ onState, onModToggle, onPowerCommand }) {
           <option value="kimi">KIMI</option>
         </select>
       </div>
-      <div className="messages">
+      <div className="messages" ref={messageListRef}>
         {messages.map((item, index) => (
           <div
             key={index}

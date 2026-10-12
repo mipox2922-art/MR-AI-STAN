@@ -326,9 +326,7 @@ function Radar({ findings = [], onRadarScan, sensorStatus = {} }) {
             <div className="cc-radar-core">MR</div>
           </div>
           <span className="cc-radar-scale scale-top">SCAN RANGE</span>
-          <span className="cc-radar-scale scale-right">N/A</span>
           <span className="cc-radar-scale scale-bottom">LOCAL SENSORS</span>
-          <span className="cc-radar-scale scale-left">N/A</span>
         </div>
 
         <div className="cc-radar-info">
