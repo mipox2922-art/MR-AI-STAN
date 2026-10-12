@@ -432,13 +432,8 @@ function App() {
         setGmailStatus(gmailResult.value);
       }
 
-      try {
-        const result = await scanRadar();
-        setRadarFindings(Array.isArray(result?.findings) ? result.findings : []);
-        setRadarDiagnostics(radarDiagnosticsFrom(result));
-      } catch {
-        // Preserve the last verified radar snapshot during bridge outages.
-      }
+      // Local Wi-Fi/BLE/ADB/Fastboot scans run only after an explicit user action.
+      // Do not trigger hardware scans in the recurring telemetry poll.
 
       setLastRefreshAt(Date.now());
     } catch (error) {
@@ -564,7 +559,7 @@ function App() {
   }
 
   function logout() {
-    localStorage.removeItem("mr_ai_token");
+    clearToken();
     setTokenState(null);
   }
 
