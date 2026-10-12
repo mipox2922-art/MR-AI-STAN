@@ -330,15 +330,27 @@ try {
     await page.getByRole("button", { name: "REFRESH TELEMETRY" }).click();
     await page.getByText("CPU Usage · BACKEND", { exact: true }).waitFor({ state: "visible" });
 
-    const radarButtons = ["SCAN ALL", "WIFI SCAN", "BLE SCAN", "ANDROID SCAN", "FASTBOOT SCAN", "RADIO / RF", "DATA LINK"];
-    for (const label of radarButtons) {
+    const radarButtons = [
+      ["SCAN ALL", "ALL"],
+      ["WIFI SCAN", "WIFI"],
+      ["BLE SCAN", "BLUETOOTH"],
+      ["ANDROID SCAN", "ANDROID"],
+      ["FASTBOOT SCAN", "FASTBOOT"],
+      ["RADIO / RF", "RADIO"],
+      ["DATA LINK", "DATA"],
+    ];
+    for (const [label, source] of radarButtons) {
       await page.locator(".cc-radar-controls button").filter({ hasText: label }).click();
-      await page.waitForFunction(() => document.querySelector(".cc-radar-status")?.textContent.includes("COMPLETE"));
+      await page.waitForFunction(expected => document.querySelector(".cc-radar-status")?.textContent.includes(expected + " · COMPLETE"), source);
     }
 
     const quickLabels = ["SCAN SYSTEM", "ANALYZE DATA", "WEB RESEARCH", "GENERATE REPORT", "SECURITY CHECK", "OPTIMIZE"];
     for (const label of quickLabels) {
       await page.locator(".cc-quick-grid button").filter({ hasText: label }).click();
+      await page.waitForFunction(expected => {
+        const state = document.querySelector(".cc-quick-head strong")?.textContent || "";
+        return state.includes(expected) && !state.includes("RUNNING");
+      }, label);
       await page.locator(".cc-quick-result").waitFor({ state: "visible" });
     }
   });
@@ -354,6 +366,7 @@ try {
     await page.locator(".chat-input button").click();
     await page.getByText(/VIP MODE ACTIVATED/, { exact: false }).waitFor({ state: "visible" });
     assert.match(await page.locator(".top-status").innerText(), /WORKING MODE/);
+    await page.locator(".sidebar-footer").getByRole("button", { name: "NORMAL MODE" }).click();
   });
 
   await check("Agent plan and mission execution controls return visible outcomes", async () => {
@@ -388,7 +401,11 @@ try {
         await numericInputs.nth(1).fill("5");
       }
       await page.locator(".tool-grid button, .tool-row button").filter({ hasText: label }).last().click();
-      await page.waitForFunction(() => document.querySelectorAll(".tool-status").length >= 2 && document.querySelectorAll(".tool-status")[document.querySelectorAll(".tool-status").length - 1].textContent.includes("MR AI Browser Hands extension not detected"));
+      await page.waitForFunction(expected => {
+        const all = document.querySelectorAll(".tool-status");
+        const text = all[all.length - 1]?.textContent || "";
+        return text.includes(expected) && text.includes("MR AI Browser Hands extension not detected");
+      }, label);
     }
   });
 
