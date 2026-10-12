@@ -25,9 +25,12 @@ export default function CommandPalette({ open, onClose, onNavigate, onToggleMode
     ["map", "Open Tracking Map"],
     ["security", "Open Google Protection"],
     ["tools", "Open Toolbox"],
+    ["web", "Open Web Intelligence"],
+    ["gmail", "Open Gmail"],
+    ["calendar", "Open Calendar"],
     ["tasks", "Open Tasks"],
     ["memory", "Open Memory"],
-    ["system", "Open System"],
+    ["system", "Open Settings"],
   ];
 
   const filtered = actions.filter(([, label]) =>
