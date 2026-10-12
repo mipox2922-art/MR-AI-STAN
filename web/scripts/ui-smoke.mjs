@@ -589,11 +589,22 @@ async function main() {
   assert.ok(voiceControlCount > 0, "Voice control should either be actionable or explain that the browser API is unavailable.");
   await page.getByRole("button", { name: "DISCONNECT SESSION", exact: true }).click();
   await page.getByRole("heading", { name: "Command access", exact: true }).waitFor({ state: "visible", timeout: 7000 });
+  await page.getByRole("button", { name: "Create a new operator account", exact: true }).click();
+  await page.getByRole("heading", { name: "Create operator", exact: true }).waitFor({ state: "visible", timeout: 3000 });
+  await page.getByRole("button", { name: "Back to login", exact: true }).click();
+  await page.getByRole("heading", { name: "Command access", exact: true }).waitFor({ state: "visible", timeout: 3000 });
+  await page.getByRole("button", { name: "Create a new operator account", exact: true }).click();
+  await page.getByLabel("Username").fill("qa-new-owner");
+  await page.getByLabel("Password").fill("qa-registration-password");
+  await page.getByRole("button", { name: "CREATE & ENTER", exact: true }).click();
+  await page.locator(".sidebar nav button").first().waitFor({ state: "visible", timeout: 7000 });
+  await page.getByRole("button", { name: "DISCONNECT SESSION", exact: true }).click();
+  await page.getByRole("heading", { name: "Command access", exact: true }).waitFor({ state: "visible", timeout: 7000 });
   await page.getByLabel("Username").fill("qa-owner");
   await page.getByLabel("Password").fill("qa-password-only-for-smoke");
   await page.getByRole("button", { name: "ENTER COMMAND CENTER", exact: true }).click();
   await page.locator(".sidebar nav button").first().waitFor({ state: "visible", timeout: 7000 });
-  completedChecks.push("mobile viewport, voice availability, disconnect, and login submission flow");
+  completedChecks.push("mobile viewport, voice availability, disconnect, auth mode toggle, registration and login submission flows");
 
   assert.deepEqual(unexpectedApi, [], `Unexpected frontend API calls: ${unexpectedApi.join(", ")}`);
   assert.deepEqual(browserErrors, [], `Unhandled browser errors: ${browserErrors.join(" | ")}`);
