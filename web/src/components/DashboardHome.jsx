@@ -255,8 +255,15 @@ function Radar({ findings = [], onRadarScan, sensorStatus = {} }) {
     try {
       const result = await onRadarScan(source);
       setScanState(`${source.toUpperCase()} · COMPLETE`);
-      if (Array.isArray(result?.findings) && result.findings.length === 0) {
-        setScanError("Scan completed but no contacts were returned by the connected sensor.");
+      if (!["data", "radio"].includes(source)) {
+        const statusKey = source === "all" ? null : source;
+        const sourceStatus = statusKey ? result?.sensor_status?.[statusKey] : null;
+        const count = Number.isFinite(Number(sourceStatus?.count))
+          ? Number(sourceStatus.count)
+          : Array.isArray(result?.findings) ? result.findings.length : 0;
+        if (count === 0) {
+          setScanError(`${source.toUpperCase()} scan returned zero contacts. Check sensor availability and local Device Bridge permissions.`);
+        }
       }
     } catch (error) {
       setScanState(`${source.toUpperCase()} · ERROR`);
@@ -347,7 +354,7 @@ function Radar({ findings = [], onRadarScan, sensorStatus = {} }) {
               <div className="cc-radar-channel-head"><span>{channel.icon}</span><strong>{channel.label}</strong></div>
               <b className={good && !warn ? "channel-good" : warn ? "channel-warn" : "channel-neutral"}>{displayStatus}</b>
               <small>{note || (channel.count === null ? "Status from available runtime interface." : "Count from the last local sensor result.")}</small>
-              {channel.key !== "data" && channel.key !== "radio" && <div className="cc-radar-wave" aria-hidden="true"><i /><i /><i /><i /><i /><i /><i /></div>}
+              <div className={`cc-radar-wave ${(channel.key === "data" && rawStatus === "ONLINE") || (channel.key !== "data" && channel.key !== "radio" && Number(channel.count) > 0) ? "is-active" : "is-waiting"}`} aria-hidden="true"><i /><i /><i /><i /><i /><i /><i /></div>
             </div>
           );
         })}
