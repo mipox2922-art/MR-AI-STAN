@@ -41,6 +41,8 @@ import CommandPalette from "./components/CommandPalette";
 import DashboardHome from "./components/DashboardHome";
 import GmailPanel from "./components/GmailPanel";
 import SchedulerPanel from "./components/SchedulerPanel";
+import TaskCenter from "./components/TaskCenter";
+import MemoryCenter from "./components/MemoryCenter";
 import VoiceControl from "./components/VoiceControl";
 
 const BUILD_ID = import.meta.env.VITE_BUILD_ID || "MR-AI-STAN";
@@ -787,22 +789,13 @@ function App() {
           {active === "tools" && <ToolBox />}
 
           {active === "tasks" && (
-            <section className="panel large-panel">
-              <div className="panel-head">
-                <div><span className="eyebrow">TASK SYSTEM</span><h2>Durable Operations</h2></div>
-              </div>
-              <p className="empty">Tasks are persisted by the backend. Use the AI command channel to create and manage work; completion is only reported after backend confirmation.</p>
-            </section>
+            <TaskCenter
+              tasks={tasks}
+              onOpenAgents={() => setActive("agents")}
+            />
           )}
 
-          {active === "memory" && (
-            <section className="panel large-panel">
-              <div className="panel-head">
-                <div><span className="eyebrow">MEMORY CORE</span><h2>User-approved memory</h2></div>
-              </div>
-              <p className="empty">Memory is handled through the existing authenticated backend routes. Secret values are never displayed by the dashboard.</p>
-            </section>
-          )}
+          {active === "memory" && <MemoryCenter />}
 
           {active === "system" && (
             <section className="panel large-panel">
