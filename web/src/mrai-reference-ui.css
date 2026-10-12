@@ -976,3 +976,17 @@ canvas, svg { max-width: 100%; }
   .command-center-reference .cc-radar-source { grid-template-columns: repeat(2,minmax(0,1fr)); }
   .command-center-reference .cc-radar-channel-head strong { font-size: 6.5px; }
 }
+
+
+/* Disabled location actions remain visibly unavailable until the browser has a GPS fix. */
+.command-center-reference a.cc-inline-button.is-disabled,
+.command-center-reference .cc-street-view-open.is-disabled {
+  opacity: .42;
+  cursor: not-allowed;
+}
+.command-center-reference a.cc-inline-button.is-disabled:hover,
+.command-center-reference .cc-street-view-open.is-disabled:hover {
+  background: transparent;
+  color: var(--dim);
+  border-color: var(--ln);
+}
