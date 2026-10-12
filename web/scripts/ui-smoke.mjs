@@ -509,6 +509,22 @@ async function main() {
         width: Math.round(rect.width),
         scrollWidth: element.scrollWidth,
         overflowX: style.overflowX,
+        ancestors: (() => {
+          const output = [];
+          let parent = element.parentElement;
+          for (let depth = 0; parent && depth < 5; depth += 1, parent = parent.parentElement) {
+            const box = parent.getBoundingClientRect();
+            output.push({
+              tag: parent.tagName.toLowerCase(),
+              className: typeof parent.className === "string" ? parent.className.slice(0, 70) : "",
+              left: Math.round(box.left),
+              right: Math.round(box.right),
+              width: Math.round(box.width),
+              overflowX: getComputedStyle(parent).overflowX,
+            });
+          }
+          return output;
+        })(),
       };
     }).filter(item => item.width > 0 && (item.left < -4 || item.right > viewport + 4))
       .sort((a, b) => b.right - a.right)
