@@ -5277,3 +5277,87 @@ body {
   .command-center-reference .cc-radar-contact-row > small { grid-column: auto; }
   .command-center-reference .cc-quick-grid { grid-template-columns: 1fr 1fr; }
 }
+
+
+/* MR AI dashboard readability pass: larger labels, clearer panels, responsive columns. */
+.command-center-reference {
+  gap: 14px;
+  font-size: 12px;
+  line-height: 1.45;
+}
+.cc-titlebar {
+  grid-template-columns: minmax(155px, .8fr) minmax(145px, .8fr) minmax(290px, 1.5fr);
+  gap: 16px;
+  min-height: 66px;
+  padding: 11px 14px;
+}
+.cc-logo { font-size: 23px; }
+.cc-title { font-size: 13px; letter-spacing: 2px; }
+.cc-clock-state span,
+.cc-clock-state strong { font-size: 10px; }
+.cc-top-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+.cc-main-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  min-height: 0;
+}
+.cc-panel { padding: 14px; }
+.cc-panel-head { gap: 12px; margin-bottom: 12px; }
+.cc-panel h2 { font-size: 15px; letter-spacing: 1.1px; }
+.cc-eyebrow { font-size: 10px; letter-spacing: 1.2px; }
+.cc-core-readout span,
+.cc-metric-top span,
+.cc-owner-capability p,
+.cc-owner-state,
+.cc-mission-copy p,
+.cc-mission-copy span,
+.cc-mission-stats span,
+.cc-radar-readout span,
+.cc-map-readout span,
+.cc-bottom-strip span,
+.cc-footerline {
+  font-size: 10px;
+  line-height: 1.45;
+}
+.cc-core-readout strong { font-size: 12px; overflow-wrap: anywhere; }
+.cc-metric-top strong { font-size: 14px; }
+.cc-radar-controls button { min-height: 32px; font-size: 9px; }
+.cc-quick-grid button { min-height: 38px; font-size: 9px; }
+.cc-owner-board-grid { gap: 10px; }
+.cc-owner-capability { padding: 12px; }
+.cc-owner-capability-head strong { font-size: 11px; }
+.cc-mission { min-width: 0; }
+.cc-map-readout { gap: 8px; }
+
+@media (max-width: 1150px) {
+  .cc-titlebar {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+  .cc-header-right {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .cc-top-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 760px) {
+  .cc-titlebar { grid-template-columns: minmax(0, 1fr); }
+  .cc-mode-chip,
+  .cc-header-right { grid-column: 1; justify-self: start; }
+  .cc-header-right { flex-wrap: wrap; }
+  .cc-top-grid,
+  .cc-main-grid,
+  .cc-operations-grid,
+  .cc-owner-board-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+  .cc-main-grid { min-height: 0; }
+  .cc-panel { padding: 12px; }
+  .cc-title { text-align: left; }
+  .cc-radar-controls button { font-size: 10px; }
+  .cc-quick-grid button { font-size: 10px; }
+}
