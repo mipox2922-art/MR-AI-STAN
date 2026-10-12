@@ -504,5 +504,6 @@ async function main() {
 
 main().catch(error => {
   console.error(error);
-  process.exitCode = 1;
+  // Close all browser child processes even when an assertion fails, so CI cannot hang.
+  process.exit(1);
 });
