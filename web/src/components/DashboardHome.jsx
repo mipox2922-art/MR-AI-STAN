@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { dispatchTool, searchToolWeb, planAgentWork, executeMission } from "../api";
+import { dispatchTool, searchToolWeb, planAgentWork, executeMission, chat } from "../api";
 import Core from "./Core";
 import Chat from "./Chat";
 import LiveMap from "./LiveMap";
@@ -404,24 +404,75 @@ function WebResearch() {
   );
 }
 
-function QuickCommands() {
+function QuickCommands({ system = null }) {
   const commands = [
-    ["⌕", "SCAN SYSTEM", "scan my system status"],
-    ["◫", "ANALYZE DATA", "analyze my current system data"],
-    ["◎", "WEB RESEARCH", "research the latest technology trends"],
-    ["▣", "GENERATE REPORT", "generate a concise executive report of my current system"],
-    ["◈", "SECURITY CHECK", "run a security status check"],
-    ["⚙", "OPTIMIZE", "identify safe optimization opportunities"],
+    { icon: "⌕", label: "SCAN SYSTEM", kind: "dispatch", command: "scan my system status" },
+    { icon: "◫", label: "ANALYZE DATA", kind: "ai", prompt: "Analyze the verified MR AI backend runtime telemetry below. Give concise observations and explicitly distinguish the Render backend host from the owner's personal PC. Do not claim any configuration changed." },
+    { icon: "◎", label: "WEB RESEARCH", kind: "search", query: "latest technology trends in AI and automation" },
+    { icon: "▣", label: "GENERATE REPORT", kind: "ai", prompt: "Generate a concise executive report for BOSS FERISI using only the runtime telemetry and service status provided. Include confirmed facts, unknowns, and next actions. Do not invent results." },
+    { icon: "◈", label: "SECURITY CHECK", kind: "dispatch", command: "run a security audit check" },
+    { icon: "⚙", label: "OPTIMIZE", kind: "ai", prompt: "Review the verified MR AI backend telemetry and service state. Recommend up to three safe, specific optimizations. Do not claim to execute changes." },
   ];
   const [state, setState] = useState("READY");
+  const [busy, setBusy] = useState("");
+  const [resultText, setResultText] = useState("");
 
   async function run(command) {
-    setState(`RUNNING · ${command[1]}`);
+    if (busy) return;
+    setBusy(command.label);
+    setState(`RUNNING · ${command.label}`);
+    setResultText("");
     try {
-      const result = await dispatchTool(command[1]);
-      setState(`${command[1]} · ${String(result?.status || "ROUTED").toUpperCase()}`);
+      const runtimeContext = {
+        source: "MR_AI_DASHBOARD_RUNTIME",
+        telemetry: system?.telemetry || {},
+        services: system?.services || {},
+        ai: system?.ai || {},
+      };
+      let result;
+      if (command.kind === "dispatch") {
+        result = await dispatchTool(command.command);
+      } else if (command.kind === "search") {
+        result = await searchToolWeb(command.query);
+      } else {
+        result = await chat(command.prompt + "\n\nVERIFIED RUNTIME DATA:\n" + JSON.stringify(runtimeContext), "openrouter", {
+          status: "RUNTIME_CONTEXT",
+          result: runtimeContext,
+        });
+      }
+
+      const status = String(result?.status || (result?.response ? "COMPLETED" : "RESPONSE RECEIVED")).toUpperCase();
+      setState(`${command.label} · ${status}`);
+
+      if (result?.response) {
+        setResultText(result.response);
+      } else if (result?.result?.telemetry) {
+        const t = result.result.telemetry;
+        setResultText([
+          "Backend host telemetry snapshot (not personal PC metrics):",
+          `CPU: ${finiteNumber(t.cpu_percent) === null ? "N/A" : t.cpu_percent + "%"}`,
+          `Memory: ${finiteNumber(t.memory_percent) === null ? "N/A" : t.memory_percent + "%"}`,
+          `Storage: ${finiteNumber(t.storage_percent) === null ? "N/A" : t.storage_percent + "%"}`,
+          `GPU: ${finiteNumber(t.gpu?.utilization_percent) === null ? "N/A" : t.gpu.utilization_percent + "%"}`,
+          `Database: ${result.result.services?.database || "UNKNOWN"}`,
+          `AI Core: ${result.result.services?.ai_core || "UNKNOWN"}`,
+        ].join("\n"));
+      } else if (Array.isArray(result?.results)) {
+        setResultText(result.results.length
+          ? result.results.slice(0, 4).map((item, index) => `${index + 1}. ${item.title || item.url || "Untitled source"}\n${item.url || ""}`).join("\n\n")
+          : result.message || "No verified web results were returned.");
+      } else if (result?.message) {
+        setResultText(result.message);
+      } else if (result?.route?.tool) {
+        setResultText(`Tool selected: ${result.route.tool}. Status: ${status}. ${result.message || "Review the connected hand status before assuming the action ran."}`);
+      } else {
+        setResultText(JSON.stringify(result, null, 2).slice(0, 1800));
+      }
     } catch (error) {
-      setState(`${command[1]} · ERROR: ${error.message}`);
+      setState(`${command.label} · ERROR`);
+      setResultText(error?.message || "Command failed.");
+    } finally {
+      setBusy("");
     }
   }
 
@@ -433,12 +484,12 @@ function QuickCommands() {
       </div>
       <div className="cc-quick-grid">
         {commands.map(command => (
-          <button key={command[1]} onClick={() => run(command)}>
-            <span>{command[0]}</span>
-            <strong>{command[1]}</strong>
+          <button type="button" key={command.label} onClick={() => run(command)} disabled={Boolean(busy)}>
+            <span>{command.icon}</span><strong>{command.label}</strong>
           </button>
         ))}
       </div>
+      {resultText && <div className="cc-quick-result" role="status" aria-live="polite"><strong>COMMAND OUTPUT</strong><pre>{resultText}</pre></div>}
     </section>
   );
 }
@@ -615,6 +666,56 @@ function MissionWorkbench({ onMissionUpdate }) {
   );
 }
 
+function OwnerRequirements({ system, agents = [], tasks = [], memories = [], radarFindings = [], gmailStatus = null, missionSnapshot = null }) {
+  const services = system?.services || {};
+  const activeTasks = tasks.filter(isTaskActive).length;
+  const configuredProviders = ["openrouter", "mistral", "grok", "gemini", "kimi"].filter(
+    provider => String(services[provider] || "").toUpperCase() === "CONFIGURED"
+  );
+  const gmail = String(gmailStatus?.status || services.gmail || "NOT_CONFIGURED").toUpperCase();
+  const browser = String(services.extension || "NOT_CONNECTED").toUpperCase();
+  const missionSteps = Array.isArray(missionSnapshot?.steps) ? missionSnapshot.steps : [];
+  const items = [
+    { icon: "◉", title: "Personal command center", state: "READY", detail: "MR AI STAN · BOSS FERISI · MOG343" },
+    { icon: "⏻", title: "Normal / Working / Sleep", state: "READY", detail: "Modes are available; always-on wake-word support depends on browser and hardware." },
+    { icon: "◆", title: "Agent crew", state: `${activeTasks} ACTIVE TASKS · ${agents.length} REGISTERED`, detail: activeTasks ? "Task-backed assignments are visible above." : "Agents are registered, but no active task is currently assigned." },
+    { icon: "⌖", title: "Sensor radar", state: radarFindings.length ? `${radarFindings.length} CONTACTS` : "NO SENSOR DATA", detail: "Local Wi-Fi/Bluetooth/ADB/Fastboot scan needs the PC Device Bridge. No contacts or range are fabricated." },
+    { icon: "⌖", title: "Live 2D map", state: "READY", detail: "OpenStreetMap road layer; Street View opens separately where available." },
+    { icon: "↗", title: "Browser Hands", state: browser, detail: browser === "CONNECTED" ? "Browser extension reports connected." : "Install/reload the MR AI browser extension and verify its connection before running web actions." },
+    { icon: "⌁", title: "Device Lab", state: radarFindings.length ? "SENSOR RESULTS RECEIVED" : "LOCAL BRIDGE NOT VERIFIED", detail: "USB, Android, Fastboot and nearby-radio tools require the local device bridge." },
+    { icon: "✉", title: "Gmail", state: gmail, detail: "Gmail tools remain unavailable until OAuth credentials and authorization are configured." },
+    { icon: "✦", title: "AI providers", state: configuredProviders.length ? `${configuredProviders.length} KEYS CONFIGURED` : "NO KEYS CONFIGURED", detail: `${configuredProviders.join(", ") || "No configured providers"} · key presence does not prove the API call works; Chat selects one provider per request.` },
+    { icon: "✓", title: "Tasks & memory", state: `${tasks.length} TASKS · ${memories.length} MEMORIES`, detail: "Counts reflect records returned for this signed-in account." },
+    { icon: "🎙", title: "Voice control", state: "MIC PERMISSION REQUIRED", detail: "Browser voice input requires microphone permission. Always-listening 'amka' or clap wake is not verified by this web session." },
+    { icon: "▣", title: "PC + phone", state: "WEB UI AVAILABLE", detail: "The dashboard is web-based; local PC sensors and native device actions require their linked hands." },
+  ];
+
+  function tone(state) {
+    const value = String(state).toUpperCase();
+    if (/NOT_CONNECTED|NOT_CONFIGURED|NO SENSOR|NOT VERIFIED|REQUIRED|NO KEYS/.test(value)) return "warn";
+    if (/READY|CONNECTED|SENSOR RESULTS/.test(value)) return "good";
+    return "neutral";
+  }
+
+  return (
+    <div className="cc-owner-board">
+      <div className="cc-owner-board-intro">
+        <p>Hapa ndipo mahitaji ya MR AI yako yanaonekana pamoja na hali ya sasa. STATUS za configured hazimaanishi kuwa integration imejaribiwa au kwamba agent inafanya kazi yenyewe.</p>
+      </div>
+      <div className="cc-owner-board-grid">
+        {items.map(item => (
+          <article className="cc-owner-capability" key={item.title}>
+            <div className="cc-owner-capability-head"><span>{item.icon}</span><strong>{item.title}</strong></div>
+            <span className={`cc-owner-state tone-${tone(item.state)}`}>{item.state}</span>
+            <p>{item.detail}</p>
+          </article>
+        ))}
+      </div>
+      {missionSteps.length > 0 && <p className="cc-owner-board-foot">Current plan/mission has {missionSteps.length} steps. Details and handoff status are shown in Mission Workbench.</p>}
+    </div>
+  );
+}
+
 function ActiveTasks({ tasks = [] }) {
   const active = tasks.filter(t => !["COMPLETED", "FAILED"].includes(String(t.status || "").toUpperCase())).slice(0, 4);
   return (
@@ -747,6 +848,10 @@ export default function DashboardHome({
         </Panel>
       </div>
 
+      <Panel eyebrow="BOSS REQUIREMENTS" title="Your Command Center Priorities" badge="LIVE STATE">
+        <OwnerRequirements system={system} agents={agents} tasks={tasks} memories={memories} radarFindings={radarFindings} gmailStatus={gmailStatus} missionSnapshot={missionSnapshot} />
+      </Panel>
+
       <div className="cc-main-grid">
         <Panel eyebrow="RADAR SCAN" title="Radar Scan" badge={`${radarFindings.length} CONTACTS`}>
           <Radar findings={radarFindings} onRadarScan={onRadarScan} />
@@ -765,7 +870,7 @@ export default function DashboardHome({
         </Panel>
       </div>
 
-      <QuickCommands />
+      <QuickCommands system={system} />
 
       <div className="cc-bottom-strip">
         <div><span>AGENTS</span><strong>{agents.length}</strong></div>
