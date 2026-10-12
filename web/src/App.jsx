@@ -28,6 +28,7 @@ import {
   browserDrag,
 } from "./api";
 import Chat from "./components/Chat";
+import CommandBoot from "./components/CommandBoot";
 import Core from "./components/Core";
 import BrowserHands from "./components/BrowserHands";
 import DeviceLab from "./components/DeviceLab";
@@ -359,6 +360,11 @@ function App() {
   const [voiceTranscript, setVoiceTranscript] = useState("");
   const [clock, setClock] = useState(new Date());
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [bootVisible, setBootVisible] = useState(() => (
+    !window.matchMedia("(prefers-reduced-motion: reduce)").matches &&
+    localStorage.getItem("mr_ai_mode") !== "sleep"
+  ));
+  const finishBoot = useCallback(() => setBootVisible(false), []);
   const [connectionState, setConnectionState] = useState("CONNECTING");
   const [lastRefreshAt, setLastRefreshAt] = useState(null);
   const refreshInFlight = useRef(false);
@@ -618,6 +624,7 @@ function App() {
       </div>
       <div className="mrai-hud-frame" aria-hidden="true" />
       <div className="mrai-scanlines" aria-hidden="true" />
+      {bootVisible && <CommandBoot onFinish={finishBoot} />}
       <aside className="sidebar">
         <div className="brand">
           <div className="brand-mark">MR AI</div>
