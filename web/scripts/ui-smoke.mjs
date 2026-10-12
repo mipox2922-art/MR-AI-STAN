@@ -97,6 +97,8 @@ async function apiMock(route) {
   try { body = request.postDataJSON() || {}; } catch { body = {}; }
 
   if (method === "GET" && path === "/auth/status") return sendJson(route, { setup_required: false });
+  if (method === "POST" && path === "/auth/login") return sendJson(route, { access_token: "smoke-login-token", token_type: "bearer" });
+  if (method === "POST" && path === "/auth/register") return sendJson(route, { access_token: "smoke-register-token", token_type: "bearer" });
   if (method === "GET" && path === "/system/status") return sendJson(route, systemStatus);
   if (method === "GET" && path === "/agents") return sendJson(route, agents);
   if (method === "GET" && path === "/tasks") return sendJson(route, mockTasks);
@@ -544,7 +546,11 @@ async function main() {
   assert.ok(voiceControlCount > 0, "Voice control should either be actionable or explain that the browser API is unavailable.");
   await page.getByRole("button", { name: "DISCONNECT SESSION", exact: true }).click();
   await page.getByRole("heading", { name: "Command access", exact: true }).waitFor({ state: "visible", timeout: 7000 });
-  completedChecks.push("mobile viewport, voice availability state and disconnect-to-login flow");
+  await page.getByLabel("Username").fill("qa-owner");
+  await page.getByLabel("Password").fill("qa-password-only-for-smoke");
+  await page.getByRole("button", { name: "ENTER COMMAND CENTER", exact: true }).click();
+  await page.locator(".sidebar nav button").first().waitFor({ state: "visible", timeout: 7000 });
+  completedChecks.push("mobile viewport, voice availability, disconnect, and login submission flow");
 
   assert.deepEqual(unexpectedApi, [], `Unexpected frontend API calls: ${unexpectedApi.join(", ")}`);
   assert.deepEqual(browserErrors, [], `Unhandled browser errors: ${browserErrors.join(" | ")}`);
