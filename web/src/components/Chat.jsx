@@ -38,7 +38,7 @@ export default function Chat({ onState, onModToggle, onPowerCommand }) {
       .trim()
       .toLowerCase()
       .replace(/[.!?]+$/g, "")
-      .replace(/\\s+/g, " ");
+      .replace(/\s+/g, " ");
 
     if ([
       "vip", "vip mode", "vip kaka", "vip on", "washa vip",
