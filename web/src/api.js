@@ -1,16 +1,14 @@
 function detectApiUrl() {
-  // Production must use the same-origin Cloudflare Pages Function proxy.
-  // This prevents stale VITE_API_URL values from bypassing the Cloudflare Pages proxy.
+  // Render Static Sites set VITE_API_URL to the separately hosted FastAPI service.
+  // If it is not configured, retain the same-origin proxy for local/Cloudflare setups.
+  const configuredApiUrl = import.meta.env.VITE_API_URL?.trim();
+  if (configuredApiUrl) {
+    return configuredApiUrl.replace(/\\/+$/, "");
+  }
   if (typeof window !== "undefined") {
-    if (!import.meta.env.DEV) {
-      return `${window.location.origin}/api`;
-    }
-    if (import.meta.env.VITE_API_URL) {
-      return import.meta.env.VITE_API_URL;
-    }
     return `${window.location.origin}/api`;
   }
-  return import.meta.env.VITE_API_URL || "http://localhost:8000";
+  return "http://localhost:8000";
 }
 const API_URL = detectApiUrl();
 
