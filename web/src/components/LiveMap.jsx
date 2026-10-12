@@ -124,13 +124,20 @@ export default function LiveMap({ onOpenMap, fullPage = false }) {
         {!tracking
           ? <button type="button" className="cc-inline-button cc-map-track-button" onClick={startTracking}>▶ START LIVE TRACKING</button>
           : <button type="button" className="cc-inline-button cc-map-track-button is-following" onClick={stopTracking}>■ STOP TRACKING</button>}
-        <a className="cc-inline-button" href={streetViewUrl} target="_blank" rel="noreferrer">↗ OPEN STREET VIEW</a>
+        <a
+          className={`cc-inline-button ${hasFix ? "" : "is-disabled"}`}
+          href={hasFix ? streetViewUrl : undefined}
+          aria-disabled={!hasFix}
+          onClick={event => { if (!hasFix) event.preventDefault(); }}
+          target="_blank"
+          rel="noreferrer"
+        >{hasFix ? "↗ OPEN STREET VIEW" : "⌖ STREET VIEW · GPS REQUIRED"}</a>
         {!fullPage && <button type="button" className="cc-inline-button" onClick={onOpenMap}>OPEN MAP MODULE</button>}
         <span className={`cc-map-state ${tracking ? "is-tracking" : ""}`}>{status}{accuracy != null ? ` · ±${Math.round(accuracy)}m` : ""}</span>
       </div>
       <div className="cc-map-frame-grid">
         <div className="cc-real-map">
-          <div className="cc-map-frame-label">OPENSTREETMAP · LIVE 2D ROADMAP</div>
+          <div className="cc-map-frame-label">{hasFix ? "OPENSTREETMAP · LIVE 2D ROADMAP" : "OPENSTREETMAP · 2D MAP PREVIEW"}</div>
           <iframe className="cc-google-map-iframe" src={mapUrl} title="MR AI live OpenStreetMap tracking" loading="lazy" referrerPolicy="no-referrer-when-downgrade" />
           <a className="cc-map-attribution" href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">© OpenStreetMap contributors</a>
           {tracking && <span className="cc-map-live-indicator"><i /> LIVE FOLLOW</span>}
@@ -140,19 +147,26 @@ export default function LiveMap({ onOpenMap, fullPage = false }) {
           <div className="cc-street-view-scene">
             <div className="cc-street-view-target" aria-hidden="true">SV</div>
             <strong>{hasFix ? "GPS LOCK ACQUIRED" : "WAITING FOR GPS FIX"}</strong>
-            <span className="cc-street-view-scene-caption">REAL STREET PANORAMA · EXTERNAL VIEWER</span>
+            <span className="cc-street-view-scene-caption">{hasFix ? "REAL STREET PANORAMA · EXTERNAL VIEWER" : "WAITING FOR VERIFIED GPS · EXTERNAL VIEWER"}</span>
           </div>
           <div className="cc-street-view-info">
             <strong>{hasFix ? `${center.lat.toFixed(5)}, ${center.lng.toFixed(5)}` : "Awaiting location permission"}</strong>
             <span>{hasFix ? "Open the closest available panorama for this GPS fix." : "This styled panel is a preview, not camera imagery. Open a real panorama below."}</span>
           </div>
-          <a className="cc-street-view-open" href={streetViewUrl} target="_blank" rel="noreferrer"><span>↗</span><strong>VIEW REAL STREET PANORAMA</strong></a>
+          <a
+            className={`cc-street-view-open ${hasFix ? "" : "is-disabled"}`}
+            href={hasFix ? streetViewUrl : undefined}
+            aria-disabled={!hasFix}
+            onClick={event => { if (!hasFix) event.preventDefault(); }}
+            target="_blank"
+            rel="noreferrer"
+          ><span>↗</span><strong>{hasFix ? "VIEW REAL STREET PANORAMA" : "WAITING FOR VERIFIED GPS"}</strong></a>
         </div>
       </div>
       <div className="cc-map-readout">
         <div><span>LOCATION</span><strong>{hasFix ? "GPS VERIFIED" : "PREVIEW ONLY"}</strong></div>
-        <div><span>LATITUDE</span><strong>{center.lat.toFixed(5)}</strong></div>
-        <div><span>LONGITUDE</span><strong>{center.lng.toFixed(5)}</strong></div>
+        <div><span>LATITUDE</span><strong>{hasFix ? center.lat.toFixed(5) : "N/A"}</strong></div>
+        <div><span>LONGITUDE</span><strong>{hasFix ? center.lng.toFixed(5) : "N/A"}</strong></div>
         <div><span>SPEED</span><strong>{speed === null ? "N/A" : `${(speed * 3.6).toFixed(1)} km/h`}</strong></div>
         <div><span>HEADING</span><strong>{heading === null ? "N/A" : `${Math.round(heading)}°`}</strong></div>
         <div><span>LAST FIX</span><strong>{freshness}</strong></div>
