@@ -236,7 +236,7 @@ function radarRadius(finding) {
   return 28;
 }
 
-function Radar({ findings = [], onRadarScan }) {
+function Radar({ findings = [], onRadarScan, sensorStatus = {} }) {
   const points = findings.slice(0, 18);
   const [scanState, setScanState] = useState("READY");
   const [scanError, setScanError] = useState("");
@@ -264,7 +264,7 @@ function Radar({ findings = [], onRadarScan }) {
     }
   }
 
-  const scanButtons = ["all", "wifi", "bluetooth", "android", "fastboot"];
+  const scanButtons = ["all", "wifi", "bluetooth", "android", "fastboot", "radio", "data"];
 
   return (
     <div className="cc-radar-wrap">
@@ -276,7 +276,7 @@ function Radar({ findings = [], onRadarScan }) {
             onClick={() => runScan(source)}
             disabled={scanState.startsWith("SCANNING")}
           >
-            {source === "all" ? "SCAN ALL" : source === "bluetooth" ? "BLE SCAN" : `${source.toUpperCase()} SCAN`}
+            {source === "all" ? "SCAN ALL" : source === "bluetooth" ? "BLE SCAN" : source === "radio" ? "RADIO / RF" : source === "data" ? "DATA LINK" : `${source.toUpperCase()} SCAN`}
           </button>
         ))}
       </div>
@@ -316,6 +316,42 @@ function Radar({ findings = [], onRadarScan }) {
         <div className="cc-radar-scale scale-bottom">INNER RING</div>
         <div className="cc-radar-scale scale-left">RANGE N/A</div>
       </div>
+      <div className="cc-radar-channels">
+        {[
+          { key: "wifi", label: "WI-FI WAVES", icon: "⌁", count: counts.wifi },
+          { key: "bluetooth", label: "BLUETOOTH", icon: "ᛒ", count: counts.bluetooth },
+          { key: "data", label: "DATA LINK", icon: "⇅", count: null },
+          { key: "radio", label: "RADIO / RF", icon: "〰", count: null },
+          { key: "devices", label: "DEVICES", icon: "▣", count: counts.android + counts.fastboot },
+        ].map(channel => {
+          const value = sensorStatus[channel.key] || {};
+          const rawStatus = String(value.status || "NOT SCANNED").toUpperCase();
+          let displayStatus = rawStatus.replaceAll("_", " ");
+          let note = value.note || "";
+          if (channel.key === "radio" && rawStatus === "READY") {
+            displayStatus = "SDR TOOLS FOUND";
+            note = "RF sweep is not implemented; no radio signal detections claimed.";
+          } else if (channel.key === "data") {
+            displayStatus = value.type ? `${rawStatus.replaceAll("_", " ")} · ${String(value.type).toUpperCase()}` : rawStatus.replaceAll("_", " ");
+            note = value.note || "Browser link status only; not cellular signal strength.";
+          } else if (channel.key === "devices") {
+            displayStatus = `${rawStatus.replaceAll("_", " ")} · ${channel.count} FOUND`;
+            note = value.note || "Android / Fastboot devices visible to the local bridge.";
+          } else if (Number.isFinite(Number(value.count))) {
+            displayStatus = `${displayStatus} · ${value.count} FOUND`;
+          }
+          const good = /SCANNED|ONLINE|CONNECTED/.test(rawStatus);
+          const warn = /UNAVAILABLE|NOT SCANNED|NO SDR|NOT CONNECTED|OFFLINE|ERROR|NOT IMPLEMENTED/.test(rawStatus);
+          return (
+            <div className="cc-radar-channel" key={channel.key}>
+              <div className="cc-radar-channel-head"><span>{channel.icon}</span><strong>{channel.label}</strong></div>
+              <b className={good && !warn ? "channel-good" : warn ? "channel-warn" : "channel-neutral"}>{displayStatus}</b>
+              <small>{note || (channel.count === null ? "Status from available runtime interface." : "Count from the last local sensor result.")}</small>
+              {channel.key !== "data" && channel.key !== "radio" && <div className="cc-radar-wave" aria-hidden="true"><i /><i /><i /><i /><i /><i /><i /></div>}
+            </div>
+          );
+        })}
+      </div>
       <div className="cc-radar-info">
         <div className="cc-radar-contact-count">
           <span>CONTACTS</span><strong>{points.length}</strong>
@@ -330,7 +366,7 @@ function Radar({ findings = [], onRadarScan }) {
       </div>
       <div className="cc-radar-contact-list" aria-live="polite">
         {points.length ? points.slice(0, 4).map((finding, index) => {
-          const rawSignal = finiteNumber(finding?.signal);
+          const rawSignal = finiteNumber(String(finding?.signal ?? "").replace("%", ""));
           const distance = finiteNumber(finding?.distance_estimate_m);
           const signalText = rawSignal === null ? "SIGNAL N/A" : `SIGNAL ${rawSignal}${rawSignal >= 0 ? "%" : " dBm"}`;
           const rangeText = distance === null ? "RANGE NOT MEASURED" : `EST. ${distance.toFixed(1)} m · ${String(finding?.distance_confidence || "LOW").toUpperCase()} CONFIDENCE`;
@@ -741,6 +777,7 @@ export default function DashboardHome({
   lastRefreshAt = null,
   agents = [],
   radarFindings = [],
+  sensorStatus = {},
   tasks = [],
   memories = [],
   activities = [],
@@ -854,11 +891,11 @@ export default function DashboardHome({
 
       <div className="cc-main-grid">
         <Panel eyebrow="RADAR SCAN" title="Radar Scan" badge={`${radarFindings.length} CONTACTS`}>
-          <Radar findings={radarFindings} onRadarScan={onRadarScan} />
+          <Radar findings={radarFindings} onRadarScan={onRadarScan} sensorStatus={sensorStatus} />
         </Panel>
 
         <Panel eyebrow="LIVE MAP" title="OpenStreetMap + Street View">
-          <LiveMap />
+          <LiveMap onOpenMap={onOpenMap} />
         </Panel>
 
         <Panel eyebrow="MR AI CHAT" title="MR AI Chat" className="cc-chat-panel">

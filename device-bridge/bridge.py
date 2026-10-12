@@ -221,7 +221,14 @@ def radio_status():
         "rtl_power_available": bool(rtl_power),
         "rtl_test_available": bool(rtl_test),
         "status": "READY" if rtl_power or rtl_test else "NO_SDR_TOOL",
-        "note": "A software dashboard cannot detect arbitrary radio spectrum without compatible RF hardware.",
+        "scan_status": "NOT_IMPLEMENTED",
+        "detected_signals": [],
+        "note": (
+            "SDR utilities are present, but this bridge only checks tool availability; "
+            "it does not run an RF spectrum sweep or claim detected radio signals."
+            if rtl_power or rtl_test
+            else "No supported RTL-SDR command was found. Radio-spectrum detection requires compatible RF hardware and a scan implementation."
+        ),
     }
 
 @app.get("/devices/{serial}/info", dependencies=[Depends(require_token)])
@@ -282,9 +289,11 @@ def flash(request: FlashRequest):
 @app.get("/radar/scan", dependencies=[Depends(require_token)])
 async def radar_scan():
     findings = []
+    sensor_status = {}
 
     try:
         wifi = wifi_scan()
+        sensor_status["wifi"] = {"status": "SCANNED", "count": len(wifi.get("networks", [])), "source": wifi.get("source", "LOCAL WI-FI")}
         for network in wifi.get("networks", []):
             ssid = network.get("ssid") or "(hidden)"
             signal = network.get("signal_percent") or (
@@ -298,9 +307,11 @@ async def radar_scan():
             })
     except HTTPException as exc:
         wifi = {"status": "UNAVAILABLE", "reason": exc.detail}
+        sensor_status["wifi"] = {"status": "UNAVAILABLE", "reason": str(exc.detail)}
 
     try:
         bluetooth = await bluetooth_scan()
+        sensor_status["bluetooth"] = {"status": "SCANNED", "count": len(bluetooth.get("devices", [])), "source": "BLE"}
         for device in bluetooth.get("devices", []):
             findings.append({
                 "type": "bluetooth",
@@ -311,13 +322,16 @@ async def radar_scan():
                 "direction": device.get("direction", "UNKNOWN"),
                 "source": "BLE",
             })
-    except HTTPException:
-        bluetooth = {"status": "UNAVAILABLE"}
+    except HTTPException as exc:
+        bluetooth = {"status": "UNAVAILABLE", "reason": exc.detail}
+        sensor_status["bluetooth"] = {"status": "UNAVAILABLE", "reason": str(exc.detail)}
 
     try:
         android = android_devices()
-    except HTTPException:
+        sensor_status["android"] = {"status": "SCANNED", "count": len(android.get("devices", [])), "source": "ADB"}
+    except HTTPException as exc:
         android = {"devices": []}
+        sensor_status["android"] = {"status": "UNAVAILABLE", "reason": str(exc.detail)}
 
     for device in android.get("devices", []):
         findings.append({
@@ -329,8 +343,10 @@ async def radar_scan():
 
     try:
         fastboot = fastboot_devices()
-    except HTTPException:
+        sensor_status["fastboot"] = {"status": "SCANNED", "count": len(fastboot.get("devices", [])), "source": "FASTBOOT"}
+    except HTTPException as exc:
         fastboot = {"devices": []}
+        sensor_status["fastboot"] = {"status": "UNAVAILABLE", "reason": str(exc.detail)}
 
     for device in fastboot.get("devices", []):
         findings.append({
@@ -341,9 +357,11 @@ async def radar_scan():
         })
 
     radio = radio_status()
+    sensor_status["radio"] = radio
     return {
         "status": "READY",
         "findings": findings,
+        "sensor_status": sensor_status,
         "counts": {
             "total": len(findings),
             "wifi": sum(item["type"] == "wifi" for item in findings),

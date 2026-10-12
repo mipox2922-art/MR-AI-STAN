@@ -10,6 +10,7 @@ import {
   scanBluetooth,
   getAndroidDevices,
   getFastbootDevices,
+  getRadioStatus,
   login,
   register,
   planAgentWork,
@@ -73,6 +74,38 @@ function SleepOverlay({ onWake }) {
       </div>
     </div>
   );
+}
+
+function readBrowserDataStatus() {
+  if (typeof navigator === "undefined") return { status: "UNKNOWN", type: "NOT AVAILABLE", note: "Browser network API unavailable." };
+  const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+  const online = navigator.onLine;
+  const type = connection?.type || connection?.effectiveType || "TYPE NOT EXPOSED";
+  return {
+    status: online ? "ONLINE" : "OFFLINE",
+    type,
+    effective_type: connection?.effectiveType || null,
+    note: online
+      ? "Browser reports a network link. It does not expose cellular signal strength or prove public internet reachability."
+      : "Browser reports offline.",
+  };
+}
+
+function radarDiagnosticsFrom(result) {
+  const incoming = result?.sensor_status || {};
+  const counts = result?.counts || {};
+  const findings = Array.isArray(result?.findings) ? result.findings : [];
+  const countType = type => findings.filter(item => item?.type === type).length;
+  return {
+    wifi: incoming.wifi || { status: "SCANNED", count: counts.wifi ?? countType("wifi"), source: "RADAR" },
+    bluetooth: incoming.bluetooth || { status: "SCANNED", count: counts.bluetooth ?? countType("bluetooth"), source: "RADAR" },
+    android: incoming.android || { status: "SCANNED", count: counts.android ?? countType("android"), source: "RADAR" },
+    fastboot: incoming.fastboot || { status: "SCANNED", count: counts.fastboot ?? countType("fastboot"), source: "RADAR" },
+    radio: incoming.radio || result?.radio || { status: "NOT_CHECKED", note: "No radio hardware status returned." },
+    data: readBrowserDataStatus(),
+    devices: { status: "SCANNED", count: (counts.android || 0) + (counts.fastboot || 0) },
+    last_scan_at: Date.now(),
+  };
 }
 
 function AuthScreen({ onAuthenticated }) {
@@ -309,6 +342,15 @@ function App() {
   const [system, setSystem] = useState(null);
   const [agents, setAgents] = useState([]);
   const [radarFindings, setRadarFindings] = useState([]);
+  const [radarDiagnostics, setRadarDiagnostics] = useState(() => ({
+    wifi: { status: "NOT_SCANNED" },
+    bluetooth: { status: "NOT_SCANNED" },
+    android: { status: "NOT_SCANNED" },
+    fastboot: { status: "NOT_SCANNED" },
+    radio: { status: "NOT_CHECKED" },
+    data: readBrowserDataStatus(),
+    devices: { status: "NOT_SCANNED", count: 0 },
+  }));
   const [tasks, setTasks] = useState([]);
   const [memories, setMemories] = useState([]);
   const [activities, setActivities] = useState([]);
@@ -385,6 +427,7 @@ function App() {
       try {
         const result = await scanRadar();
         setRadarFindings(Array.isArray(result?.findings) ? result.findings : []);
+        setRadarDiagnostics(radarDiagnosticsFrom(result));
       } catch {
         // Preserve the last verified radar snapshot during bridge outages.
       }
@@ -420,6 +463,12 @@ function App() {
       }
     };
 
+    const refreshDataLink = () => setRadarDiagnostics(current => ({ ...current, data: readBrowserDataStatus() }));
+    window.addEventListener("online", refreshDataLink);
+    window.addEventListener("offline", refreshDataLink);
+    const browserConnection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+    browserConnection?.addEventListener?.("change", refreshDataLink);
+
     const onCommandPalette = event => {
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
         event.preventDefault();
@@ -435,6 +484,9 @@ function App() {
       clearInterval(clockTimer);
       window.removeEventListener("keydown", onShortcut);
       window.removeEventListener("keydown", onCommandPalette);
+      window.removeEventListener("online", refreshDataLink);
+      window.removeEventListener("offline", refreshDataLink);
+      browserConnection?.removeEventListener?.("change", refreshDataLink);
     };
   }, [authenticated, refresh, mode]);
 
@@ -443,61 +495,60 @@ function App() {
 
   async function handleRadarScan(source = "all") {
     const normalized = String(source).toLowerCase();
-
     if (normalized === "all") {
       const result = await scanRadar();
-      setRadarFindings(Array.isArray(result?.findings) ? result.findings : []);
+      const findings = Array.isArray(result?.findings) ? result.findings : [];
+      setRadarFindings(findings);
+      setRadarDiagnostics(radarDiagnosticsFrom(result));
       return result;
+    }
+    if (normalized === "radio") {
+      const result = await getRadioStatus();
+      setRadarDiagnostics(current => ({ ...current, radio: result, last_scan_at: Date.now() }));
+      return { status: result?.status || "CHECKED", findings: radarFindings, sensor_status: { radio: result }, message: result?.note || "RF hardware checked; no spectrum sweep claimed." };
+    }
+    if (normalized === "data") {
+      const data = readBrowserDataStatus();
+      setRadarDiagnostics(current => ({ ...current, data, last_scan_at: Date.now() }));
+      return { status: data.status, findings: radarFindings, sensor_status: { data }, message: data.note };
     }
 
     let result;
     let type;
-    if (normalized === "wifi") {
-      result = await scanWifi();
-      type = "wifi";
-    } else if (normalized === "bluetooth") {
-      result = await scanBluetooth();
-      type = "bluetooth";
-    } else if (normalized === "android") {
-      result = await getAndroidDevices();
-      type = "android";
-    } else if (normalized === "fastboot") {
-      result = await getFastbootDevices();
-      type = "fastboot";
-    } else {
-      throw new Error(`Unknown radar source: ${source}`);
-    }
+    if (normalized === "wifi") { result = await scanWifi(); type = "wifi"; }
+    else if (normalized === "bluetooth") { result = await scanBluetooth(); type = "bluetooth"; }
+    else if (normalized === "android") { result = await getAndroidDevices(); type = "android"; }
+    else if (normalized === "fastboot") { result = await getFastbootDevices(); type = "fastboot"; }
+    else throw new Error(`Unknown radar source: ${source}`);
 
-    const nextFindings =
-      type === "wifi"
-        ? (Array.isArray(result?.networks) ? result.networks.map(network => ({
-            type: "wifi",
-            label: network.ssid || "(hidden)",
-            signal: network.signal_percent ?? network.bssids?.[0]?.signal ?? null,
-            source: result.source || "Wi-Fi",
+    const nextFindings = type === "wifi"
+      ? (Array.isArray(result?.networks) ? result.networks.map(network => ({
+          type: "wifi", label: network.ssid || "(hidden)",
+          signal: network.signal_percent ?? network.bssids?.[0]?.signal ?? null,
+          source: result.source || "Wi-Fi",
+        })) : [])
+      : type === "bluetooth"
+        ? (Array.isArray(result?.devices) ? result.devices.map(device => ({
+            type: "bluetooth", label: device.name || device.address || "BLE device",
+            signal: device.rssi ?? null, distance_estimate_m: device.distance_estimate_m,
+            distance_confidence: device.distance_confidence, direction: device.direction || "UNKNOWN", source: "BLE",
           })) : [])
-        : type === "bluetooth"
-          ? (Array.isArray(result?.devices) ? result.devices.map(device => ({
-              type: "bluetooth",
-              label: device.name || device.address || "BLE device",
-              signal: device.rssi ?? null,
-              distance_estimate_m: device.distance_estimate_m,
-              distance_confidence: device.distance_confidence,
-              direction: device.direction || "UNKNOWN",
-              source: "BLE",
-            })) : [])
-          : (Array.isArray(result?.devices) ? result.devices.map(device => ({
-              type,
-              label: device.serial || type.toUpperCase(),
-              signal: null,
-              source: type === "android" ? "ADB" : "FASTBOOT",
-            })) : []);
-
-    setRadarFindings(current => [
-      ...current.filter(item => item?.type !== type),
-      ...nextFindings,
-    ]);
-    return result;
+        : (Array.isArray(result?.devices) ? result.devices.map(device => ({
+            type, label: device.serial || type.toUpperCase(), signal: null,
+            source: type === "android" ? "ADB" : "FASTBOOT",
+          })) : []);
+    const nextSnapshot = [...radarFindings.filter(item => item?.type !== type), ...nextFindings];
+    const sensorState = { status: "SCANNED", count: nextFindings.length, source: result?.source || (type === "bluetooth" ? "LOCAL BLE" : type.toUpperCase()), note: result?.message || "" };
+    setRadarFindings(nextSnapshot);
+    setRadarDiagnostics(current => ({
+      ...current,
+      [type]: sensorState,
+      devices: type === "android" || type === "fastboot"
+        ? { status: "SCANNED", count: nextSnapshot.filter(item => ["android", "fastboot"].includes(item?.type)).length }
+        : current.devices,
+      last_scan_at: Date.now(),
+    }));
+    return { status: "SCANNED", findings: nextSnapshot, sensor_status: { [type]: sensorState }, result };
   }
 
   function authenticate(result) {
@@ -652,6 +703,7 @@ function App() {
               gmailStatus={gmailStatus}
               agents={agents}
               radarFindings={radarFindings}
+              sensorStatus={radarDiagnostics}
               tasks={tasks}
               memories={memories}
               activities={activities}
