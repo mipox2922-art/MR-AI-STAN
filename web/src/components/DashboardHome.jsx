@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { dispatchTool, searchToolWeb, planAgentWork, executeMission, chat } from "../api";
-import Core from "./Core";
+import HudOrb from "./HudOrb";
 import Chat from "./Chat";
 import LiveMap from "./LiveMap";
 
@@ -135,14 +135,28 @@ function NetworkMetric({ telemetry, telemetryHistory = [] }) {
 }
 
 function SystemStatus({ telemetry, telemetryHistory, connectionState, lastRefreshAt, onRefresh }) {
-  const refreshLabel = lastRefreshAt ? new Date(lastRefreshAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit" }) : "WAITING";
+  const refreshLabel = lastRefreshAt
+    ? new Date(lastRefreshAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit" })
+    : "WAITING";
+
   return (
     <div className="cc-system-status">
-      <Metric label="BACKEND CPU" value={telemetry?.cpu_percent} />
-      <Metric label="BACKEND MEMORY" value={telemetry?.memory_percent} />
-      <NetworkMetric telemetry={telemetry} telemetryHistory={telemetryHistory} />
-      <Metric label="BACKEND STORAGE" value={telemetry?.storage_percent} />
-      <Metric label="GPU" value={telemetry?.gpu?.utilization_percent} />
+      <div className="cc-system-layout">
+        <div className="cc-system-metrics">
+          <Metric label="CPU Usage · BACKEND" value={telemetry?.cpu_percent} />
+          <Metric label="Memory · BACKEND" value={telemetry?.memory_percent} />
+          <Metric label="Storage · BACKEND" value={telemetry?.storage_percent} />
+          <Metric label="GPU" value={telemetry?.gpu?.utilization_percent} />
+        </div>
+        <div className="cc-system-network">
+          <span className="cc-system-network-title">NETWORK TRAFFIC</span>
+          <NetworkMetric telemetry={telemetry} telemetryHistory={telemetryHistory} />
+          <div className="cc-network-summary">
+            <span>TX {Number.isFinite(Number(telemetry?.network?.bytes_sent)) ? formatBytes(telemetry.network.bytes_sent) : "N/A"}</span>
+            <span>RX {Number.isFinite(Number(telemetry?.network?.bytes_received)) ? formatBytes(telemetry.network.bytes_received) : "N/A"}</span>
+          </div>
+        </div>
+      </div>
       <div className="cc-telemetry-source">
         {telemetry?.source === "host_runtime"
           ? "BACKEND HOST TELEMETRY · NOT PERSONAL PC SENSOR DATA"
@@ -152,11 +166,7 @@ function SystemStatus({ telemetry, telemetryHistory, connectionState, lastRefres
       </div>
       <div className="cc-system-footer">
         <span>RUNTIME · {connectionState || "CONNECTING"} · {refreshLabel}</span>
-        <strong>
-          TX {Number.isFinite(Number(telemetry?.network?.bytes_sent)) ? formatBytes(telemetry.network.bytes_sent) : "N/A"}
-          {" · "}
-          RX {Number.isFinite(Number(telemetry?.network?.bytes_received)) ? formatBytes(telemetry.network.bytes_received) : "N/A"}
-        </strong>
+        <strong>AUTHORIZED RUNTIME DATA ONLY</strong>
       </div>
       <button className="cc-inline-button" onClick={onRefresh}>REFRESH TELEMETRY</button>
     </div>
@@ -869,7 +879,7 @@ export default function DashboardHome({
               <div><span>STATUS</span><strong>{topReadout.status}</strong></div>
               <div><span>TASKS</span><strong>{topReadout.active}</strong></div>
             </div>
-            <Core state={coreState} modActive={working} />
+            <HudOrb state={coreState} working={working} />
           </div>
         </Panel>
 
