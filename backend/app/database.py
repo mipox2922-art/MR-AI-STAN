@@ -48,6 +48,39 @@ def create_postgres_ssl_context(ca_certificate: str | None = None) -> ssl.SSLCon
     return context
 
 
+def postgres_connect_args(
+    database_url: str,
+    ca_certificate: str | None = None,
+) -> dict:
+    """Choose safe transport settings for the configured PostgreSQL URL.
+
+    Render's internal Postgres hostname (dpg-* without a public DNS suffix) uses
+    Render's private network and intentionally has no sslmode query parameter.
+    Do not force TLS on that route: Render internal endpoints can use
+    self-signed certificates, so verified TLS will fail instead of connecting.
+    External PostgreSQL endpoints continue to use verified TLS; an explicit CA
+    can be supplied with DATABASE_SSL_CA_CERT.
+    """
+    parsed = make_url(database_url)
+    sslmode = str(parsed.query.get("sslmode", "")).lower()
+    configured_ca = (
+        settings.database_ssl_ca_cert if ca_certificate is None else ca_certificate
+    ).strip()
+    host = (parsed.host or "").lower()
+    render_internal_host = host.startswith("dpg-") and "." not in host
+
+    if sslmode == "disable":
+        return {}
+
+    # The Blueprint's fromDatabase.connectionString is an internal URL without
+    # sslmode; use the private network without TLS unless the operator explicitly
+    # requests TLS or supplies a CA certificate.
+    if render_internal_host and sslmode not in {"require", "verify-ca", "verify-full"} and not configured_ca:
+        return {}
+
+    return {"ssl_context": create_postgres_ssl_context(configured_ca)}
+
+
 DATABASE_URL = normalize_database_url(settings.database_url)
 
 connect_args = {}
@@ -55,9 +88,7 @@ connect_args = {}
 if DATABASE_URL.startswith("sqlite"):
     connect_args = {"check_same_thread": False}
 elif DATABASE_URL.startswith("postgresql+pg8000://"):
-    # Never disable certificate verification for a database connection.
-    # For a private CA, provide DATABASE_SSL_CA_CERT as PEM text or a mounted PEM path.
-    connect_args = {"ssl_context": create_postgres_ssl_context()}
+    connect_args = postgres_connect_args(settings.database_url)
 
 engine = create_engine(
     DATABASE_URL,
