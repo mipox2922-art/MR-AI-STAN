@@ -4713,3 +4713,36 @@ button:disabled {
 
 .command-center-reference .cc-radar-wave.is-waiting i { animation:none; opacity:.16; transform:scaleY(.35); }
 .command-center-reference .cc-radar-wave.is-active i { animation:cc-signal-wave .9s ease-in-out infinite alternate; }
+
+
+/* The Street View pane is a truthful handoff panel, not a fabricated street picture. */
+.command-center-reference .cc-street-view-scene {
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:12px;
+  min-height:180px;
+  background:
+    linear-gradient(rgba(0,243,255,.045) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(0,243,255,.045) 1px,transparent 1px),
+    radial-gradient(circle at center,rgba(0,243,255,.09),transparent 65%),
+    #061016;
+  background-size:22px 22px,22px 22px,auto,auto;
+}
+.command-center-reference .cc-street-view-target {
+  position:static;
+  transform:none;
+  flex:none;
+}
+.command-center-reference .cc-street-view-scene > strong {
+  color:#d7f2f5;
+  font-size:10px;
+  letter-spacing:1px;
+  text-align:center;
+}
+.command-center-reference .cc-street-view-scene-caption {
+  position:static;
+  max-width:90%;
+  text-align:center;
+}
