@@ -238,6 +238,32 @@ async function main() {
   await context.addInitScript(() => {
     localStorage.setItem("mr_ai_token", "ui-smoke-token-not-valid-outside-this-mocked-test");
     localStorage.setItem("mr_ai_mode", "normal");
+    // Deterministic browser voice fixture: exercises command wiring without
+    // requiring a physical microphone or depending on CI host speech services.
+    class MockSpeechRecognition {
+      constructor() {
+        this.lang = "sw-TZ";
+        this.interimResults = false;
+        this.continuous = false;
+        this.onstart = null;
+        this.onend = null;
+        this.onerror = null;
+        this.onresult = null;
+      }
+      start() {
+        this.onstart?.();
+        window.setTimeout(() => {
+          this.onresult?.({ results: [[{ transcript: "vip" }]] });
+          this.onend?.();
+        }, 25);
+      }
+      stop() { this.onend?.(); }
+      abort() { this.onend?.(); }
+    }
+    Object.defineProperty(window, "SpeechRecognition", {
+      configurable: true,
+      value: MockSpeechRecognition,
+    });
   });
   await context.route("https://myaccount.google.com/**", route => route.fulfill({ status: 200, contentType: "text/html", body: "<title>Google account link smoke fixture</title>" }));
   await context.route("https://www.openstreetmap.org/**", route => route.fulfill({ status: 200, contentType: "text/html", body: "<title>OpenStreetMap iframe smoke fixture</title>" }));
@@ -337,6 +363,13 @@ async function main() {
   await page.getByRole("dialog", { name: "MR AI Sleep Mode" }).getByRole("button", { name: "WAKE MR AI" }).click();
   await page.getByRole("dialog", { name: "MR AI Sleep Mode" }).waitFor({ state: "detached" });
   completedChecks.push("dashboard telemetry, all radar scans, all six quick commands, search, chat, mode, palette and sleep/wake");
+
+  await goTo("Dashboard");
+  await page.locator(".sidebar-voice .voice-button").click();
+  await page.waitForFunction(() => document.querySelector(".top-status .mode-label")?.textContent.includes("WORKING MODE"), { timeout: 5000 });
+  await page.locator(".sidebar-footer button").filter({ hasText: "NORMAL MODE" }).click();
+  await page.waitForFunction(() => document.querySelector(".top-status .mode-label")?.textContent.includes("NORMAL MODE"), { timeout: 5000 });
+  completedChecks.push("sidebar voice control emits a recognized VIP command and normal-mode reset");
 
   await goTo("AI Core");
   for (const state of ["IDLE", "LISTENING", "THINKING", "SPEAKING", "WORKING", "BUSY", "ERROR", "SLEEPING"]) {
