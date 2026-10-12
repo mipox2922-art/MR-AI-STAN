@@ -644,10 +644,26 @@ function App() {
           <VoiceControl
             onTranscript={text => {
               setVoiceTranscript(text);
-              if (/^(zima|lala|sleep|sleep mode)$/i.test(text.trim())) {
+              const command = String(text || "")
+                .trim()
+                .toLowerCase()
+                .replace(/[.!?]+$/g, "")
+                .replace(/\s+/g, " ");
+
+              if (["zima", "lala", "sleep", "sleep mode"].includes(command)) {
                 handlePowerCommand("sleep");
-              } else if (/^(amka|wake|wake up|amka mr ai)$/i.test(text.trim())) {
+              } else if (["amka", "wake", "wake up", "amka mr ai"].includes(command)) {
                 handlePowerCommand("wake");
+              } else if ([
+                "vip", "vip mode", "vip kaka", "vip on", "washa vip",
+                "mod on", "washa mod", "working mode", "washa working mode"
+              ].includes(command)) {
+                toggleMode(true);
+              } else if ([
+                "vip off", "mod off", "zima mod", "normal", "normal mode",
+                "washa normal mode"
+              ].includes(command)) {
+                toggleMode(false);
               }
             }}
           />
