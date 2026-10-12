@@ -60,7 +60,11 @@ export default function DeviceLab() {
           <button onClick={() => run("INFO", () => getAndroidDeviceInfo(selected))}>DEVICE INFO</button>
           <button onClick={() => run("DIAGNOSTICS", () => getAndroidDiagnostics(selected))}>DIAGNOSTICS</button>
           <button onClick={() => run("BOOT STATE", () => getBootState(selected))}>BOOT STATE</button>
-          <button onClick={() => run("REBOOT", () => rebootAndroid(selected, "system"))}>REBOOT SYSTEM</button>
+          <button onClick={() => {
+          if (window.confirm(`Reboot Android device ${selected}? Unsaved work may be lost.`)) {
+            run("REBOOT", () => rebootAndroid(selected, "system"));
+          }
+        }}>REBOOT SYSTEM</button>
         </div>
       )}
       {result && (
