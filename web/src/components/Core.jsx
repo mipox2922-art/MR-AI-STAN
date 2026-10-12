@@ -1,6 +1,6 @@
 export default function Core({ state = "IDLE", modActive = false }) {
-  const tone = modActive ? "#ff5555" : "#00f3ff";
-  const glow = modActive ? "rgba(255,85,85,.34)" : "rgba(0,243,255,.30)";
+  const tone = modActive ? "#ff3d2e" : "#4df3ff";
+  const glow = modActive ? "rgba(255,61,46,.34)" : "rgba(77,243,255,.30)";
   const speaking = state === "SPEAKING";
   const thinking = ["THINKING", "WORKING", "BUSY"].includes(state);
   const listening = state === "LISTENING";
