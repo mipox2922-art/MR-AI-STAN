@@ -26,7 +26,7 @@ def test_service_status_reports_configured_provider_without_claiming_online(monk
 
     services = _service_status()
 
-    assert services["ai_core"] == "READY"
+    assert services["ai_core"] == "CONFIGURED"
     assert services["gemini"] == "CONFIGURED"
     assert services["kimi"] == "NOT_CONFIGURED"
     assert services["openrouter"] == "NOT_CONFIGURED"
