@@ -41,7 +41,7 @@ def test_openrouter_key_marks_core_ready_and_reports_openrouter(monkeypatch):
     monkeypatch.setattr(settings, "xai_api_key", "")
 
     services = _service_status()
-    assert services["ai_core"] == "READY"
+    assert services["ai_core"] == "CONFIGURED"
     assert services["openrouter"] == "CONFIGURED"
 
 
@@ -53,7 +53,7 @@ def test_mistral_and_grok_keys_are_reported_as_configured(monkeypatch):
     monkeypatch.setattr(settings, "xai_api_key", "test-xai-key")
 
     services = _service_status()
-    assert services["ai_core"] == "READY"
+    assert services["ai_core"] == "CONFIGURED"
     assert services["mistral"] == "CONFIGURED"
     assert services["grok"] == "CONFIGURED"
 
