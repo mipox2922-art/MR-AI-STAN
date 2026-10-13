@@ -555,7 +555,19 @@ async function main() {
   await page.getByText(/TRACKING SAVED · #\d+ · APPLIED/).waitFor({ state: "visible", timeout: 7000 });
   await page.getByText("OWNER CONFIRMED", { exact: true }).waitFor({ state: "visible", timeout: 7000 });
   await page.getByText("EVIDENCE LINK NOT CHECKED", { exact: true }).waitFor({ state: "visible", timeout: 7000 });
-  completedChecks.push("Job Research live-search fixture, task persistence, status update and honest evidence labeling");
+  // Verify that tracking lives in task storage rather than only in component state.
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await page.waitForFunction(() => document.querySelector(".sidebar nav button") !== null, undefined, { timeout: 10000 });
+  await page.locator(".cc-titlebar").waitFor({ state: "visible", timeout: 15000 });
+  await goTo("Job Research");
+  await page.locator('input[placeholder*="Python developer"]').fill("Python developer");
+  await page.getByRole("button", { name: "SEARCH JOBS", exact: true }).click();
+  await page.getByText("Python Developer", { exact: true }).waitFor({ state: "visible", timeout: 7000 });
+  await page.getByRole("button", { name: /SAVED · #/ }).waitFor({ state: "visible", timeout: 7000 });
+  assert.equal(await page.locator(".job-results select").first().inputValue(), "APPLIED", "Saved job application status should restore after reload.");
+  assert.equal(await page.locator('.job-results input[type="url"]').first().inputValue(), "https://example.com/application/123", "Saved evidence URL should restore after reload.");
+  await page.getByText("EVIDENCE LINK NOT CHECKED", { exact: true }).waitFor({ state: "visible", timeout: 7000 });
+  completedChecks.push("Job Research task persistence, reload restoration, and honest evidence labeling");
 
   await goTo("Gmail");
   await page.getByRole("button", { name: "CONNECT GMAIL", exact: true }).waitFor({ state: "visible" });
