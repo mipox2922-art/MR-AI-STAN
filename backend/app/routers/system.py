@@ -66,6 +66,8 @@ def _service_status() -> dict:
         "memory": "ONLINE",
         "web_app": "ONLINE",
         "agents": "REGISTERED",
+        "web_search": "CONFIGURED" if settings.searxng_url else "NOT_CONFIGURED",
+        "security": "NOT_CONFIGURED",
         "voice": "NOT_CONFIGURED",
         "extension": "NOT_CONNECTED",
         "gemini": "CONFIGURED" if gemini_configured else "NOT_CONFIGURED",
@@ -132,7 +134,8 @@ def system_status(current_user=Depends(get_current_user)):
             "provider": selected_provider,
             "model": selected_model,
             "tier": selected_tier,
-            "ready": selected_provider is not None,
+            "configured": selected_provider is not None,
+            "ready": False,
         },
         "capabilities": {
             "street_view": "AVAILABLE_VIA_MAPS_URL",

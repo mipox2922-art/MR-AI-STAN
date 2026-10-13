@@ -443,13 +443,27 @@ function WebResearch() {
 }
 
 function QuickCommands({ system = null }) {
+  const services = system?.services || {};
+  const aiConfigured = services.ai_core === "CONFIGURED";
+  const webConfigured = services.web_search === "CONFIGURED";
+  const securityConfigured = services.security === "CONFIGURED";
   const commands = [
     { icon: "⌕", label: "SCAN SYSTEM", kind: "dispatch", command: "scan my system status" },
-    { icon: "◫", label: "ANALYZE DATA", kind: "ai", prompt: "Analyze the verified MR AI backend runtime telemetry below. Give concise observations and explicitly distinguish the Render backend host from the owner's personal PC. Do not claim any configuration changed." },
-    { icon: "◎", label: "WEB RESEARCH", kind: "search", query: "latest technology trends in AI and automation" },
-    { icon: "▣", label: "GENERATE REPORT", kind: "ai", prompt: "Generate a concise executive report for BOSS FERISI using only the runtime telemetry and service status provided. Include confirmed facts, unknowns, and next actions. Do not invent results." },
-    { icon: "◈", label: "SECURITY CHECK", kind: "dispatch", command: "run a security audit check" },
-    { icon: "⚙", label: "OPTIMIZE", kind: "ai", prompt: "Review the verified MR AI backend telemetry and service state. Recommend up to three safe, specific optimizations. Do not claim to execute changes." },
+    ...(aiConfigured ? [
+      { icon: "◫", label: "ANALYZE DATA", kind: "ai", prompt: "Analyze the verified MR AI backend runtime telemetry below. Give concise observations and explicitly distinguish the Render backend host from the owner's personal PC. Do not claim any configuration changed." },
+    ] : []),
+    ...(webConfigured ? [
+      { icon: "◎", label: "WEB RESEARCH", kind: "search", query: "latest technology trends in AI and automation" },
+    ] : []),
+    ...(aiConfigured ? [
+      { icon: "▣", label: "GENERATE REPORT", kind: "ai", prompt: "Generate a concise executive report for BOSS FERISI using only the runtime telemetry and service status provided. Include confirmed facts, unknowns, and next actions. Do not invent results." },
+    ] : []),
+    ...(securityConfigured ? [
+      { icon: "◈", label: "SECURITY CHECK", kind: "dispatch", command: "run a security audit check" },
+    ] : []),
+    ...(aiConfigured ? [
+      { icon: "⚙", label: "OPTIMIZE", kind: "ai", prompt: "Review the verified MR AI backend telemetry and service state. Recommend up to three safe, specific optimizations. Do not claim to execute changes." },
+    ] : []),
   ];
   const [state, setState] = useState("READY");
   const [busy, setBusy] = useState("");
@@ -526,6 +540,7 @@ function QuickCommands({ system = null }) {
             <span>{command.icon}</span><strong>{command.label}</strong>
           </button>
         ))}
+        {commands.length === 1 && <span className="cc-quick-empty">AI and connected tool actions appear when their services are configured.</span>}
       </div>
       {resultText && <div className="cc-quick-result" role="status" aria-live="polite"><strong>COMMAND OUTPUT</strong><pre>{resultText}</pre></div>}
     </section>
@@ -857,7 +872,7 @@ export default function DashboardHome({
             <div className="cc-core-readout">
               <div><span>AI MODEL</span><strong>{topReadout.model}</strong></div>
               <div><span>AI TIER</span><strong>{topReadout.tier}</strong></div>
-              <div><span>AI RUNTIME</span><strong>{system?.ai?.ready ? "READY" : "NOT READY"}</strong></div>
+              <div><span>AI RUNTIME</span><strong>{system?.ai?.ready ? "LIVE-TESTED" : system?.ai?.configured ? "CONFIGURED · NOT TESTED" : "NOT CONFIGURED"}</strong></div>
               <div><span>UPTIME</span><strong>{topReadout.uptime}</strong></div>
               <div><span>STATUS</span><strong>{topReadout.status}</strong></div>
               <div><span>TASKS</span><strong>{topReadout.active}</strong></div>
@@ -884,9 +899,11 @@ export default function DashboardHome({
           <Chat onState={onState} onModToggle={onModToggle} onPowerCommand={onPowerCommand} />
         </Panel>
 
-        <Panel eyebrow="WEB RESEARCH" title="Web Research" className="cc-research-panel">
-          <WebResearch />
-        </Panel>
+        {services.web_search === "CONFIGURED" && (
+          <Panel eyebrow="WEB RESEARCH" title="Web Research" className="cc-research-panel">
+            <WebResearch />
+          </Panel>
+        )}
       </div>
 
       <QuickCommands system={system} />
