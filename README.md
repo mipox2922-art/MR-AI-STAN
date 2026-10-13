@@ -83,7 +83,22 @@ The frontend API client uses `VITE_API_URL` in production. Local development can
 3. Test AI Core, Tasks, Memory, and reload the app to confirm data persists.
 4. Only enable Gmail after the credentials and redirect URI are configured.
 
-### Gmail OAuth
+### Unattended scheduled work
+
+The scheduler can process due schedules and queued scheduler tasks while the owner is away. The GitHub Actions workflow `.github/workflows/mr-ai-scheduler.yml` triggers the backend every 15 minutes and can also be run manually.
+
+One-time security setup is required before unattended triggers will work:
+
+1. Generate a unique random secret of at least 32 characters.
+2. In Render, add `CLOUDFLARE_CRON_SECRET` to the `MR-AI-STAN` backend environment.
+3. In GitHub, open **Settings → Secrets and variables → Actions → New repository secret** and add `MR_AI_CRON_SECRET` with the exact same value.
+4. Keep `SCHEDULER_ENABLED=false` on the Free web service so the in-process loop does not compete with the scheduled trigger. The GitHub workflow calls the protected scheduler-cycle endpoint directly.
+
+Until both secret settings match, the workflow intentionally fails closed. Never commit the secret into the repository or send it in chat. GitHub scheduled runs can be delayed, so this is periodic execution, not a guaranteed real-time worker.
+
+Scheduled commands containing `job research Python developer` can search the public RemoteOK and Remotive feeds and save the verified search result to the task record. No application is submitted automatically.
+
+## Gmail OAuth
 
 For the Render backend, use this callback URI in Render environment variables and Google Cloud Console:
 
