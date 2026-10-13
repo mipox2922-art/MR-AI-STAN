@@ -6318,3 +6318,205 @@ button { cursor: pointer; }
   .settings-actions { width: 100%; justify-content: flex-start; }
   .settings-actions button { flex: 1 1 140px; }
 }
+
+
+/* Dashboard compact pass: executive overview stays visible; deeper audit details are expandable. */
+.app-shell { width: 100%; margin-inline: auto; }
+.dashboard-main .content { padding: 8px; gap: 8px; }
+.dashboard-main .command-center-reference { gap: 8px; line-height: 1.35; }
+.command-center-reference .cc-titlebar { min-height: 52px; padding: 7px 11px; gap: 9px; }
+.command-center-reference .cc-brand-lockup .cc-logo { font-size: 20px; }
+.command-center-reference .cc-title { font-size: 12px; letter-spacing: 1.4px; }
+.command-center-reference .cc-header-right { gap: 10px; }
+.command-center-reference .cc-header-clock strong { font-size: 13px; }
+
+.command-center-reference .cc-executive-brief { display: grid; gap: 7px; min-width: 0; }
+.command-center-reference .cc-executive-hero {
+  display: grid; grid-template-columns: minmax(0,1fr) 78px; align-items: center; gap: 10px;
+  min-width: 0; min-height: 88px; padding: 8px 11px; border: 1px solid var(--line);
+  background: linear-gradient(105deg,var(--gl),transparent 48%),linear-gradient(180deg,rgba(7,17,25,.98),rgba(1,6,11,.96));
+}
+.command-center-reference .cc-executive-copy { min-width: 0; }
+.command-center-reference .cc-executive-copy h1 { margin: 3px 0 4px; color: var(--hd); font: 700 clamp(17px,1.3vw,22px)/1.15 Orbitron,sans-serif; letter-spacing: 1px; }
+.command-center-reference .cc-executive-copy p { margin: 0 0 6px; max-width: 850px; color: var(--dim); font-size: 11px; line-height: 1.35; }
+.command-center-reference .cc-executive-statusline { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 9px; color: var(--dim); font: 8px "Share Tech Mono",monospace; }
+.command-center-reference .cc-executive-statusline strong { color: var(--good); font-weight: 600; }
+.command-center-reference .cc-exec-pulse { flex: 0 0 7px; width: 7px; height: 7px; border-radius: 50%; background: var(--dim); }
+.command-center-reference .cc-exec-pulse.is-live { background: var(--good); box-shadow: 0 0 9px var(--good); }
+.command-center-reference .cc-exec-pulse.is-waiting { background: #ffbd59; }
+.command-center-reference .cc-exec-speak { min-height: 25px; padding: 4px 7px; border: 1px solid var(--line); background: rgba(0,0,0,.2); color: var(--accent); font: 600 8px Orbitron,sans-serif; }
+.command-center-reference .cc-executive-orb {
+  position: relative; display: grid; place-items: center; justify-self: end; width: 74px; height: 74px;
+  border: 1px solid var(--line); border-radius: 50%; background: radial-gradient(circle,var(--gl),rgba(0,0,0,.25) 70%);
+  box-shadow: 0 0 17px var(--gl),inset 0 0 13px var(--gl);
+}
+.command-center-reference .cc-exec-orbit { position: absolute; inset: 6px; border: 1px dashed var(--accent); border-radius: 50%; opacity: .7; animation: mrai-spin 18s linear infinite; }
+.command-center-reference .cc-exec-orbit-b { inset: 16px; border-style: solid; opacity: .45; animation-direction: reverse; animation-duration: 12s; }
+.command-center-reference .cc-exec-core { display: grid; place-items: center; width: 36px; height: 36px; border: 1px solid var(--accent); border-radius: 50%; color: var(--accent); font: 800 11px Orbitron,sans-serif; text-shadow: 0 0 8px var(--gl); }
+.command-center-reference .cc-exec-core span { font-size: 7px; letter-spacing: 2px; }
+.command-center-reference .cc-exec-node { position: absolute; width: 5px; height: 5px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 7px var(--accent); }
+.command-center-reference .cc-exec-node.node-a { top: 6px; left: 33px; }
+.command-center-reference .cc-exec-node.node-b { right: 4px; bottom: 21px; }
+.command-center-reference .cc-exec-node.node-c { left: 8px; bottom: 15px; }
+
+.command-center-reference .cc-executive-metrics { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 7px; }
+.command-center-reference .cc-exec-metric {
+  display: grid; grid-template-columns: minmax(0,1fr) auto; grid-template-rows: auto auto; align-items: center;
+  gap: 3px 8px; min-width: 0; min-height: 52px; padding: 6px 8px; border: 1px solid var(--line);
+  background: linear-gradient(145deg,var(--gl),rgba(0,0,0,.22)); text-align: left;
+}
+.command-center-reference .cc-exec-metric > span { color: var(--dim); font: 600 8px "Share Tech Mono",monospace; letter-spacing: .5px; }
+.command-center-reference .cc-exec-metric > strong { grid-column: 2; grid-row: 1 / span 2; max-width: 155px; color: var(--tx); font: 700 clamp(13px,1.1vw,18px) Rajdhani,sans-serif; text-align: right; overflow-wrap: anywhere; }
+.command-center-reference .cc-exec-metric > small { color: var(--dim); font: 8px/1.2 "Share Tech Mono",monospace; overflow-wrap: anywhere; }
+.command-center-reference .exec-good-text { color: var(--good) !important; }
+.command-center-reference .exec-warn-text { color: #ffbd59 !important; }
+
+.command-center-reference .cc-executive-details { min-width: 0; border: 1px solid var(--line); background: rgba(1,7,12,.55); }
+.command-center-reference .cc-executive-details > summary { display: grid; grid-template-columns: auto minmax(0,1fr) auto; align-items: center; gap: 9px; min-height: 30px; padding: 5px 9px; list-style: none; cursor: pointer; }
+.command-center-reference .cc-executive-details > summary::-webkit-details-marker { display: none; }
+.command-center-reference .cc-exec-detail-kicker { color: var(--accent); font: 700 8px "Share Tech Mono",monospace; letter-spacing: .8px; }
+.command-center-reference .cc-exec-detail-copy { color: var(--dim); font: 9px "Share Tech Mono",monospace; }
+.command-center-reference .cc-executive-details > summary strong { color: var(--accent); font: 700 8px Orbitron,sans-serif; white-space: nowrap; }
+.command-center-reference .cc-executive-details[open] > summary { margin-bottom: 8px; border-bottom: 1px solid var(--line); }
+.command-center-reference .cc-executive-lower { display: grid; grid-template-columns: minmax(0,1.35fr) minmax(0,.9fr); gap: 10px; padding: 0 10px 10px; }
+.command-center-reference .cc-exec-section-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.command-center-reference .cc-exec-section-head h2,
+.command-center-reference .cc-executive-priority h2 { margin: 4px 0 8px; color: var(--hd); font: 700 12px Orbitron,sans-serif; }
+.command-center-reference .cc-exec-section-head button,
+.command-center-reference .cc-exec-shortcuts button { min-height: 27px; padding: 4px 7px; border: 1px solid var(--line); background: rgba(0,0,0,.2); color: var(--accent); font: 600 8px Orbitron,sans-serif; }
+.command-center-reference .cc-exec-activity-row { display: grid; grid-template-columns: 24px minmax(0,1fr) auto; align-items: start; gap: 8px; padding: 7px 0; border-top: 1px solid var(--line); }
+.command-center-reference .cc-exec-activity-mark { color: var(--accent); font: 9px "Share Tech Mono",monospace; }
+.command-center-reference .cc-exec-activity-row strong { color: var(--tx); font-size: 10px; }
+.command-center-reference .cc-exec-activity-row p { margin: 2px 0 0; color: var(--dim); font-size: 10px; line-height: 1.35; }
+.command-center-reference .cc-exec-activity-row time { color: var(--dim); font: 8px "Share Tech Mono",monospace; }
+.command-center-reference .cc-exec-empty,
+.command-center-reference .cc-exec-error { padding: 8px; color: var(--dim); font-size: 10px; }
+.command-center-reference .cc-executive-priority { padding: 10px; border: 1px solid var(--line); background: rgba(0,0,0,.18); }
+.command-center-reference .cc-executive-priority > p { color: var(--dim); font-size: 11px; line-height: 1.45; }
+.command-center-reference .cc-exec-priority-stats { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 6px; }
+.command-center-reference .cc-exec-priority-stats div { padding: 7px; border: 1px solid var(--line); }
+.command-center-reference .cc-exec-priority-stats span,
+.command-center-reference .cc-exec-priority-stats strong { display: block; }
+.command-center-reference .cc-exec-priority-stats span { color: var(--dim); font: 7px "Share Tech Mono",monospace; }
+.command-center-reference .cc-exec-priority-stats strong { margin-top: 4px; color: var(--tx); font-size: 13px; }
+.command-center-reference .cc-exec-blockers,
+.command-center-reference .cc-exec-clear { margin-top: 8px; color: var(--dim); font-size: 10px; line-height: 1.4; }
+.command-center-reference .cc-exec-blockers > strong { color: #ffbd59; }
+.command-center-reference .cc-exec-blockers p { margin: 5px 0; }
+.command-center-reference .cc-exec-shortcuts { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 9px; }
+.command-center-reference .cc-exec-truth { margin: 0; padding: 0 10px 9px; color: var(--dim); font: 8px/1.4 "Share Tech Mono",monospace; }
+
+.command-center-reference .cc-top-grid,
+.command-center-reference .cc-main-grid { gap: 8px; min-height: 0; }
+.command-center-reference .cc-panel { padding: 10px; }
+.command-center-reference .cc-panel-head { min-height: 0; margin-bottom: 7px; padding-bottom: 6px; gap: 7px; }
+.command-center-reference .cc-panel h2 { font-size: 10px; }
+.command-center-reference .cc-eyebrow { font-size: 8px; }
+.command-center-reference .cc-core-status { min-height: 0; gap: 6px; }
+.command-center-reference .cc-core-readout { gap: 4px; }
+.command-center-reference .cc-core-readout > div { gap: 5px; padding: 3px 0; }
+.command-center-reference .cc-core-readout span { font-size: 8px; }
+.command-center-reference .cc-core-readout strong { font-size: 9px; }
+.command-center-reference .ai-core-hologram { height: 122px; max-width: 140px; }
+.command-center-reference .cc-mission { min-height: 0; gap: 6px; }
+.command-center-reference .cc-mission-graph { min-height: 72px; }
+.command-center-reference .cc-mission-stats { padding-top: 5px; }
+.command-center-reference .cc-mission-stats strong { font-size: 13px; }
+.command-center-reference .cc-radar-wrap { gap: 6px; }
+.command-center-reference .cc-radar-shell { width: min(100%,205px); }
+.command-center-reference .cc-radar-info { gap: 5px; }
+.command-center-reference .cc-radar-contact-count { padding: 6px; }
+.command-center-reference .cc-radar-contact-count strong { font-size: 20px; }
+.command-center-reference .cc-radar-source { gap: 4px; }
+.command-center-reference .cc-radar-source div { padding: 5px 3px; }
+.command-center-reference .cc-radar-channels { gap: 5px; }
+.command-center-reference .cc-radar-channel { padding: 5px; }
+.command-center-reference .cc-radar-note { font-size: 8px; }
+.command-center-reference .cc-live-map { min-height: 0; gap: 5px; }
+.command-center-reference .cc-real-map { height: 205px; min-height: 205px; }
+.command-center-reference .cc-street-view { height: 105px; }
+.command-center-reference .cc-map-readout { gap: 4px; }
+.command-center-reference .cc-map-readout div { padding: 4px; }
+.command-center-reference .cc-map-readout span { font-size: 7px; }
+.command-center-reference .cc-map-readout strong { font-size: 9px; }
+.command-center-reference .cc-chat-panel .messages { min-height: 130px; max-height: 190px; }
+.command-center-reference .cc-chat-panel .chat-header { padding-bottom: 4px; }
+.command-center-reference .cc-chat-panel .chat-input { padding-top: 5px; }
+.command-center-reference .cc-quick { padding: 8px 10px; }
+.command-center-reference .cc-quick-head { margin-bottom: 6px; }
+.command-center-reference .cc-quick-grid { gap: 5px; }
+.command-center-reference .cc-quick-grid button { min-height: 32px; padding: 6px; font-size: 8px; }
+
+@media (min-width: 1101px) and (min-height: 760px) {
+  .dashboard-main .content { padding: 7px; gap: 7px; }
+  .dashboard-main .command-center-reference { gap: 7px; }
+  .command-center-reference .cc-titlebar { min-height: 46px; padding: 6px 9px; }
+  .command-center-reference .cc-executive-hero { min-height: 78px; padding: 6px 9px; grid-template-columns: minmax(0,1fr) 62px; }
+  .command-center-reference .cc-executive-orb { width: 58px; height: 58px; }
+  .command-center-reference .cc-exec-orbit { inset: 4px; }
+  .command-center-reference .cc-exec-orbit-b { inset: 13px; }
+  .command-center-reference .cc-exec-core { width: 29px; height: 29px; font-size: 9px; }
+  .command-center-reference .cc-exec-node.node-a { top: 4px; left: 26px; }
+  .command-center-reference .cc-exec-node.node-b { right: 3px; bottom: 17px; }
+  .command-center-reference .cc-exec-node.node-c { left: 6px; bottom: 11px; }
+  .command-center-reference .cc-exec-metric { min-height: 46px; padding: 5px 7px; }
+  .command-center-reference .cc-core-status { grid-template-columns: minmax(0,1.1fr) minmax(94px,.7fr); }
+  .command-center-reference .ai-core-hologram { height: 102px; max-width: 116px; }
+  .command-center-reference .cc-real-map { height: 170px; min-height: 170px; }
+  .command-center-reference .cc-chat-panel .messages { min-height: 100px; max-height: 145px; }
+  .command-center-reference .cc-radar-shell { width: min(100%,175px); }
+}
+@media (max-width: 1370px) and (min-width: 1101px) {
+  .command-center-reference .cc-titlebar { grid-template-columns: minmax(0,1fr) auto; }
+  .command-center-reference .cc-titlebar > .cc-header-right { grid-column: 1/-1; justify-content: space-between; padding-top: 5px; }
+  .command-center-reference .cc-top-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .command-center-reference .cc-top-grid > .cc-panel:last-child { grid-column: 1/-1; }
+  .command-center-reference .cc-main-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .command-center-reference .cc-main-grid > .cc-radar-panel,
+  .command-center-reference .cc-main-grid > .cc-map-panel,
+  .command-center-reference .cc-main-grid > .cc-chat-panel,
+  .command-center-reference .cc-main-grid > .cc-research-panel { grid-column: auto; }
+}
+@media (max-width: 1100px) {
+  .command-center-reference .cc-executive-hero { grid-template-columns: minmax(0,1fr) 60px; min-height: 0; }
+  .command-center-reference .cc-executive-orb { width: 56px; height: 56px; }
+  .command-center-reference .cc-executive-metrics { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .command-center-reference .cc-exec-metric { min-height: 50px; }
+  .command-center-reference .cc-executive-lower { grid-template-columns: minmax(0,1fr); }
+  .command-center-reference .cc-top-grid,
+  .command-center-reference .cc-main-grid { grid-template-columns: minmax(0,1fr); }
+  .command-center-reference .cc-top-grid > .cc-panel,
+  .command-center-reference .cc-top-grid > .cc-panel:last-child,
+  .command-center-reference .cc-main-grid > .cc-radar-panel,
+  .command-center-reference .cc-main-grid > .cc-map-panel,
+  .command-center-reference .cc-main-grid > .cc-chat-panel,
+  .command-center-reference .cc-main-grid > .cc-research-panel { grid-column: auto; }
+  .command-center-reference .cc-real-map { height: 240px; min-height: 240px; }
+  .command-center-reference .cc-chat-panel .messages { min-height: 130px; max-height: 220px; }
+}
+@media (max-width: 600px) {
+  .dashboard-main .content { padding: 6px; gap: 6px; }
+  .command-center-reference .cc-executive-hero { grid-template-columns: minmax(0,1fr) 44px; padding: 8px; gap: 7px; }
+  .command-center-reference .cc-executive-orb { width: 42px; height: 42px; }
+  .command-center-reference .cc-exec-orbit { inset: 3px; }
+  .command-center-reference .cc-exec-orbit-b { inset: 9px; }
+  .command-center-reference .cc-exec-core { width: 23px; height: 23px; font-size: 7px; }
+  .command-center-reference .cc-exec-node { width: 3px; height: 3px; }
+  .command-center-reference .cc-exec-node.node-a { top: 3px; left: 19px; }
+  .command-center-reference .cc-exec-node.node-b { right: 2px; bottom: 13px; }
+  .command-center-reference .cc-exec-node.node-c { left: 4px; bottom: 8px; }
+  .command-center-reference .cc-executive-copy h1 { font-size: 15px; }
+  .command-center-reference .cc-executive-copy p { font-size: 10px; }
+  .command-center-reference .cc-executive-metrics { gap: 5px; }
+  .command-center-reference .cc-exec-metric { padding: 6px; gap: 3px 5px; }
+  .command-center-reference .cc-exec-metric > strong { font-size: 12px; }
+  .command-center-reference .cc-executive-details > summary { grid-template-columns: minmax(0,1fr) auto; gap: 4px 7px; }
+  .command-center-reference .cc-exec-detail-kicker,
+  .command-center-reference .cc-exec-detail-copy { grid-column: 1; }
+  .command-center-reference .cc-executive-details > summary strong { grid-column: 2; grid-row: 1 / span 2; }
+  .command-center-reference .cc-radar-shell { width: min(100%,220px); }
+  .command-center-reference .cc-real-map { height: 220px; min-height: 220px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .command-center-reference .cc-exec-orbit { animation: none; }
+}
