@@ -6667,3 +6667,32 @@ button { cursor: pointer; }
   .command-center-reference .cc-radar-shell { width: min(100%,185px); }
   .command-center-reference .cc-chat-panel .messages { min-height: 110px; max-height: 180px; }
 }
+
+
+/* Radar's center display and counts must share a row on medium/large screens. */
+@media (min-width: 601px) {
+  .command-center-reference .cc-radar-overview {
+    display: grid;
+    grid-template-columns: minmax(118px,1.1fr) minmax(76px,.9fr);
+    align-items: center;
+    gap: 5px;
+  }
+  .command-center-reference .cc-radar-shell { width: min(100%,155px); }
+  .command-center-reference .cc-radar-info { grid-template-columns: minmax(0,1fr); gap: 4px; }
+  .command-center-reference .cc-radar-contact-count { padding: 5px; }
+  .command-center-reference .cc-radar-source { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 3px; }
+  .command-center-reference .cc-radar-source div { padding: 4px 2px; }
+  .command-center-reference .cc-radar-controls { grid-template-columns: repeat(3,minmax(0,1fr)); }
+  .command-center-reference .cc-radar-controls button { font-size: 7px; min-height: 27px; }
+}
+@media (max-width: 600px) {
+  .command-center-reference .cc-radar-overview {
+    display: grid;
+    grid-template-columns: minmax(0,1fr);
+    gap: 6px;
+  }
+  .command-center-reference .cc-radar-shell { width: min(100%,185px); }
+  .command-center-reference .cc-radar-info { grid-template-columns: 72px minmax(0,1fr); gap: 5px; }
+  .command-center-reference .cc-radar-source { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .command-center-reference .cc-radar-controls { grid-template-columns: repeat(2,minmax(0,1fr)); }
+}
