@@ -44,16 +44,32 @@ def test_job_tracking_does_not_claim_independent_verification_for_supplied_link(
     assert "not been independently checked" in tracking["truth_note"]
 
 
-def test_job_tracking_preserves_existing_link_without_claiming_it_was_checked():
+def test_job_tracking_preserves_existing_link_when_field_is_omitted():
     from app.routers.jobs import _build_tracking_record
 
     tracking = _build_tracking_record(
         status="INTERVIEW",
-        evidence_url="",
+        evidence_url=None,
         previous={"evidence_url": "https://example.com/interview"},
         owner_confirmed=True,
     )
 
     assert tracking["evidence_url"] == "https://example.com/interview"
     assert tracking["evidence_status"] == "PROVIDED_NOT_CHECKED"
+    assert tracking["verified"] is False
+
+
+
+def test_job_tracking_can_explicitly_clear_old_evidence_link():
+    from app.routers.jobs import _build_tracking_record
+
+    tracking = _build_tracking_record(
+        status="APPLIED",
+        evidence_url="",
+        previous={"evidence_url": "https://example.com/old"},
+        owner_confirmed=True,
+    )
+
+    assert tracking["evidence_url"] is None
+    assert tracking["evidence_status"] == "NOT_PROVIDED"
     assert tracking["verified"] is False
