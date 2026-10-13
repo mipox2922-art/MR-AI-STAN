@@ -1457,6 +1457,8 @@ canvas, svg { max-width: 100%; }
 .cc-exec-pulse { width:7px; height:7px; border-radius:50%; background:#7b8b91; }
 .cc-exec-pulse.is-live { background:var(--ok); box-shadow:0 0 12px var(--ok); animation:ccExecPulse 1.8s infinite; }
 .cc-exec-pulse.is-waiting { background:var(--av); }
+.cc-exec-speak { padding:6px 9px; border:1px solid var(--ln); background:rgba(0,0,0,.24); color:var(--c); font:inherit; font-size:9px; letter-spacing:.08em; }
+.cc-exec-speak:hover { border-color:var(--c); box-shadow:0 0 10px var(--gl); }
 .cc-executive-orb { position:relative; flex:0 0 150px; width:150px; height:150px; display:grid; place-items:center; opacity:.92; }
 .cc-exec-orbit { position:absolute; border:1px solid var(--ln); border-radius:50%; }
 .cc-exec-orbit-a { inset:7px; border-style:dashed; animation:ccExecRotate 24s linear infinite; }
