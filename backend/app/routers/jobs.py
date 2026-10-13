@@ -69,12 +69,7 @@ async def _fetch_remotive(client: httpx.AsyncClient, query: str) -> list[dict[st
     return [job for row in rows if isinstance(row, dict) if (job := _clean_job(row, "Remotive"))]
 
 
-@router.get("/research")
-async def research_jobs(
-    query: str,
-    limit: int = 25,
-    current_user=Depends(get_current_user),
-) -> dict[str, Any]:
+async def research_public_jobs(query: str, limit: int = 25) -> dict[str, Any]:
     query = query.strip()[:180]
     if len(query) < 2:
         raise HTTPException(400, "Enter at least two characters to research jobs.")
@@ -115,6 +110,15 @@ async def research_jobs(
         "source_warnings": errors,
         "note": "Public remote-job feeds; results must be checked on the employer's site. MR AI does not submit applications automatically.",
     }
+
+
+@router.get("/research")
+async def research_jobs(
+    query: str,
+    limit: int = 25,
+    current_user=Depends(get_current_user),
+) -> dict[str, Any]:
+    return await research_public_jobs(query, limit)
 
 
 @router.post("/save")
