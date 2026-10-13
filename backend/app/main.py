@@ -24,6 +24,7 @@ from .routers import (
     tools,
     orchestration,
     integrations,
+    jobs,
     scheduler,
     notifications,
 )
@@ -67,6 +68,7 @@ app.include_router(agents.router)
 app.include_router(tools.router)
 app.include_router(orchestration.router)
 app.include_router(integrations.router)
+app.include_router(jobs.router)
 app.include_router(scheduler.router)
 app.include_router(notifications.router)
 
