@@ -665,7 +665,7 @@ function App() {
 
         <div className="sidebar-voice">
           <div className="sidebar-voice-head">
-            <span className="eyebrow">VOICE COMMAND</span>
+            <span className="eyebrow">WAKE PHRASE</span>
             <span className="voice-state-dot">●</span>
           </div>
           <div className="sidebar-wave" aria-hidden="true">
