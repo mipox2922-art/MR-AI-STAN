@@ -100,3 +100,40 @@ def test_high_risk_external_action_requires_approval_before_hand():
     refreshed = db.query(Task).one()
     assert refreshed.status == "WAITING_APPROVAL"
     assert db.query(ApprovalRequest).count() == 1
+
+
+def test_scheduler_worker_runs_job_research(monkeypatch):
+    import asyncio
+    import json
+    from app.routers import jobs
+
+    async def fake_research(query, limit=25):
+        assert query == "Python developer"
+        assert limit == 15
+        return {
+            "status": "COMPLETED",
+            "query": query,
+            "count": 1,
+            "results": [{"title": "Python Developer", "url": "https://example.com/jobs/1"}],
+        }
+
+    monkeypatch.setattr(jobs, "research_public_jobs", fake_research)
+    db = make_db()
+    task = Task(
+        user_id=1,
+        title="[SCHEDULED] Job research",
+        description="job research Python developer",
+        status="PENDING",
+        priority="NORMAL",
+        agent="scheduler",
+    )
+    db.add(task)
+    db.commit()
+
+    processed = asyncio.run(run_pending_tasks(db))
+
+    assert processed == 1
+    refreshed = db.query(Task).one()
+    assert refreshed.status == "COMPLETED"
+    assert refreshed.progress == 100
+    assert json.loads(refreshed.result)["results"][0]["title"] == "Python Developer"
