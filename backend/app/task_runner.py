@@ -57,9 +57,9 @@ async def run_pending_tasks(db: Session, limit: int = 5) -> int:
             import re
             from .routers.jobs import research_public_jobs
 
-            query = re.sub(r"^\\[scheduled\\]\\s*", "", text, flags=re.IGNORECASE)
+            query = re.sub(r"^\[scheduled\]\s*", "", text, flags=re.IGNORECASE)
             query = re.sub(
-                r"^(?:job research|research jobs|search jobs|find jobs|remote jobs|ajira)(?:\\s+(?:for|in))?\\s*[:,-]?\\s*",
+                r"^(?:job research|research jobs|search jobs|find jobs|remote jobs|ajira)(?:\s+(?:for|in))?\s*[:,-]?\s*",
                 "",
                 query,
                 flags=re.IGNORECASE,
