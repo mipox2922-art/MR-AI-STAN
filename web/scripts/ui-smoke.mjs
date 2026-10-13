@@ -157,13 +157,13 @@ async function apiMock(route) {
     const task = {
       id: nextTaskId++,
       title: `Job application: ${body.title}`,
-      description: `Company: ${body.company || "Company not listed"}\\nJob URL: ${body.url}\\n\\n${body.description || ""}`,
+      description: `Company: ${body.company || "Company not listed"}\nJob URL: ${body.url}\n\n${body.description || ""}`,
       status: "PENDING", priority: "NORMAL", agent: "jobs", result: null,
     };
     mockTasks.unshift(task);
     return sendJson(route, { status: "SAVED", task }, 201);
   }
-  if (method === "PATCH" && /^\\/jobs\\/\\d+\\/tracking$/.test(path)) {
+  if (method === "PATCH" && /^\/jobs\/\d+\/tracking$/.test(path)) {
     const id = Number(path.split("/")[2]);
     const task = mockTasks.find(item => item.id === id && item.agent === "jobs");
     if (!task) return sendJson(route, { detail: "Saved job task not found" }, 404);
@@ -542,7 +542,7 @@ async function main() {
   await page.locator(".job-results select").first().selectOption("APPLIED");
   await page.locator('.job-results input[type="url"]').first().fill("https://example.com/application/123");
   await page.getByRole("button", { name: "SAVE STATUS", exact: true }).click();
-  await page.getByText(/TRACKING SAVED · #\\d+ · APPLIED/).waitFor({ state: "visible", timeout: 7000 });
+  await page.getByText(/TRACKING SAVED · #\d+ · APPLIED/).waitFor({ state: "visible", timeout: 7000 });
   await page.getByText("OWNER CONFIRMED", { exact: true }).waitFor({ state: "visible", timeout: 7000 });
   await page.getByText("EVIDENCE LINK NOT CHECKED", { exact: true }).waitFor({ state: "visible", timeout: 7000 });
   completedChecks.push("Job Research live-search fixture, task persistence, status update and honest evidence labeling");
