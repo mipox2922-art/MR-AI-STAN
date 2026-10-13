@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { dispatchTool, searchToolWeb, planAgentWork, executeMission, chat, getExecutiveBriefing } from "../api";
 import HudOrb from "./HudOrb";
 import Chat from "./Chat";
