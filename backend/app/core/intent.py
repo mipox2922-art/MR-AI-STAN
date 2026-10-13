@@ -16,6 +16,7 @@ _RULES: list[tuple[str, tuple[str, ...], str, str, bool]] = [
     ("MEMORY_SEARCH", ("kumbuka", "remember", "memory", "unakumbuka"), "LOW", "LOW", True),
     ("MEMORY_SAVE", ("hifadhi kumbukumbu", "remember this", "kumbuka hii", "save memory"), "LOW", "LOW", True),
     ("TASK_CREATE", ("tengeneza task", "create task", "ongeza task", "add task", "kazi mpya"), "LOW", "LOW", True),
+    ("JOB_RESEARCH", ("job research", "research jobs", "search jobs", "find jobs", "remote jobs", "ajira", "jobs", "job"), "LOW", "LOW", True),
     ("WEB_RESEARCH", ("tafuta", "search web", "research", "habari za", "jua kuhusu", "web search"), "LOW", "LOW", True),
     ("GMAIL_SEND", ("tuma email", "send email", "send an email", "tuma barua pepe"), "HIGH", "HIGH", False),
     ("GMAIL_SEARCH", ("tafuta email", "search email", "inbox", "barua pepe zangu"), "MEDIUM", "MEDIUM", False),
