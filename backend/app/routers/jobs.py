@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+from datetime import datetime, timezone
 from typing import Any
 from urllib.parse import urlparse
 
@@ -186,12 +187,21 @@ def update_job_tracking(
             previous = decoded
     except (TypeError, ValueError):
         previous = {}
+    owner_confirmed = payload.get("owner_confirmed") is True
     tracking = {
         "status": status,
         "evidence_url": evidence_url or previous.get("evidence_url"),
-        "updated_at": __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat(),
-        "verified": status != "SAVED" and bool(evidence_url or payload.get("owner_confirmed") is True),
-        "verification_method": "evidence_url" if evidence_url else "owner_confirmed" if payload.get("owner_confirmed") is True else "unverified",
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+        # A supplied URL or owner's confirmation is not independent verification.
+        "verified": False,
+        "owner_confirmed": owner_confirmed,
+        "evidence_status": "PROVIDED_NOT_CHECKED" if evidence_url else "NOT_PROVIDED",
+        "verification_method": (
+            "evidence_link_provided_not_checked" if evidence_url
+            else "owner_confirmation" if owner_confirmed
+            else "unconfirmed"
+        ),
+        "truth_note": "Status is user-reported; external evidence has not been independently checked.",
     }
     task.result = json.dumps(tracking)
     db.add(ActivityLog(
