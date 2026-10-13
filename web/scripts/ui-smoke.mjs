@@ -153,7 +153,37 @@ async function apiMock(route) {
   if (method === "POST" && path === "/tools/route") return sendJson(route, { status: "ROUTED", route: { agent: "research", tool: "searxng" }, result: { status: "COMPLETED", results: [] }, message: "Mock tool routing only." });
   if (method === "POST" && path === "/tools/dispatch") return sendJson(route, { status: "COMPLETED", route: { agent: "orchestrator", tool: "system_telemetry" }, result: systemStatus });
   if (method === "GET" && path === "/jobs/research") return sendJson(route, { status: "COMPLETED", query: url.searchParams.get("query"), count: 1, sources: ["RemoteOK", "Remotive"], source_warnings: [], results: [{ id: "smoke-job-1", title: "Python Developer", company: "Example Remote", location: "Worldwide", url: "https://example.com/jobs/python", description: "Build Python APIs", tags: ["python", "api"], published_at: "2026-10-12", source: "RemoteOK" }] });
-  if (method === "POST" && path === "/jobs/save") return sendJson(route, { status: "SAVED", task: { id: nextTaskId++, title: `Job application: ${body.title}`, status: "PENDING", agent: "jobs" } }, 201);
+  if (method === "POST" && path === "/jobs/save") {
+    const task = {
+      id: nextTaskId++,
+      title: `Job application: ${body.title}`,
+      description: `Company: ${body.company || "Company not listed"}\\nJob URL: ${body.url}\\n\\n${body.description || ""}`,
+      status: "PENDING", priority: "NORMAL", agent: "jobs", result: null,
+    };
+    mockTasks.unshift(task);
+    return sendJson(route, { status: "SAVED", task }, 201);
+  }
+  if (method === "PATCH" && /^\\/jobs\\/\\d+\\/tracking$/.test(path)) {
+    const id = Number(path.split("/")[2]);
+    const task = mockTasks.find(item => item.id === id && item.agent === "jobs");
+    if (!task) return sendJson(route, { detail: "Saved job task not found" }, 404);
+    let previous = {};
+    try { previous = JSON.parse(task.result || "{}"); } catch { previous = {}; }
+    const evidenceUrl = body.evidence_url || previous.evidence_url || null;
+    const ownerConfirmed = body.owner_confirmed === true;
+    const tracking = {
+      status: body.status,
+      evidence_url: evidenceUrl,
+      updated_at: new Date().toISOString(),
+      verified: false,
+      owner_confirmed: ownerConfirmed,
+      evidence_status: evidenceUrl ? "PROVIDED_NOT_CHECKED" : "NOT_PROVIDED",
+      verification_method: evidenceUrl ? "evidence_link_provided_not_checked" : ownerConfirmed ? "owner_confirmation" : "unconfirmed",
+      truth_note: "Status is user-reported; external evidence has not been independently checked.",
+    };
+    task.result = JSON.stringify(tracking);
+    return sendJson(route, { status: "UPDATED", task_id: id, tracking });
+  }
   if (method === "GET" && path === "/scheduler") return sendJson(route, mockSchedules);
   if (method === "POST" && path === "/scheduler") {
     const job = { id: nextScheduleId++, title: body.title, command: body.command, run_at: body.run_at, next_run_at: body.run_at, interval_minutes: body.interval_minutes || null, status: "ACTIVE" };
@@ -277,7 +307,19 @@ async function main() {
   await page.route(`${API_ORIGIN}/**`, apiMock);
   await page.route("http://127.0.0.1:8765/**", bridgeMock);
   await page.goto(BASE_URL, { waitUntil: "domcontentloaded" });
-  await page.waitForFunction(() => document.querySelector(".sidebar nav button") !== null);
+  await page.waitForFunction(
+    () => document.querySelector(".sidebar nav button") !== null || document.querySelector(".auth-card") !== null,
+    undefined,
+    { timeout: 10000 },
+  );
+  // A stored smoke token is a convenience, not a precondition. If the app
+  // starts at the login screen, authenticate through the same mocked API flow.
+  if (!(await page.locator(".sidebar nav button").count())) {
+    await page.getByLabel("Username").fill("qa-owner");
+    await page.getByLabel("Password").fill("qa-password-only-for-smoke");
+    await page.getByRole("button", { name: "ENTER COMMAND CENTER", exact: true }).click();
+  }
+  await page.waitForFunction(() => document.querySelector(".sidebar nav button") !== null, undefined, { timeout: 10000 });
   // Dashboard owns its HUD titlebar and intentionally hides the generic page topbar.
   await page.locator(".cc-titlebar").waitFor({ state: "visible", timeout: 15000 });
   await page.locator(".cc-system-footer").waitFor({ state: "visible", timeout: 7000 });
@@ -496,8 +538,14 @@ async function main() {
   await page.getByRole("button", { name: "SEARCH JOBS", exact: true }).click();
   await page.getByText("Python Developer", { exact: true }).waitFor({ state: "visible", timeout: 7000 });
   await page.getByRole("button", { name: "SAVE TO TASKS", exact: true }).click();
-  await page.getByRole("button", { name: "SAVED TO TASKS", exact: true }).waitFor({ state: "visible", timeout: 7000 });
-  completedChecks.push("Job Research search results and save-to-task flow");
+  await page.getByRole("button", { name: /SAVED · #/ }).waitFor({ state: "visible", timeout: 7000 });
+  await page.locator(".job-results select").first().selectOption("APPLIED");
+  await page.locator('.job-results input[type="url"]').first().fill("https://example.com/application/123");
+  await page.getByRole("button", { name: "SAVE STATUS", exact: true }).click();
+  await page.getByText(/TRACKING SAVED · #\\d+ · APPLIED/).waitFor({ state: "visible", timeout: 7000 });
+  await page.getByText("OWNER CONFIRMED", { exact: true }).waitFor({ state: "visible", timeout: 7000 });
+  await page.getByText("EVIDENCE LINK NOT CHECKED", { exact: true }).waitFor({ state: "visible", timeout: 7000 });
+  completedChecks.push("Job Research live-search fixture, task persistence, status update and honest evidence labeling");
 
   await goTo("Gmail");
   await page.getByRole("button", { name: "CONNECT GMAIL", exact: true }).waitFor({ state: "visible" });
