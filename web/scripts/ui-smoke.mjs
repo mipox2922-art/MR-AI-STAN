@@ -151,6 +151,8 @@ async function apiMock(route) {
   }
   if (method === "POST" && path === "/tools/route") return sendJson(route, { status: "ROUTED", route: { agent: "research", tool: "searxng" }, result: { status: "COMPLETED", results: [] }, message: "Mock tool routing only." });
   if (method === "POST" && path === "/tools/dispatch") return sendJson(route, { status: "COMPLETED", route: { agent: "orchestrator", tool: "system_telemetry" }, result: systemStatus });
+  if (method === "GET" && path === "/jobs/research") return sendJson(route, { status: "COMPLETED", query: url.searchParams.get("query"), count: 1, sources: ["RemoteOK", "Remotive"], source_warnings: [], results: [{ id: "smoke-job-1", title: "Python Developer", company: "Example Remote", location: "Worldwide", url: "https://example.com/jobs/python", description: "Build Python APIs", tags: ["python", "api"], published_at: "2026-10-12", source: "RemoteOK" }] });
+  if (method === "POST" && path === "/jobs/save") return sendJson(route, { status: "SAVED", task: { id: nextTaskId++, title: `Job application: ${body.title}`, status: "PENDING", agent: "jobs" } }, 201);
   if (method === "GET" && path === "/scheduler") return sendJson(route, mockSchedules);
   if (method === "POST" && path === "/scheduler") {
     const job = { id: nextScheduleId++, title: body.title, command: body.command, run_at: body.run_at, next_run_at: body.run_at, interval_minutes: body.interval_minutes || null, status: "ACTIVE" };
@@ -284,13 +286,13 @@ async function main() {
   }, undefined, { timeout: 7000 });
   assert.equal(radarScanRequests, 0, "After initial telemetry refresh completes, dashboard polling must not scan local sensor hardware.");
   const nav = page.locator(".sidebar nav button");
-  assert.equal(await nav.count(), 15, "All 15 main navigation entries should render.");
-  completedChecks.push("authenticated app startup + 15 main navigation controls");
+  assert.equal(await nav.count(), 16, "All 16 main navigation entries should render.");
+  completedChecks.push("authenticated app startup + 16 main navigation controls");
 
   const destinations = [
     "Dashboard", "AI Core", "Agents", "Browser Hands", "Device Lab",
     "Creative Studio", "Tracking Map", "Security", "Toolbox", "Web Intelligence",
-    "Gmail", "Calendar", "Tasks", "Memory", "Settings",
+    "Job Research", "Gmail", "Schedules", "Tasks", "Memory", "Settings",
   ];
   async function waitForDestination(label) {
     if (label === "Dashboard") {
@@ -305,7 +307,7 @@ async function main() {
     await waitForDestination(label);
   }
   for (const destination of destinations) await goTo(destination);
-  completedChecks.push("all 15 navigation routes open the matching module");
+  completedChecks.push("all 16 navigation routes open the matching module");
 
   await goTo("Dashboard");
   await page.locator(".cc-system-status button").click();
@@ -341,7 +343,7 @@ async function main() {
     ["Open Browser Hands", "Browser Hands"], ["Open Device Lab", "Device Lab"],
     ["Open Creative Studio", "Creative Studio"], ["Open Tracking Map", "Tracking Map"],
     ["Open Security", "Security"], ["Open Toolbox", "Toolbox"], ["Open Web Intelligence", "Web Intelligence"],
-    ["Open Gmail", "Gmail"], ["Open Calendar", "Calendar"], ["Open Tasks", "Tasks"],
+    ["Open Job Research", "Job Research"], ["Open Gmail", "Gmail"], ["Open Schedules", "Schedules"], ["Open Tasks", "Tasks"],
     ["Open Memory", "Memory"], ["Open Settings", "Settings"],
   ];
   for (const [action, destination] of paletteTargets) {
@@ -488,13 +490,21 @@ async function main() {
   await page.getByText(/Browser Hands extension not detected/).waitFor({ state: "visible", timeout: 5000 });
   completedChecks.push("Web Intelligence search results and explicit Browser Hands integration error");
 
+  await goTo("Job Research");
+  await page.locator('input[placeholder*="Python developer"]').fill("Python developer");
+  await page.getByRole("button", { name: "SEARCH JOBS", exact: true }).click();
+  await page.getByText("Python Developer", { exact: true }).waitFor({ state: "visible", timeout: 7000 });
+  await page.getByRole("button", { name: "SAVE TO TASKS", exact: true }).click();
+  await page.getByRole("button", { name: "SAVED TO TASKS", exact: true }).waitFor({ state: "visible", timeout: 7000 });
+  completedChecks.push("Job Research search results and save-to-task flow");
+
   await goTo("Gmail");
   await page.getByRole("button", { name: "CONNECT GMAIL", exact: true }).waitFor({ state: "visible" });
   assert.equal(await page.getByRole("button", { name: "CONNECT GMAIL", exact: true }).isDisabled(), true, "Gmail connect must remain disabled when OAuth is not configured.");
   assert.equal(await page.getByRole("button", { name: "SEARCH", exact: true }).isDisabled(), true, "Gmail search must remain disabled until authorized.");
   completedChecks.push("Gmail displays the unconfigured OAuth state and prevents unavailable actions");
 
-  await goTo("Calendar");
+  await goTo("Schedules");
   await page.locator('input[placeholder="Schedule title"]').fill("E2E schedule");
   await page.locator('input[placeholder="Command to queue when due"]').fill("Smoke-test scheduled action");
   await page.locator('input[type="datetime-local"]').fill("2026-12-01T12:00");
@@ -506,7 +516,7 @@ async function main() {
   await scheduleRow.getByRole("button", { name: "RUN NOW", exact: true }).click();
   await scheduleRow.getByRole("button", { name: "DELETE", exact: true }).click();
   await scheduleRow.waitFor({ state: "detached", timeout: 7000 });
-  completedChecks.push("Calendar create, pause, resume, run-now and delete schedule controls");
+  completedChecks.push("Schedules create, pause, resume, run-now and delete controls");
 
   await goTo("Tasks");
   await page.locator("#task-center-title").fill("E2E persistent task");
