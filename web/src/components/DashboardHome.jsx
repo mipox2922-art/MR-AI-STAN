@@ -877,7 +877,7 @@ function ExecutiveMorningBrief({ system, gmailStatus, tasks = [], onOpenAgents, 
         <div className="cc-executive-copy">
           <span className="cc-eyebrow">MOG343 OPERATIONS // EXECUTIVE BRIEFING</span>
           <h1 id="cc-executive-greeting">{greeting}</h1>
-          <p>Boss, nimekagua taarifa zilizohifadhiwa na hali ya huduma. Hapa kuna kazi zilizorekodiwa, agents wanaofanya kazi na mambo yanayohitaji uangalizi.</p>
+          <p>Muhtasari wa hali ya mfumo, shughuli zilizorekodiwa na hatua zinazohitaji uangalizi.</p>
           <div className="cc-executive-statusline">
             <span className={"cc-exec-pulse " + (briefing ? "is-live" : "is-waiting")} />
             <strong>{loading ? "SYNCING VERIFIED OPERATIONS..." : briefing ? "OPERATIONAL BRIEFING UPDATED" : "BRIEFING NOT AVAILABLE"}</strong>
