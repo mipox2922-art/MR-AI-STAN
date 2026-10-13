@@ -13,6 +13,7 @@ from .dependencies import get_current_user
 from .models import ActivityLog, Notification, ScheduledJob, Task
 from .schemas import ScheduleCreate, ScheduleUpdate
 from .task_runner import run_pending_tasks
+from .self_audit import maybe_run_self_audit
 
 router = APIRouter(prefix="/scheduler", tags=["Scheduler"])
 
@@ -111,6 +112,7 @@ def run_due_jobs(db: Session, now: Optional[datetime] = None) -> int:
 async def run_scheduler_cycle() -> tuple[int, int]:
     db = SessionLocal()
     try:
+        maybe_run_self_audit(db)
         fired = run_due_jobs(db)
         processed = await run_pending_tasks(db, limit=5)
         if fired or processed:
