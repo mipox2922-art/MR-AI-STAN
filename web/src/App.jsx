@@ -765,6 +765,9 @@ function App() {
               onPowerCommand={handlePowerCommand}
               onOpenMap={() => setActive("map")}
               onOpenAgents={() => setActive("agents")}
+              onOpenTasks={() => setActive("tasks")}
+              onOpenGmail={() => setActive("gmail")}
+              onOpenJobs={() => setActive("jobs")}
               onRadarScan={handleRadarScan}
               clock={clock}
             />
