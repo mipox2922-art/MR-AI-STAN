@@ -558,3 +558,8 @@ export function saveJob(job) {
     }),
   });
 }
+
+
+export function getSystemDiagnostics() {
+  return request("/system/diagnostics");
+}
