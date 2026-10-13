@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 from typing import Any
 from urllib.parse import urlparse
@@ -154,3 +155,50 @@ def save_job(
         "status": "SAVED",
         "task": {"id": task.id, "title": task.title, "status": task.status, "agent": task.agent},
     }
+
+
+@router.patch("/{task_id}/tracking")
+def update_job_tracking(
+    task_id: int,
+    payload: dict[str, Any],
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    """Persist application tracking separately from task execution status."""
+    allowed = {"SAVED", "APPLIED", "RESPONSE_RECEIVED", "INTERVIEW", "OFFER", "REJECTED", "WITHDRAWN"}
+    status = str(payload.get("status") or "").strip().upper()
+    if status not in allowed:
+        raise HTTPException(400, f"Status must be one of: {', '.join(sorted(allowed))}.")
+    evidence_url = str(payload.get("evidence_url") or "").strip()
+    if evidence_url and urlparse(evidence_url).scheme != "https":
+        raise HTTPException(400, "Evidence URL must use HTTPS.")
+    task = (
+        db.query(Task)
+        .filter(Task.id == task_id, Task.user_id == current_user.id, Task.agent == "jobs")
+        .first()
+    )
+    if not task:
+        raise HTTPException(404, "Saved job task not found.")
+    previous: dict[str, Any] = {}
+    try:
+        decoded = json.loads(task.result or "{}")
+        if isinstance(decoded, dict):
+            previous = decoded
+    except (TypeError, ValueError):
+        previous = {}
+    tracking = {
+        "status": status,
+        "evidence_url": evidence_url or previous.get("evidence_url"),
+        "updated_at": __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat(),
+        "verified": status != "SAVED" and bool(evidence_url or payload.get("owner_confirmed") is True),
+        "verification_method": "evidence_url" if evidence_url else "owner_confirmed" if payload.get("owner_confirmed") is True else "unverified",
+    }
+    task.result = json.dumps(tracking)
+    db.add(ActivityLog(
+        user_id=current_user.id,
+        action="JOB_TRACKING_UPDATED",
+        details=f"Task {task.id}: {status}; verification={tracking['verification_method']}"[:500],
+    ))
+    db.commit()
+    db.refresh(task)
+    return {"status": "UPDATED", "task_id": task.id, "tracking": tracking}
