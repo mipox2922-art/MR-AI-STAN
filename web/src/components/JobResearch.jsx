@@ -1,10 +1,35 @@
-import { useState } from "react";
-import { researchJobs, saveJob } from "../api";
+import { useEffect, useState } from "react";
+import { getTasks, researchJobs, saveJob, updateJobTracking } from "../api";
+
+const TRACKING_STATUSES = [
+  ["SAVED", "Saved"],
+  ["APPLIED", "Applied"],
+  ["RESPONSE_RECEIVED", "Response received"],
+  ["INTERVIEW", "Interview"],
+  ["OFFER", "Offer"],
+  ["REJECTED", "Rejected"],
+  ["WITHDRAWN", "Withdrawn"],
+];
 
 function dateLabel(value) {
   if (!value) return "Date not provided";
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? "Date not provided" : date.toLocaleDateString();
+}
+
+function parseTracking(value) {
+  if (!value) return {};
+  try {
+    const parsed = typeof value === "string" ? JSON.parse(value) : value;
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function jobUrlFromTask(task) {
+  const match = String(task?.description || "").match(/^Job URL:\s*(https:\/\/\S+)/m);
+  return match?.[1] || "";
 }
 
 export default function JobResearch() {
@@ -15,6 +40,36 @@ export default function JobResearch() {
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState({});
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    async function loadSavedJobs() {
+      try {
+        const tasks = await getTasks();
+        if (!active || !Array.isArray(tasks)) return;
+        const restored = {};
+        for (const task of tasks) {
+          if (task?.agent !== "jobs") continue;
+          const url = jobUrlFromTask(task);
+          if (!url || restored[url]) continue;
+          const tracking = parseTracking(task.result);
+          const savedStatus = tracking.status || "SAVED";
+          restored[url] = {
+            state: "SAVED",
+            taskId: task.id,
+            selectedStatus: savedStatus,
+            evidenceUrl: tracking.evidence_url || "",
+            tracking,
+          };
+        }
+        setSaved(restored);
+      } catch {
+        if (active) setWarning("Saved job history could not be loaded. Refresh the page or check your session.");
+      }
+    }
+    loadSavedJobs();
+    return () => { active = false; };
+  }, []);
 
   async function search(event) {
     event.preventDefault();
@@ -43,14 +98,73 @@ export default function JobResearch() {
   }
 
   async function save(job) {
-    setSaved(current => ({ ...current, [job.url]: "SAVING" }));
+    if (saved[job.url]?.state === "SAVING") return;
+    setSaved(current => ({ ...current, [job.url]: { ...current[job.url], state: "SAVING" } }));
+    setError("");
     try {
       const result = await saveJob(job);
-      setSaved(current => ({ ...current, [job.url]: "SAVED" }));
+      setSaved(current => ({
+        ...current,
+        [job.url]: {
+          ...current[job.url],
+          state: "SAVED",
+          taskId: result.task.id,
+          selectedStatus: current[job.url]?.selectedStatus || "SAVED",
+          evidenceUrl: current[job.url]?.evidenceUrl || "",
+          tracking: current[job.url]?.tracking || {},
+        },
+      }));
       setStatus(`SAVED TO TASKS · #${result.task.id}`);
     } catch (err) {
-      setSaved(current => ({ ...current, [job.url]: "FAILED" }));
+      setSaved(current => ({ ...current, [job.url]: { ...current[job.url], state: "FAILED" } }));
       setError(err.message || "Could not save this job.");
+    }
+  }
+
+  function changeTracking(jobUrl, field, value) {
+    setSaved(current => ({
+      ...current,
+      [jobUrl]: { ...current[jobUrl], [field]: value },
+    }));
+  }
+
+  async function updateTracking(job) {
+    const record = saved[job.url];
+    if (!record?.taskId || record.state === "TRACKING") return;
+    const nextStatus = record.selectedStatus || "SAVED";
+    const evidenceUrl = (record.evidenceUrl || "").trim();
+    if (evidenceUrl) {
+      try {
+        if (new URL(evidenceUrl).protocol !== "https:") throw new Error("HTTPS required");
+      } catch {
+        setError("Link ya ushahidi lazima iwe URL halali inayoanza na https://");
+        return;
+      }
+    }
+
+    setError("");
+    setSaved(current => ({ ...current, [job.url]: { ...current[job.url], state: "TRACKING" } }));
+    try {
+      const result = await updateJobTracking(record.taskId, {
+        status: nextStatus,
+        evidence_url: evidenceUrl,
+        owner_confirmed: nextStatus !== "SAVED",
+      });
+      setSaved(current => ({
+        ...current,
+        [job.url]: {
+          ...current[job.url],
+          state: "SAVED",
+          taskId: record.taskId,
+          selectedStatus: result.tracking.status,
+          evidenceUrl: result.tracking.evidence_url || "",
+          tracking: result.tracking,
+        },
+      }));
+      setStatus(`TRACKING SAVED · #${record.taskId} · ${nextStatus}`);
+    } catch (err) {
+      setSaved(current => ({ ...current, [job.url]: { ...current[job.url], state: "SAVED" } }));
+      setError(err.message || "Could not update job tracking.");
     }
   }
 
@@ -76,34 +190,69 @@ export default function JobResearch() {
         />
         <button className="primary-button" disabled={busy}>{busy ? "SEARCHING..." : "SEARCH JOBS"}</button>
       </form>
-      <div className="tool-status" role="status">{status}</div>
+      <div className="tool-status" role="status" aria-live="polite">{status}</div>
       {error && <p className="auth-error" role="alert">{error}</p>}
-      {warning && <p>{warning}</p>}
+      {warning && <p role="status">{warning}</p>}
 
       <div className="job-results" style={{ display: "grid", gap: 12, marginTop: 16 }}>
-        {results.map(job => (
-          <article className="agent-card" key={job.url} style={{ alignItems: "start" }}>
-            <div className="agent-icon">⌕</div>
-            <div style={{ minWidth: 0, flex: 1 }}>
-              <strong>{job.title}</strong>
-              <span>{job.company} · {job.location}</span>
-              <small>{job.source} · {dateLabel(job.published_at)}</small>
-              {job.description && <p style={{ margin: "8px 0", overflowWrap: "anywhere" }}>{job.description}</p>}
-              {job.tags?.length > 0 && <small>{job.tags.join(" · ")}</small>}
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
-                <a href={job.url} target="_blank" rel="noreferrer">OPEN ORIGINAL POSTING ↗</a>
-                <button
-                  className="mini-button"
-                  type="button"
-                  disabled={saved[job.url] === "SAVED" || saved[job.url] === "SAVING"}
-                  onClick={() => save(job)}
-                >
-                  {saved[job.url] === "SAVING" ? "SAVING..." : saved[job.url] === "SAVED" ? "SAVED TO TASKS" : "SAVE TO TASKS"}
-                </button>
+        {results.map(job => {
+          const record = saved[job.url];
+          const tracking = record?.tracking || {};
+          return (
+            <article className="agent-card" key={job.url} style={{ alignItems: "start" }}>
+              <div className="agent-icon">⌕</div>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <strong>{job.title}</strong>
+                <span>{job.company} · {job.location}</span>
+                <small>{job.source} · {dateLabel(job.published_at)}</small>
+                {job.description && <p style={{ margin: "8px 0", overflowWrap: "anywhere" }}>{job.description}</p>}
+                {job.tags?.length > 0 && <small>{job.tags.join(" · ")}</small>}
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 10, alignItems: "center" }}>
+                  <a href={job.url} target="_blank" rel="noreferrer">OPEN ORIGINAL POSTING ↗</a>
+                  <button
+                    className="mini-button"
+                    type="button"
+                    disabled={record?.state === "SAVING" || Boolean(record?.taskId)}
+                    onClick={() => save(job)}
+                  >
+                    {record?.state === "SAVING" ? "SAVING..." : record?.taskId ? `SAVED · #${record.taskId}` : record?.state === "FAILED" ? "RETRY SAVE" : "SAVE TO TASKS"}
+                  </button>
+                </div>
+
+                {record?.taskId && (
+                  <div style={{ borderTop: "1px solid var(--line)", marginTop: 14, paddingTop: 12, display: "grid", gap: 8 }}>
+                    <label htmlFor={`job-status-${record.taskId}`}>APPLICATION TRACKING · TASK #{record.taskId}</label>
+                    <select
+                      id={`job-status-${record.taskId}`}
+                      value={record.selectedStatus || "SAVED"}
+                      onChange={event => changeTracking(job.url, "selectedStatus", event.target.value)}
+                      disabled={record.state === "TRACKING"}
+                    >
+                      {TRACKING_STATUSES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                    </select>
+                    <input
+                      type="url"
+                      value={record.evidenceUrl || ""}
+                      onChange={event => changeTracking(job.url, "evidenceUrl", event.target.value)}
+                      placeholder="Optional: link ya ushahidi (HTTPS)"
+                      aria-label="Optional evidence URL"
+                      disabled={record.state === "TRACKING"}
+                    />
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                      <button className="mini-button" type="button" onClick={() => updateTracking(job)} disabled={record.state === "TRACKING"}>
+                        {record.state === "TRACKING" ? "SAVING STATUS..." : "SAVE STATUS"}
+                      </button>
+                      <span className="badge">{tracking.status || "SAVED"}</span>
+                      {tracking.owner_confirmed && <small>OWNER CONFIRMED</small>}
+                      {tracking.evidence_url && <small>EVIDENCE LINK NOT CHECKED</small>}
+                    </div>
+                    <small>Hali hii ni taarifa iliyowekwa na mwenye akaunti. MR AI haithibitishi nje kama ombi limetumwa; link ikitolewa haikaguliwi moja kwa moja.</small>
+                  </div>
+                )}
               </div>
-            </div>
-          </article>
-        ))}
+            </article>
+          );
+        })}
         {!busy && results.length === 0 && (
           <div className="empty">Search for a skill or role to see live listings from the connected public feeds.</div>
         )}
