@@ -6520,3 +6520,150 @@ button { cursor: pointer; }
 @media (prefers-reduced-motion: reduce) {
   .command-center-reference .cc-exec-orbit { animation: none; }
 }
+
+
+/* Corrective command-center layout: remove repeated identity, keep desktop modules side by side. */
+.dashboard-main .content { padding: 7px; gap: 7px; }
+.command-center-reference { gap: 7px; }
+.command-center-reference .cc-titlebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 38px;
+  padding: 4px 8px;
+}
+.command-center-reference .cc-brand-lockup,
+.command-center-reference .cc-header-operator,
+.command-center-reference .cc-header-tools { display: none !important; }
+.command-center-reference .cc-mode-chip { order: 0; flex: 0 0 auto; }
+.command-center-reference .cc-header-right {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex: 1 1 auto;
+  gap: 8px;
+  min-width: 0;
+  margin-left: auto;
+  padding: 0 !important;
+  border: 0 !important;
+  grid-column: auto !important;
+}
+.command-center-reference .cc-header-clock strong { font-size: 12px; }
+.command-center-reference .cc-header-clock span { font-size: 8px; }
+.command-center-reference .cc-executive-copy p { margin-bottom: 4px; }
+.command-center-reference .cc-executive-hero { min-height: 76px; }
+.command-center-reference .cc-executive-metrics { gap: 6px; }
+.command-center-reference .cc-exec-metric { min-height: 44px; padding: 5px 7px; }
+.command-center-reference .cc-exec-metric > span,
+.command-center-reference .cc-exec-metric > small { font-size: 8px; }
+.command-center-reference .cc-top-grid,
+.command-center-reference .cc-main-grid { gap: 7px; min-height: 0; align-items: stretch; }
+.command-center-reference .cc-panel { padding: 9px; }
+.command-center-reference .cc-panel-head { margin-bottom: 6px; padding-bottom: 5px; }
+.command-center-reference .cc-panel h2 { font-size: 11px; }
+.command-center-reference .cc-eyebrow { font-size: 8px; }
+.command-center-reference .cc-core-status { min-height: 0; gap: 5px; }
+.command-center-reference .cc-core-readout { gap: 3px; }
+.command-center-reference .cc-core-readout > div { padding: 3px 0; }
+.command-center-reference .cc-core-readout span { font-size: 8px; }
+.command-center-reference .cc-core-readout strong { font-size: 9px; }
+.command-center-reference .ai-core-hologram { height: 106px; max-width: 118px; }
+.command-center-reference .cc-mission { min-height: 0; gap: 5px; }
+.command-center-reference .cc-mission-graph { min-height: 65px; }
+.command-center-reference .cc-mission-stats { padding-top: 4px; }
+.command-center-reference .cc-mission-stats strong { font-size: 12px; }
+.command-center-reference .cc-radar-wrap { gap: 5px; }
+.command-center-reference .cc-radar-controls { gap: 4px; }
+.command-center-reference .cc-radar-controls button { min-height: 29px; padding: 5px; font-size: 8px; }
+.command-center-reference .cc-radar-shell { width: min(100%,170px); margin: 0 auto 3px; }
+.command-center-reference .cc-radar-scale { display: none; }
+.command-center-reference .cc-radar-core { width: 34px; height: 34px; font-size: 9px; }
+.command-center-reference .cc-radar-info { grid-template-columns: 72px minmax(0,1fr); gap: 5px; }
+.command-center-reference .cc-radar-contact-count { padding: 5px; }
+.command-center-reference .cc-radar-contact-count span,
+.command-center-reference .cc-radar-contact-count small,
+.command-center-reference .cc-radar-source span { font-size: 7px; }
+.command-center-reference .cc-radar-contact-count strong { font-size: 19px; }
+.command-center-reference .cc-radar-source { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 3px; }
+.command-center-reference .cc-radar-source div { padding: 4px 3px; }
+.command-center-reference .cc-radar-source strong { font-size: 10px; }
+.command-center-reference .cc-radar-status { display: flex; align-items: center; justify-content: space-between; gap: 7px; font-size: 8px; }
+.command-center-reference .cc-radar-status strong { color: var(--dim); font-size: 8px; }
+.command-center-reference .cc-radar-details { border: 1px solid var(--line); background: rgba(0,0,0,.12); }
+.command-center-reference .cc-radar-details > summary { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 6px; cursor: pointer; list-style: none; color: var(--accent); font: 700 8px "Share Tech Mono",monospace; }
+.command-center-reference .cc-radar-details > summary::-webkit-details-marker { display: none; }
+.command-center-reference .cc-radar-details > summary span { color: var(--dim); font-weight: 400; text-align: right; }
+.command-center-reference .cc-radar-details[open] > summary { border-bottom: 1px solid var(--line); }
+.command-center-reference .cc-radar-details .cc-radar-channels,
+.command-center-reference .cc-radar-details .cc-radar-contact-list,
+.command-center-reference .cc-radar-details .cc-radar-empty,
+.command-center-reference .cc-radar-details .cc-radar-note { margin: 6px; }
+.command-center-reference .cc-radar-details .cc-radar-channel { padding: 5px; }
+.command-center-reference .cc-radar-details .cc-radar-note { font-size: 8px; }
+.command-center-reference .cc-live-map { min-height: 0; gap: 4px; }
+.command-center-reference .cc-map-toolbar { gap: 4px; }
+.command-center-reference .cc-map-toolbar button { min-height: 28px; padding: 4px 6px; font-size: 8px; }
+.command-center-reference .cc-real-map { height: 155px; min-height: 155px; }
+.command-center-reference .cc-street-view { height: 78px; }
+.command-center-reference .cc-map-readout { gap: 4px; }
+.command-center-reference .cc-map-readout div { padding: 4px; }
+.command-center-reference .cc-map-readout span { font-size: 7px; }
+.command-center-reference .cc-map-readout strong { font-size: 9px; }
+.command-center-reference .cc-chat-panel .messages { min-height: 95px; max-height: 130px; }
+.command-center-reference .cc-chat-panel .chat-header { padding-bottom: 4px; }
+.command-center-reference .cc-chat-panel .chat-input { padding-top: 4px; }
+.command-center-reference .cc-quick { padding: 7px 8px; }
+.command-center-reference .cc-quick-head { margin-bottom: 5px; }
+.command-center-reference .cc-quick-grid { gap: 4px; }
+.command-center-reference .cc-quick-grid button { min-height: 30px; padding: 5px; font-size: 8px; }
+
+@media (min-width: 1101px) {
+  .command-center-reference .cc-top-grid { grid-template-columns: repeat(3,minmax(0,1fr)); }
+  .command-center-reference .cc-top-grid > .cc-panel,
+  .command-center-reference .cc-top-grid > .cc-panel:last-child { grid-column: auto !important; }
+  .command-center-reference .cc-main-grid { grid-template-columns: minmax(220px,.88fr) minmax(280px,1.12fr) minmax(250px,1fr); }
+  .command-center-reference .cc-main-grid > .cc-radar-panel,
+  .command-center-reference .cc-main-grid > .cc-map-panel,
+  .command-center-reference .cc-main-grid > .cc-chat-panel { grid-column: auto !important; }
+  .command-center-reference .cc-main-grid > .cc-research-panel { grid-column: 1 / -1 !important; }
+}
+@media (min-width: 601px) and (max-width: 1100px) {
+  .command-center-reference .cc-top-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .command-center-reference .cc-top-grid > .cc-panel { grid-column: auto !important; }
+  .command-center-reference .cc-top-grid > .cc-panel:last-child { grid-column: 1 / -1 !important; }
+  .command-center-reference .cc-main-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .command-center-reference .cc-main-grid > .cc-radar-panel,
+  .command-center-reference .cc-main-grid > .cc-map-panel,
+  .command-center-reference .cc-main-grid > .cc-chat-panel { grid-column: auto !important; }
+  .command-center-reference .cc-main-grid > .cc-research-panel { grid-column: 1 / -1 !important; }
+  .command-center-reference .cc-real-map { height: 175px; min-height: 175px; }
+  .command-center-reference .cc-chat-panel .messages { max-height: 150px; }
+}
+@media (max-width: 600px) {
+  .dashboard-main .content { padding: 5px; gap: 5px; }
+  .command-center-reference .cc-executive-hero { grid-template-columns: minmax(0,1fr) 42px; padding: 7px; gap: 6px; }
+  .command-center-reference .cc-executive-orb { width: 40px; height: 40px; }
+  .command-center-reference .cc-executive-copy h1 { font-size: 15px; }
+  .command-center-reference .cc-executive-copy p { font-size: 10px; }
+  .command-center-reference .cc-executive-metrics { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 5px; }
+  .command-center-reference .cc-exec-metric { grid-template-columns: minmax(0,1fr) auto; min-height: 44px; padding: 5px; }
+  .command-center-reference .cc-exec-metric > span,
+  .command-center-reference .cc-exec-metric > small { font-size: 7px; }
+  .command-center-reference .cc-executive-details > summary { grid-template-columns: minmax(0,1fr) auto; }
+  .command-center-reference .cc-exec-detail-kicker,
+  .command-center-reference .cc-exec-detail-copy { grid-column: 1; }
+  .command-center-reference .cc-executive-details > summary strong { grid-column: 2; grid-row: 1 / span 2; }
+  .command-center-reference .cc-top-grid,
+  .command-center-reference .cc-main-grid { grid-template-columns: minmax(0,1fr); }
+  .command-center-reference .cc-top-grid > .cc-panel,
+  .command-center-reference .cc-top-grid > .cc-panel:last-child,
+  .command-center-reference .cc-main-grid > .cc-radar-panel,
+  .command-center-reference .cc-main-grid > .cc-map-panel,
+  .command-center-reference .cc-main-grid > .cc-chat-panel,
+  .command-center-reference .cc-main-grid > .cc-research-panel { grid-column: 1 / -1 !important; }
+  .command-center-reference .cc-real-map { height: 200px; min-height: 200px; }
+  .command-center-reference .cc-street-view { height: 95px; }
+  .command-center-reference .cc-radar-shell { width: min(100%,185px); }
+  .command-center-reference .cc-chat-panel .messages { min-height: 110px; max-height: 180px; }
+}
