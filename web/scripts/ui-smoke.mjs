@@ -100,6 +100,7 @@ async function apiMock(route) {
   if (method === "POST" && path === "/auth/login") return sendJson(route, { access_token: "smoke-login-token", token_type: "bearer" });
   if (method === "POST" && path === "/auth/register") return sendJson(route, { access_token: "smoke-register-token", token_type: "bearer" });
   if (method === "GET" && path === "/system/status") return sendJson(route, systemStatus);
+  if (method === "GET" && path === "/system/diagnostics") return sendJson(route, { status: "CONFIGURATION_CHECKED", checks: [{ id: "database", label: "Persistent database", status: "PASS", detail: "Mock database check" }, { id: "ai_provider", label: "AI provider configuration", status: "CONFIGURED", detail: "Mock provider" }], truth_boundary: "Mock check only." });
   if (method === "GET" && path === "/agents") return sendJson(route, agents);
   if (method === "GET" && path === "/tasks") return sendJson(route, mockTasks);
   if (method === "POST" && path === "/tasks") {
@@ -543,6 +544,10 @@ async function main() {
   completedChecks.push("Memory create, search-ready list, edit, save and delete controls");
 
   await goTo("Settings");
+  await page.getByRole("button", { name: "RUN SELF-CHECK", exact: true }).click();
+  await page.getByText("CONFIGURATION_CHECKED", { exact: true }).waitFor({ state: "visible", timeout: 7000 });
+  await page.getByText("Persistent database", { exact: true }).waitFor({ state: "visible", timeout: 7000 });
+  completedChecks.push("Settings self-check reports explicit diagnostic evidence");
   await page.getByText("database", { exact: false }).first().waitFor({ state: "visible" });
   await page.getByText(/Verified Service State/).first().waitFor({ state: "visible" });
   await page.getByRole("button", { name: "REFRESH STATUS", exact: true }).click();
