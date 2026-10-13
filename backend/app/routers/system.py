@@ -3,6 +3,7 @@ from __future__ import annotations
 import shutil
 import subprocess
 import time
+from datetime import datetime, timezone
 
 try:
     import psutil
@@ -138,4 +139,84 @@ def system_status(current_user=Depends(get_current_user)):
             "device_tracking": "LOCAL_SENSOR_ONLY",
             "gemini_tier": settings.gemini_tier,
         },
+    }
+
+
+@router.get("/diagnostics")
+def system_diagnostics(current_user=Depends(get_current_user)):
+    """Report configuration and reachability checks without exposing secrets."""
+    database = _database_status()
+    providers = {
+        "OpenRouter": bool(settings.openrouter_api_key),
+        "Gemini": bool(settings.gemini_api_key),
+        "Kimi": bool(settings.kimi_api_key),
+        "Mistral": bool(settings.mistral_api_key),
+        "Grok": bool(settings.xai_api_key),
+    }
+    configured = [name for name, is_configured in providers.items() if is_configured]
+    gmail_configured = all((
+        settings.gmail_client_id,
+        settings.gmail_client_secret,
+        settings.gmail_redirect_uri,
+    ))
+    checks = [
+        {
+            "id": "database",
+            "label": "Persistent database",
+            "status": "PASS" if database == "ONLINE" else "FAIL",
+            "detail": "Database connection succeeded." if database == "ONLINE" else "Database connection failed; tasks and memory may be unavailable.",
+        },
+        {
+            "id": "ai_provider",
+            "label": "AI provider configuration",
+            "status": "CONFIGURED" if configured else "MISSING",
+            "detail": (
+                "Configured keys: " + ", ".join(configured) + ". Keys are present but a live model call has not been tested by this check."
+                if configured else
+                "No AI provider key is configured. Chat cannot call a model until one is added."
+            ),
+        },
+        {
+            "id": "job_research",
+            "label": "Job Research",
+            "status": "AVAILABLE",
+            "detail": "RemoteOK and Remotive public feeds are implemented; source reachability is checked when a search runs.",
+        },
+        {
+            "id": "web_search",
+            "label": "General web search",
+            "status": "CONFIGURED" if settings.searxng_url else "OPTIONAL",
+            "detail": "SearXNG URL is configured." if settings.searxng_url else "SearXNG is not configured. General web search through that connector is unavailable; Job Research uses separate public feeds.",
+        },
+        {
+            "id": "gmail",
+            "label": "Gmail OAuth",
+            "status": "CONFIGURED" if gmail_configured else "NOT_CONFIGURED",
+            "detail": "OAuth settings are present; mailbox authorization still needs its own connection check." if gmail_configured else "Gmail OAuth credentials are incomplete; Gmail actions stay unavailable.",
+        },
+        {
+            "id": "scheduler",
+            "label": "Unattended scheduler",
+            "status": "SECRET_CONFIGURED" if len(settings.cloudflare_cron_secret.strip()) >= 32 else "SETUP_REQUIRED",
+            "detail": "The backend cron secret is configured. The external trigger must use the same secret." if len(settings.cloudflare_cron_secret.strip()) >= 32 else "Set CLOUDFLARE_CRON_SECRET on Render and the matching MR_AI_CRON_SECRET in GitHub Actions.",
+        },
+        {
+            "id": "device_bridge",
+            "label": "Local PC / device bridge",
+            "status": "LOCAL_ONLY",
+            "detail": "A hosted server cannot verify a bridge on the owner's PC. Check this from the local dashboard after starting the Device Bridge.",
+        },
+        {
+            "id": "host_telemetry",
+            "label": "Host telemetry",
+            "status": "AVAILABLE" if psutil is not None else "LIMITED",
+            "detail": "Metrics describe the hosted backend, not the owner's PC." if psutil is not None else "Host telemetry library is unavailable.",
+        },
+    ]
+    has_blocker = database != "ONLINE" or not configured
+    return {
+        "status": "DEGRADED" if has_blocker else "CONFIGURATION_CHECKED",
+        "checked_at": datetime.now(timezone.utc).isoformat(),
+        "checks": checks,
+        "truth_boundary": "This checks database reachability and configuration only. Provider keys, OAuth, public job feeds, and external hands need their own live execution to be marked verified.",
     }
