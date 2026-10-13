@@ -64,8 +64,8 @@ def test_self_audit_notifies_when_provider_configuration_recovers(monkeypatch):
     monkeypatch.setattr(settings, "openrouter_api_key", "test-placeholder", raising=False)
 
     result = run_self_audit(db)
-    assert result["status"] == "OPERATIONAL"
+    assert result["status"] == "CONFIGURATION_OK_UNTESTED"
     notifications = db.query(Notification).order_by(Notification.id.asc()).all()
     assert len(notifications) == 2
-    assert notifications[-1].title == "MR AI self-check recovered"
+    assert notifications[-1].title == "MR AI configuration checks recovered"
     assert db.query(ActivityLog).filter_by(action="SYSTEM_SELF_AUDIT").count() == 2
