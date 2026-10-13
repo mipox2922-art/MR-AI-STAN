@@ -302,16 +302,26 @@ async function main() {
   await context.route("https://www.openstreetmap.org/**", route => route.fulfill({ status: 200, contentType: "text/html", body: "<title>OpenStreetMap iframe smoke fixture</title>" }));
 
   const page = await context.newPage();
+  const consoleErrors = [];
+  const failedResponses = [];
   page.on("pageerror", error => browserErrors.push(error.message));
+  page.on("console", message => { if (message.type() === "error") consoleErrors.push(message.text()); });
+  page.on("requestfailed", request => failedResponses.push(`${request.method()} ${request.url()}: ${request.failure()?.errorText || "failed"}`));
+  page.on("response", response => { if (response.status() >= 400) failedResponses.push(`HTTP ${response.status()} ${response.url()}`); });
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.route(`${API_ORIGIN}/**`, apiMock);
   await page.route("http://127.0.0.1:8765/**", bridgeMock);
   await page.goto(BASE_URL, { waitUntil: "domcontentloaded" });
-  await page.waitForFunction(
-    () => document.querySelector(".sidebar nav button") !== null || document.querySelector(".auth-card") !== null,
-    undefined,
-    { timeout: 10000 },
-  );
+  try {
+    await page.waitForFunction(
+      () => document.querySelector(".sidebar nav button") !== null || document.querySelector(".auth-card") !== null,
+      undefined,
+      { timeout: 10000 },
+    );
+  } catch (error) {
+    const dom = await page.locator("#root").innerHTML().catch(() => "(root missing)");
+    throw new Error(`App did not render dashboard or auth screen. URL=${page.url()} title=${await page.title()} root=${dom.slice(0, 1600)} pageErrors=${JSON.stringify(browserErrors)} consoleErrors=${JSON.stringify(consoleErrors)} failedRequests=${JSON.stringify(failedResponses)}; original=${error.message}`);
+  }
   // A stored smoke token is a convenience, not a precondition. If the app
   // starts at the login screen, authenticate through the same mocked API flow.
   if (!(await page.locator(".sidebar nav button").count())) {
