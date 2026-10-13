@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   getAgents,
   getStatus,
+  getSystemDiagnostics,
   getAuthStatus,
   getToken,
   clearToken,
@@ -41,6 +42,7 @@ import CommandPalette from "./components/CommandPalette";
 import DashboardHome from "./components/DashboardHome";
 import GmailPanel from "./components/GmailPanel";
 import SchedulerPanel from "./components/SchedulerPanel";
+import JobResearch from "./components/JobResearch";
 import TaskCenter from "./components/TaskCenter";
 import MemoryCenter from "./components/MemoryCenter";
 import VoiceControl from "./components/VoiceControl";
@@ -51,6 +53,7 @@ const NAV = [
   ["dashboard", "⌂", "Dashboard"],
   ["core", "◉", "AI Core"],
   ["agents", "◆", "Agents"],
+  ["jobs", "⌕", "Job Research"],
   ["browser", "↗", "Browser Hands"],
   ["device", "⌁", "Device Lab"],
   ["creative", "✦", "Creative Studio"],
@@ -59,7 +62,7 @@ const NAV = [
   ["tools", "⚙", "Toolbox"],
   ["web", "◎", "Web Intelligence"],
   ["gmail", "✉", "Gmail"],
-  ["calendar", "□", "Calendar"],
+  ["calendar", "□", "Schedules"],
   ["tasks", "✓", "Tasks"],
   ["memory", "◇", "Memory"],
   ["system", "⌘", "Settings"],
@@ -343,6 +346,9 @@ function App() {
     return saved === "sleep" ? "SLEEPING" : saved === "working" ? "WORKING" : "IDLE";
   });
   const [system, setSystem] = useState(null);
+  const [diagnostics, setDiagnostics] = useState(null);
+  const [diagnosticsBusy, setDiagnosticsBusy] = useState(false);
+  const [diagnosticsError, setDiagnosticsError] = useState("");
   const [agents, setAgents] = useState([]);
   const [radarFindings, setRadarFindings] = useState([]);
   const [radarDiagnostics, setRadarDiagnostics] = useState(() => ({
@@ -567,6 +573,18 @@ function App() {
     return planAgentWork(request);
   }
 
+  async function runSelfCheck() {
+    setDiagnosticsBusy(true);
+    setDiagnosticsError("");
+    try {
+      setDiagnostics(await getSystemDiagnostics());
+    } catch (error) {
+      setDiagnosticsError(error.message || "Self-check failed.");
+    } finally {
+      setDiagnosticsBusy(false);
+    }
+  }
+
   if (!authenticated) {
     return <AuthScreen onAuthenticated={authenticate} />;
   }
@@ -773,6 +791,7 @@ function App() {
           )}
 
           {active === "agents" && <AgentsPanel agents={agents} onPlan={createPlan} />}
+          {active === "jobs" && <JobResearch />}
           {active === "browser" && <BrowserHands />}
           {active === "device" && <DeviceLab />}
           {active === "creative" && <CreativeStudio />}
@@ -820,6 +839,25 @@ function App() {
                   }}>EXPORT SNAPSHOT</button>
                 </div>
               </div>
+              <div className="settings-actions" style={{ margin: "12px 0" }}>
+                <button type="button" className="primary-button" onClick={runSelfCheck} disabled={diagnosticsBusy}>
+                  {diagnosticsBusy ? "CHECKING..." : "RUN SELF-CHECK"}
+                </button>
+                {diagnostics && <span className="badge">{diagnostics.status} · {diagnostics.checks.length} CHECKS</span>}
+              </div>
+              {diagnosticsError && <p className="auth-error" role="alert">{diagnosticsError}</p>}
+              {diagnostics && (
+                <div className="service-grid diagnostics-grid">
+                  {diagnostics.checks.map(check => (
+                    <div className="service-card" key={check.id}>
+                      <span>{check.label}</span>
+                      <strong className={String(check.status).toLowerCase().replaceAll("_", "-")}>{check.status}</strong>
+                      <small>{check.detail}</small>
+                    </div>
+                  ))}
+                  <p>{diagnostics.truth_boundary}</p>
+                </div>
+              )}
               <div className="service-grid">
                 {Object.entries(services).map(([name, value]) => (
                   <div className="service-card" key={name}>
