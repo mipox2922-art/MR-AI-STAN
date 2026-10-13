@@ -540,3 +540,21 @@ export function resolveApproval(approvalId, decision) {
     body: JSON.stringify({ decision }),
   });
 }
+
+
+export function researchJobs(query, limit = 25) {
+  const params = new URLSearchParams({ query, limit: String(limit) });
+  return request("/jobs/research?" + params.toString());
+}
+
+export function saveJob(job) {
+  return request("/jobs/save", {
+    method: "POST",
+    body: JSON.stringify({
+      title: job.title,
+      company: job.company,
+      url: job.url,
+      description: job.description,
+    }),
+  });
+}
