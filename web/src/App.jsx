@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   getAgents,
   getStatus,
+  getSystemDiagnostics,
   getAuthStatus,
   getToken,
   clearToken,
@@ -345,6 +346,9 @@ function App() {
     return saved === "sleep" ? "SLEEPING" : saved === "working" ? "WORKING" : "IDLE";
   });
   const [system, setSystem] = useState(null);
+  const [diagnostics, setDiagnostics] = useState(null);
+  const [diagnosticsBusy, setDiagnosticsBusy] = useState(false);
+  const [diagnosticsError, setDiagnosticsError] = useState("");
   const [agents, setAgents] = useState([]);
   const [radarFindings, setRadarFindings] = useState([]);
   const [radarDiagnostics, setRadarDiagnostics] = useState(() => ({
@@ -567,6 +571,18 @@ function App() {
 
   async function createPlan(request) {
     return planAgentWork(request);
+  }
+
+  async function runSelfCheck() {
+    setDiagnosticsBusy(true);
+    setDiagnosticsError("");
+    try {
+      setDiagnostics(await getSystemDiagnostics());
+    } catch (error) {
+      setDiagnosticsError(error.message || "Self-check failed.");
+    } finally {
+      setDiagnosticsBusy(false);
+    }
   }
 
   if (!authenticated) {
@@ -823,6 +839,25 @@ function App() {
                   }}>EXPORT SNAPSHOT</button>
                 </div>
               </div>
+              <div className="settings-actions" style={{ margin: "12px 0" }}>
+                <button type="button" className="primary-button" onClick={runSelfCheck} disabled={diagnosticsBusy}>
+                  {diagnosticsBusy ? "CHECKING..." : "RUN SELF-CHECK"}
+                </button>
+                {diagnostics && <span className="badge">{diagnostics.status} · {diagnostics.checks.length} CHECKS</span>}
+              </div>
+              {diagnosticsError && <p className="auth-error" role="alert">{diagnosticsError}</p>}
+              {diagnostics && (
+                <div className="service-grid diagnostics-grid">
+                  {diagnostics.checks.map(check => (
+                    <div className="service-card" key={check.id}>
+                      <span>{check.label}</span>
+                      <strong className={String(check.status).toLowerCase().replaceAll("_", "-")}>{check.status}</strong>
+                      <small>{check.detail}</small>
+                    </div>
+                  ))}
+                  <p>{diagnostics.truth_boundary}</p>
+                </div>
+              )}
               <div className="service-grid">
                 {Object.entries(services).map(([name, value]) => (
                   <div className="service-card" key={name}>
