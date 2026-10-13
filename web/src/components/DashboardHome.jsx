@@ -344,6 +344,10 @@ function Radar({ findings = [], onRadarScan, sensorStatus = {} }) {
         </div>
       </div>
 
+      <div className="cc-radar-status"><span>{scanState}</span><strong>{findings.length ? "SENSOR RESULTS RECEIVED" : "NO SENSOR RESULTS"}</strong></div>
+      {scanError && <div className="cc-radar-error" role="status">{scanError}</div>}
+      <details className="cc-radar-details">
+        <summary><strong>SENSOR DETAILS</strong><span>{findings.length ? `${findings.length} CONTACTS` : "NO SENSOR DATA"} · 6 CHANNELS</span></summary>
       <div className="cc-radar-channels">
         {channels.map(channel => {
           const value = sensorStatus[channel.key] || {};
@@ -385,9 +389,8 @@ function Radar({ findings = [], onRadarScan, sensorStatus = {} }) {
         </div>
       )}
 
-      <div className="cc-radar-status"><span>{scanState}</span><strong>{findings.length ? "SENSOR RESULTS RECEIVED" : "NO SENSOR RESULTS"}</strong></div>
-      {scanError && <div className="cc-radar-error" role="status">{scanError}</div>}
       <div className="cc-radar-note">CONTACT POSITIONS ARE SCHEMATIC ONLY. BEARING OR DISTANCE IS NOT CLAIMED UNLESS A SENSOR PROVIDES IT.</div>
+      </details>
     </div>
   );
 }
