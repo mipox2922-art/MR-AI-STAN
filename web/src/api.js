@@ -1,6 +1,5 @@
 function detectApiUrl() {
-  // Render Static Sites set VITE_API_URL to the separately hosted FastAPI service.
-  // If it is not configured, retain the same-origin proxy for local/Cloudflare setups.
+  // Use the explicitly configured backend first.
   const configuredApiUrl = import.meta.env.VITE_API_URL?.trim();
   if (configuredApiUrl) {
     let baseUrl = configuredApiUrl;
@@ -10,6 +9,12 @@ function detectApiUrl() {
     return baseUrl;
   }
   if (typeof window !== "undefined") {
+    // Render serves the UI and API as separate services. Keep production connected
+    // even if the static-site build missed its VITE_API_URL environment setting.
+    if (window.location.hostname === "mr-ai-stan-web.onrender.com") {
+      return "https://mr-ai-stan.onrender.com";
+    }
+    // Local and same-origin proxy deployments can still use /api.
     return `${window.location.origin}/api`;
   }
   return "http://localhost:8000";
@@ -65,10 +70,26 @@ async function request(path, options = {}) {
     headers.Authorization = `Bearer ${token}`;
   }
 
-  const response = await fetch(`${API_URL}${path}`, {
-    ...options,
-    headers
-  });
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), 12000);
+  let response;
+  try {
+    response = await fetch(`${API_URL}${path}`, {
+      ...options,
+      headers,
+      signal: controller.signal
+    });
+  } catch (error) {
+    if (controller.signal.aborted) {
+      throw new ApiError(`MR AI backend timed out while requesting ${path}.`, 0);
+    }
+    if (error instanceof TypeError) {
+      throw new ApiError(`Cannot reach MR AI backend at ${API_URL}. Check backend availability and CORS.`, 0);
+    }
+    throw error;
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
 
   const rawBody = await response.text();
   let data = {};
