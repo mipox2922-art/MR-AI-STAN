@@ -16,8 +16,8 @@ let rebootRequests = 0;
 let radarScanRequests = 0;
 
 const services = {
-  ai_core: "READY", database: "ONLINE", memory: "ONLINE", web_app: "ONLINE",
-  agents: "ONLINE", voice: "NOT_CONFIGURED", extension: "NOT_CONNECTED",
+  ai_core: "CONFIGURED", database: "ONLINE", memory: "ONLINE", web_app: "ONLINE",
+  agents: "REGISTERED", web_search: "CONFIGURED", security: "CONFIGURED", voice: "NOT_CONFIGURED", extension: "NOT_CONNECTED",
   gemini: "CONFIGURED", kimi: "NOT_CONFIGURED", openrouter: "CONFIGURED",
   mistral: "CONFIGURED", grok: "CONFIGURED", gmail: "NOT_CONFIGURED",
 };
@@ -30,7 +30,7 @@ const telemetry = {
 const systemStatus = {
   organization: { owner: "Boss Ferisi", manager: "MR AI", workspace: "MOG343", crew: "Agent Team", model_role: "Digital Chief of Staff" },
   services, telemetry, security: { threats_detected: null, source: "no_security_engine" },
-  ai: { provider: "openrouter", model: "openrouter/free", tier: "OPENROUTER_FREE", ready: true },
+  ai: { provider: "openrouter", model: "openrouter/free", tier: "OPENROUTER_FREE", configured: true, ready: false },
   capabilities: { street_view: "AVAILABLE_VIA_MAPS_URL", device_tracking: "LOCAL_SENSOR_ONLY", gemini_tier: "FREE" },
 };
 const agents = [
