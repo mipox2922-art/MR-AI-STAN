@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { dispatchTool, searchToolWeb, planAgentWork, executeMission, chat } from "../api";
+import { dispatchTool, searchToolWeb, planAgentWork, executeMission, chat, getExecutiveBriefing } from "../api";
 import HudOrb from "./HudOrb";
 import Chat from "./Chat";
 import LiveMap from "./LiveMap";
@@ -788,6 +788,132 @@ function ActiveTasks({ tasks = [] }) {
   );
 }
 
+
+function ExecutiveMorningBrief({ system, gmailStatus, tasks = [], onOpenAgents, onOpenTasks, onOpenGmail, onOpenJobs }) {
+  const [briefing, setBriefing] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  async function loadBriefing() {
+    setLoading(true);
+    try {
+      const result = await getExecutiveBriefing();
+      setBriefing(result);
+      setError("");
+    } catch (err) {
+      setError(err?.message || "Executive briefing is unavailable.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    loadBriefing();
+    const timer = window.setInterval(loadBriefing, 30000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? "GOOD MORNING, BOSS" : hour < 17 ? "GOOD AFTERNOON, BOSS" : "GOOD EVENING, BOSS";
+  const agentSummary = briefing?.agents || {};
+  const taskSummary = briefing?.tasks || {};
+  const recent = Array.isArray(briefing?.recent_activity) ? briefing.recent_activity.slice(0, 5) : [];
+  const jobTasks = tasks.filter(task => String(task?.agent || "").toLowerCase() === "jobs");
+  const gmailState = String(gmailStatus?.status || system?.services?.gmail || "UNKNOWN").replaceAll("_", " ");
+  const gmailConnected = gmailStatus?.connected === true;
+  const blockers = Array.isArray(briefing?.blockers) ? briefing.blockers : [];
+
+  function timeLabel(value) {
+    if (!value) return "TIME N/A";
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? "TIME N/A" : date.toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+  }
+
+  function activityLabel(item) {
+    return String(item?.action || "SYSTEM EVENT").replaceAll("_", " ");
+  }
+
+  return (
+    <section className="cc-executive-brief" aria-labelledby="cc-executive-greeting">
+      <div className="cc-executive-hero">
+        <div className="cc-executive-copy">
+          <span className="cc-eyebrow">MOG343 OPERATIONS // EXECUTIVE BRIEFING</span>
+          <h1 id="cc-executive-greeting">{greeting}</h1>
+          <p>Boss, nimekagua taarifa zilizohifadhiwa na hali ya huduma. Hapa kuna kazi zilizorekodiwa, agents wanaofanya kazi na mambo yanayohitaji uangalizi.</p>
+          <div className="cc-executive-statusline">
+            <span className={"cc-exec-pulse " + (briefing ? "is-live" : "is-waiting")} />
+            <strong>{loading ? "SYNCING VERIFIED OPERATIONS..." : briefing ? "OPERATIONAL BRIEFING UPDATED" : "BRIEFING NOT AVAILABLE"}</strong>
+            <span>{briefing?.generated_at ? timeLabel(briefing.generated_at) : "LIVE DATA PENDING"}</span>
+          </div>
+        </div>
+        <div className="cc-executive-orb" aria-hidden="true">
+          <div className="cc-exec-orbit cc-exec-orbit-a" />
+          <div className="cc-exec-orbit cc-exec-orbit-b" />
+          <div className="cc-exec-core">MR<span>AI</span></div>
+          <i className="cc-exec-node node-a" /><i className="cc-exec-node node-b" /><i className="cc-exec-node node-c" />
+        </div>
+      </div>
+
+      <div className="cc-executive-metrics">
+        <button type="button" className="cc-exec-metric" onClick={onOpenAgents}>
+          <span>AGENT CREW</span><strong>{Number.isFinite(agentSummary.total) ? (agentSummary.working ?? 0) + "/" + agentSummary.total : "N/A"}</strong>
+          <small>WORKING NOW</small>
+        </button>
+        <button type="button" className="cc-exec-metric" onClick={onOpenTasks}>
+          <span>TASKS VERIFIED</span><strong>{Number.isFinite(taskSummary.completed) ? taskSummary.completed : "N/A"}</strong>
+          <small>{Number.isFinite(taskSummary.total) ? taskSummary.total + " RECORDED TOTAL" : "AWAITING TASK DATA"}</small>
+        </button>
+        <button type="button" className="cc-exec-metric" onClick={onOpenJobs}>
+          <span>JOB WORKFLOW</span><strong>{jobTasks.length}</strong>
+          <small>SAVED JOB TASKS · NOT APPLICATIONS SENT</small>
+        </button>
+        <button type="button" className="cc-exec-metric" onClick={onOpenGmail}>
+          <span>GMAIL CHANNEL</span><strong className={gmailConnected ? "exec-good-text" : "exec-warn-text"}>{gmailConnected ? "CONNECTED" : gmailState}</strong>
+          <small>{gmailConnected ? "MESSAGE COUNTS NOT PROVIDED BY BRIEFING" : "OPEN TO CONNECT / CHECK ACCESS"}</small>
+        </button>
+      </div>
+
+      <div className="cc-executive-lower">
+        <div className="cc-executive-activity">
+          <div className="cc-exec-section-head"><div><span className="cc-eyebrow">AUDIT TRAIL</span><h2>Latest Operations</h2></div><button type="button" onClick={loadBriefing} disabled={loading}>{loading ? "SYNCING..." : "REFRESH ↻"}</button></div>
+          {error && <div className="cc-exec-error" role="status">{error}</div>}
+          {recent.length ? (
+            <div className="cc-exec-activity-list">
+              {recent.map((item, index) => (
+                <article className="cc-exec-activity-row" key={item.id || index}>
+                  <span className="cc-exec-activity-mark">{String(index + 1).padStart(2, "0")}</span>
+                  <div><strong>{activityLabel(item)}</strong><p>{item.details || "No additional details were recorded."}</p></div>
+                  <time>{timeLabel(item.created_at)}</time>
+                </article>
+              ))}
+            </div>
+          ) : <div className="cc-exec-empty">{loading ? "Loading saved activity..." : "No recent activity was returned by the backend."}</div>}
+        </div>
+        <aside className="cc-executive-priority">
+          <span className="cc-eyebrow">CHIEF OF STAFF NOTES</span>
+          <h2>Boss, next priorities</h2>
+          <p>{briefing?.next_action || "Waiting for a verified briefing from the backend."}</p>
+          <div className="cc-exec-priority-stats">
+            <div><span>IN PROGRESS</span><strong>{Number.isFinite(taskSummary.working) ? taskSummary.working : "N/A"}</strong></div>
+            <div><span>WAITING</span><strong>{Number.isFinite(taskSummary.waiting) ? taskSummary.waiting : "N/A"}</strong></div>
+            <div><span>FAILED</span><strong className={taskSummary.failed > 0 ? "exec-warn-text" : ""}>{Number.isFinite(taskSummary.failed) ? taskSummary.failed : "N/A"}</strong></div>
+          </div>
+          {blockers.length ? (
+            <div className="cc-exec-blockers"><strong>NEEDS ATTENTION · {blockers.length}</strong>{blockers.slice(0, 3).map((blocker, index) => <p key={blocker.type || index}>{blocker.message || blocker.type}</p>)}</div>
+          ) : briefing ? <div className="cc-exec-clear"><span>✓</span> No blockers were reported in this briefing.</div> : null}
+          <div className="cc-exec-shortcuts">
+            <button type="button" onClick={onOpenAgents}>AGENT CREW ↗</button>
+            <button type="button" onClick={onOpenTasks}>TASKS ↗</button>
+            <button type="button" onClick={onOpenGmail}>GMAIL ↗</button>
+            <button type="button" onClick={onOpenJobs}>JOB RESEARCH ↗</button>
+          </div>
+        </aside>
+      </div>
+      <p className="cc-exec-truth">VERIFIED RECORDS ONLY · Gmail reply totals, sent applications and external link clicks are not inferred unless a connected service returns those records.</p>
+    </section>
+  );
+}
+
 export default function DashboardHome({
   system,
   connectionState = "CONNECTING",
@@ -808,6 +934,9 @@ export default function DashboardHome({
   onPowerCommand,
   onOpenMap,
   onOpenAgents,
+  onOpenTasks,
+  onOpenGmail,
+  onOpenJobs,
   onRadarScan,
   clock = null,
 }) {
@@ -855,6 +984,8 @@ export default function DashboardHome({
           </div>
         </div>
       </div>
+
+      <ExecutiveMorningBrief system={system} gmailStatus={gmailStatus} tasks={tasks} onOpenAgents={onOpenAgents} onOpenTasks={onOpenTasks} onOpenGmail={onOpenGmail} onOpenJobs={onOpenJobs} />
 
       <div className="cc-top-grid">
         <Panel eyebrow="BACKEND TELEMETRY" title="Runtime Status">
