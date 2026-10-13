@@ -1044,7 +1044,7 @@ export default function DashboardHome({
           />
         </Panel>
 
-        <Panel eyebrow="AI CORE STATUS" title="AI Core Status" badge={coreState}>
+        <Panel eyebrow="AI CORE STATUS" title="AI Core Status" badge={working ? "WORKING MODE" : "NORMAL MODE"}>
           <div className="cc-core-status">
             <div className="cc-core-readout">
               <div><span>AI MODEL</span><strong>{topReadout.model}</strong></div>
