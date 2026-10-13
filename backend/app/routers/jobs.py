@@ -158,6 +158,30 @@ def save_job(
     }
 
 
+def _build_tracking_record(
+    status: str,
+    evidence_url: str,
+    previous: dict[str, Any],
+    owner_confirmed: bool,
+) -> dict[str, Any]:
+    stored_evidence_url = evidence_url or str(previous.get("evidence_url") or "")
+    return {
+        "status": status,
+        "evidence_url": stored_evidence_url or None,
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+        # Neither a user-supplied URL nor owner confirmation is independent verification.
+        "verified": False,
+        "owner_confirmed": owner_confirmed,
+        "evidence_status": "PROVIDED_NOT_CHECKED" if stored_evidence_url else "NOT_PROVIDED",
+        "verification_method": (
+            "evidence_link_provided_not_checked" if stored_evidence_url
+            else "owner_confirmation" if owner_confirmed
+            else "unconfirmed"
+        ),
+        "truth_note": "Status is user-reported; external evidence has not been independently checked.",
+    }
+
+
 @router.patch("/{task_id}/tracking")
 def update_job_tracking(
     task_id: int,
@@ -188,21 +212,7 @@ def update_job_tracking(
     except (TypeError, ValueError):
         previous = {}
     owner_confirmed = payload.get("owner_confirmed") is True
-    tracking = {
-        "status": status,
-        "evidence_url": evidence_url or previous.get("evidence_url"),
-        "updated_at": datetime.now(timezone.utc).isoformat(),
-        # A supplied URL or owner's confirmation is not independent verification.
-        "verified": False,
-        "owner_confirmed": owner_confirmed,
-        "evidence_status": "PROVIDED_NOT_CHECKED" if evidence_url else "NOT_PROVIDED",
-        "verification_method": (
-            "evidence_link_provided_not_checked" if evidence_url
-            else "owner_confirmation" if owner_confirmed
-            else "unconfirmed"
-        ),
-        "truth_note": "Status is user-reported; external evidence has not been independently checked.",
-    }
+    tracking = _build_tracking_record(status, evidence_url, previous, owner_confirmed)
     task.result = json.dumps(tracking)
     db.add(ActivityLog(
         user_id=current_user.id,
