@@ -53,6 +53,44 @@ async def run_pending_tasks(db: Session, limit: int = 5) -> int:
         text = (task.description or task.title or "").strip()
         intent = classify(text)
 
+        if intent.name == "JOB_RESEARCH":
+            import re
+            from .routers.jobs import research_public_jobs
+
+            query = re.sub(r"^\\[scheduled\\]\\s*", "", text, flags=re.IGNORECASE)
+            query = re.sub(
+                r"^(?:job research|research jobs|search jobs|find jobs|remote jobs|ajira)(?:\\s+(?:for|in))?\\s*[:,-]?\\s*",
+                "",
+                query,
+                flags=re.IGNORECASE,
+            ).strip()
+            query = query or "remote jobs"
+            try:
+                result = await research_public_jobs(query, limit=15)
+                task.status = "COMPLETED"
+                task.progress = 100
+                task.error = None
+                task.result = json.dumps(result, ensure_ascii=False, default=str)
+            except Exception as exc:
+                task.status = "FAILED"
+                task.progress = min(95, max(task.progress or 0, 20))
+                task.error = f"Job research failed: {type(exc).__name__}: {exc}"
+                task.result = json.dumps({"status": "FAILED", "query": query}, ensure_ascii=False)
+            db.commit()
+            await manager.broadcast(
+                "TASK_UPDATED",
+                {
+                    "task_id": task_id,
+                    "status": task.status,
+                    "progress": task.progress,
+                    "result": task.result,
+                    "error": task.error,
+                },
+                user_id=user_id,
+            )
+            processed += 1
+            continue
+
         if intent.name in HAND_STATUSES:
             task.status = "WAITING_FOR_HAND"
             task.progress = min(95, max(task.progress or 0, 25))
