@@ -909,7 +909,13 @@ function ExecutiveMorningBrief({ system, gmailStatus, tasks = [], onOpenAgents, 
         </button>
       </div>
 
-      <div className="cc-executive-lower">
+      <details className="cc-executive-details">
+        <summary>
+          <span className="cc-exec-detail-kicker">MORE OPERATIONS</span>
+          <span className="cc-exec-detail-copy">Latest activity, priorities and blockers</span>
+          <strong>VIEW DETAILS <span aria-hidden="true">＋</span></strong>
+        </summary>
+        <div className="cc-executive-lower">
         <div className="cc-executive-activity">
           <div className="cc-exec-section-head"><div><span className="cc-eyebrow">AUDIT TRAIL</span><h2>Latest Operations</h2></div><button type="button" onClick={loadBriefing} disabled={loading}>{loading ? "SYNCING..." : "REFRESH ↻"}</button></div>
           {error && <div className="cc-exec-error" role="status">{error}</div>}
@@ -944,8 +950,9 @@ function ExecutiveMorningBrief({ system, gmailStatus, tasks = [], onOpenAgents, 
             <button type="button" onClick={onOpenJobs}>JOB RESEARCH ↗</button>
           </div>
         </aside>
-      </div>
-      <p className="cc-exec-truth">VERIFIED RECORDS ONLY · Gmail reply totals, sent applications and external link clicks are not inferred unless a connected service returns those records.</p>
+        </div>
+        <p className="cc-exec-truth">VERIFIED RECORDS ONLY · Gmail reply totals, sent applications and external link clicks are not inferred unless a connected service returns those records.</p>
+      </details>
     </section>
   );
 }
