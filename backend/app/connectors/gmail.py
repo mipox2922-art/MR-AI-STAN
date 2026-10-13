@@ -4,6 +4,8 @@ import base64
 import hashlib
 import json
 import secrets
+from email.message import EmailMessage
+from email.utils import formataddr, parseaddr
 from datetime import datetime, timedelta, timezone
 from typing import Any
 from urllib.parse import urlencode
@@ -378,6 +380,88 @@ async def get_message(db: Session, user_id: int, message_id: str) -> dict[str, A
         "status": "COMPLETED",
         "message": _normalize_message(response, include_body=True),
     }
+
+
+async def send_message(
+    db: Session,
+    user_id: int,
+    to: str,
+    subject: str,
+    body: str,
+    *,
+    thread_id: str | None = None,
+    in_reply_to: str | None = None,
+    references: str | None = None,
+) -> dict[str, Any]:
+    """Send a plain-text message only when OAuth includes Gmail send permission."""
+    address = parseaddr(to)[1]
+    if not address or "@" not in address or len(address) > 320:
+        raise GmailConnectorError("A valid recipient email address is required.")
+    if not subject.strip() or len(subject) > 500:
+        raise GmailConnectorError("A subject between 1 and 500 characters is required.")
+    if not body.strip() or len(body) > 30000:
+        raise GmailConnectorError("Message body must contain 1 to 30000 characters.")
+    message = EmailMessage()
+    message["To"] = address
+    message["Subject"] = subject.strip()
+    if in_reply_to:
+        message["In-Reply-To"] = in_reply_to[:1000]
+    if references:
+        message["References"] = references[:2000]
+    message.set_content(body)
+    raw = base64.urlsafe_b64encode(message.as_bytes()).decode("ascii").rstrip("=")
+    token = await _access_token(db, user_id)
+    payload: dict[str, Any] = {"raw": raw}
+    if thread_id:
+        payload["threadId"] = thread_id
+    async with httpx.AsyncClient(timeout=20) as client:
+        response = await client.post(
+            f"{GMAIL_API_BASE}/messages/send",
+            json=payload,
+            headers={"Authorization": f"Bearer {token}"},
+        )
+    if response.status_code in (401, 403):
+        raise GmailConnectorError(
+            "Gmail rejected sending. Confirm OAuth includes https://www.googleapis.com/auth/gmail.send, then reconnect Gmail."
+        )
+    if response.is_error:
+        raise GmailConnectorError(f"Gmail send failed with HTTP {response.status_code}.")
+    result = response.json()
+    return {
+        "status": "SENT",
+        "message_id": result.get("id"),
+        "thread_id": result.get("threadId"),
+        "label_ids": result.get("labelIds", []),
+    }
+
+
+async def reply_to_message(
+    db: Session,
+    user_id: int,
+    message_id: str,
+    body: str,
+) -> dict[str, Any]:
+    if not message_id or len(message_id) > 200:
+        raise GmailConnectorError("Invalid Gmail message id.")
+    original = await _gmail_get(db, user_id, f"/messages/{message_id}", params={"format": "full"})
+    headers = original.get("payload", {}).get("headers", [])
+    recipient = _header(headers, "Reply-To") or _header(headers, "From")
+    subject = _header(headers, "Subject").strip()
+    if not recipient:
+        raise GmailConnectorError("The original message has no valid reply recipient.")
+    if not subject.casefold().startswith("re:"):
+        subject = f"Re: {subject}"
+    message_id_header = _header(headers, "Message-ID")
+    references = _header(headers, "References")
+    refs = f"{references} {message_id_header}".strip()
+    result = await send_message(
+        db, user_id, recipient, subject, body,
+        thread_id=str(original.get("threadId") or "") or None,
+        in_reply_to=message_id_header or None,
+        references=refs or None,
+    )
+    result["reply_to_message_id"] = message_id
+    return result
 
 
 async def disconnect(db: Session, user_id: int) -> dict[str, Any]:
