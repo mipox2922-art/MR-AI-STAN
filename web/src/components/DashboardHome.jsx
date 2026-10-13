@@ -823,6 +823,41 @@ function ExecutiveMorningBrief({ system, gmailStatus, tasks = [], onOpenAgents, 
   const gmailConnected = gmailStatus?.connected === true;
   const blockers = Array.isArray(briefing?.blockers) ? briefing.blockers : [];
 
+  function briefingSpeechText() {
+    const greetingText = hour < 12 ? "Good morning, Boss." : hour < 17 ? "Good afternoon, Boss." : "Good evening, Boss.";
+    const agentsText = Number.isFinite(agentSummary.total)
+      ? (agentSummary.working || 0) + " agents working out of " + agentSummary.total + " registered."
+      : "Agent status is not available yet.";
+    const tasksText = Number.isFinite(taskSummary.completed)
+      ? taskSummary.completed + " tasks completed, " + (taskSummary.working || 0) + " in progress, " + (taskSummary.waiting || 0) + " waiting, and " + (taskSummary.failed || 0) + " failed."
+      : "Task summary is not available yet.";
+    const priorityText = briefing?.next_action || "No next action has been reported.";
+    const gmailText = gmailConnected ? "Gmail is connected, but message and reply totals have not been verified in this briefing." : "Gmail is " + gmailState + ".";
+    return [greetingText, "MR AI STAN operational briefing.", agentsText, tasksText, gmailText, "Priority: " + priorityText].join(" ");
+  }
+
+  function speakBriefing() {
+    if (!("speechSynthesis" in window) || typeof SpeechSynthesisUtterance === "undefined") {
+      setError("Voice briefing is not supported by this browser.");
+      return;
+    }
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(briefingSpeechText());
+    utterance.lang = "en-GB";
+    utterance.rate = 0.94;
+    utterance.pitch = 0.9;
+    window.speechSynthesis.speak(utterance);
+  }
+
+  useEffect(() => {
+    if (!briefing || !("speechSynthesis" in window) || typeof SpeechSynthesisUtterance === "undefined") return;
+    let alreadySpoken = false;
+    try { alreadySpoken = sessionStorage.getItem("mr_ai_briefing_spoken") === "1"; } catch {}
+    if (alreadySpoken) return;
+    try { sessionStorage.setItem("mr_ai_briefing_spoken", "1"); } catch {}
+    speakBriefing();
+  }, [briefing]);
+
   function timeLabel(value) {
     if (!value) return "TIME N/A";
     const date = new Date(value);
@@ -844,6 +879,7 @@ function ExecutiveMorningBrief({ system, gmailStatus, tasks = [], onOpenAgents, 
             <span className={"cc-exec-pulse " + (briefing ? "is-live" : "is-waiting")} />
             <strong>{loading ? "SYNCING VERIFIED OPERATIONS..." : briefing ? "OPERATIONAL BRIEFING UPDATED" : "BRIEFING NOT AVAILABLE"}</strong>
             <span>{briefing?.generated_at ? timeLabel(briefing.generated_at) : "LIVE DATA PENDING"}</span>
+            <button type="button" className="cc-exec-speak" onClick={speakBriefing}>▶ PLAY BRIEFING</button>
           </div>
         </div>
         <div className="cc-executive-orb" aria-hidden="true">
