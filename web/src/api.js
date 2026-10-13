@@ -559,6 +559,17 @@ export function saveJob(job) {
   });
 }
 
+export function updateJobTracking(taskId, tracking) {
+  return request(`/jobs/${encodeURIComponent(taskId)}/tracking`, {
+    method: "PATCH",
+    body: JSON.stringify({
+      status: tracking.status,
+      evidence_url: tracking.evidence_url || "",
+      owner_confirmed: tracking.owner_confirmed === true,
+    }),
+  });
+}
+
 
 export function getSystemDiagnostics() {
   return request("/system/diagnostics");
