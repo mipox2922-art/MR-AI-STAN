@@ -1,0 +1,33 @@
+name: MR AI unattended scheduler
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mr-ai-unattended-scheduler
+  cancel-in-progress: false
+
+jobs:
+  run-due-work:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Trigger durable scheduled work
+        env:
+          MR_AI_CRON_SECRET: ${{ secrets.MR_AI_CRON_SECRET }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "${MR_AI_CRON_SECRET}" ]]; then
+            echo "::error::Configure the MR_AI_CRON_SECRET repository secret and set the same value as CLOUDFLARE_CRON_SECRET in Render."
+            exit 1
+          fi
+          curl --fail-with-body --silent --show-error --max-time 45 \
+            -X POST \
+            -H "x-mr-ai-cron-secret: ${MR_AI_CRON_SECRET}" \
+            "https://mr-ai-stan.onrender.com/internal/cloudflare/scheduler-cycle"
