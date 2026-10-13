@@ -90,12 +90,30 @@ if DATABASE_URL.startswith("sqlite"):
 elif DATABASE_URL.startswith("postgresql+pg8000://"):
     connect_args = postgres_connect_args(settings.database_url)
 
+def database_pool_options(database_url: str) -> dict[str, int]:
+    """Return bounded pool settings appropriate for the configured database.
+
+    The hosted dashboard polls several authenticated endpoints concurrently while
+    the scheduler also uses PostgreSQL. A one-connection pool serializes those
+    requests and can make health checks fail while another request is active.
+    Keep a modest pool with limited overflow so the free Render database is not
+    flooded, and fail a checkout quickly rather than stalling API calls for 30s.
+    """
+    if database_url.startswith("postgresql+pg8000://"):
+        return {
+            "pool_size": 5,
+            "max_overflow": 5,
+            "pool_timeout": 10,
+            "pool_recycle": 1800,
+        }
+    return {"pool_size": 5, "max_overflow": 10}
+
+
 engine = create_engine(
     DATABASE_URL,
     connect_args=connect_args,
     pool_pre_ping=True,
-    pool_size=1 if DATABASE_URL.startswith("postgresql+pg8000://") else 5,
-    max_overflow=0 if DATABASE_URL.startswith("postgresql+pg8000://") else 10,
+    **database_pool_options(DATABASE_URL),
 )
 
 SessionLocal = sessionmaker(

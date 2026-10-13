@@ -2,6 +2,7 @@ import ssl
 
 from app.database import (
     create_postgres_ssl_context,
+    database_pool_options,
     normalize_database_url,
     postgres_connect_args,
 )
@@ -77,3 +78,14 @@ def test_postgres_tls_can_load_an_explicit_pem_ca(monkeypatch):
 
     assert result is fake_context
     assert fake_context.loaded == {"cadata": pem, "cafile": None}
+
+
+
+def test_postgres_pool_supports_parallel_dashboard_and_scheduler_requests():
+    options = database_pool_options("postgresql+pg8000://user:secret@db.example.com/app")
+
+    assert options["pool_size"] == 5
+    assert options["max_overflow"] == 5
+    assert options["pool_size"] + options["max_overflow"] == 10
+    assert options["pool_timeout"] == 10
+    assert options["pool_recycle"] == 1800
