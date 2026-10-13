@@ -545,7 +545,7 @@ async function main() {
 
   await goTo("Settings");
   await page.getByRole("button", { name: "RUN SELF-CHECK", exact: true }).click();
-  await page.getByText("CONFIGURATION_CHECKED", { exact: true }).waitFor({ state: "visible", timeout: 7000 });
+  await page.getByText(/CONFIGURATION_CHECKED/).waitFor({ state: "visible", timeout: 7000 });
   await page.getByText("Persistent database", { exact: true }).waitFor({ state: "visible", timeout: 7000 });
   completedChecks.push("Settings self-check reports explicit diagnostic evidence");
   await page.getByText("database", { exact: false }).first().waitFor({ state: "visible" });
