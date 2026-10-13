@@ -160,11 +160,16 @@ def save_job(
 
 def _build_tracking_record(
     status: str,
-    evidence_url: str,
+    evidence_url: str | None,
     previous: dict[str, Any],
     owner_confirmed: bool,
 ) -> dict[str, Any]:
-    stored_evidence_url = evidence_url or str(previous.get("evidence_url") or "")
+    # None means the caller omitted the field; an empty string means clear it.
+    stored_evidence_url = (
+        str(previous.get("evidence_url") or "").strip()
+        if evidence_url is None
+        else evidence_url.strip()
+    )
     return {
         "status": status,
         "evidence_url": stored_evidence_url or None,
@@ -194,7 +199,11 @@ def update_job_tracking(
     status = str(payload.get("status") or "").strip().upper()
     if status not in allowed:
         raise HTTPException(400, f"Status must be one of: {', '.join(sorted(allowed))}.")
-    evidence_url = str(payload.get("evidence_url") or "").strip()
+    evidence_url = (
+        str(payload.get("evidence_url") or "").strip()
+        if "evidence_url" in payload
+        else None
+    )
     if evidence_url and urlparse(evidence_url).scheme != "https":
         raise HTTPException(400, "Evidence URL must use HTTPS.")
     task = (
