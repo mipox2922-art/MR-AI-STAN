@@ -36,6 +36,7 @@ def _collect_report(db: Session) -> dict[str, Any]:
         database_ok = True
         database_detail = "Database query succeeded."
     except Exception as exc:
+        db.rollback()
         database_ok = False
         database_detail = f"Database query failed ({type(exc).__name__})."
 
@@ -117,7 +118,7 @@ def _collect_report(db: Session) -> dict[str, Any]:
     if not scheduler_running_by_config:
         blockers.append({"id": "scheduler", "message": "Background scheduler is disabled by configuration."})
 
-    status = "DEGRADED" if blockers else "OPERATIONAL"
+    status = "DEGRADED" if blockers else "CONFIGURATION_OK_UNTESTED"
     summary = {
         "status": status,
         "checks": checks,
@@ -188,8 +189,8 @@ def run_self_audit(db: Session) -> dict[str, Any]:
         elif previous_blockers and not current_blockers:
             db.add(Notification(
                 user_id=user.id,
-                title="MR AI self-check recovered",
-                message="Required runtime checks have recovered. Optional integrations still need their own connection tests.",
+                title="MR AI configuration checks recovered",
+                message="Required configuration checks now pass. The provider key is present but live model calls, Gmail OAuth, and external integrations still need verification.",
                 read=False,
             ))
 
