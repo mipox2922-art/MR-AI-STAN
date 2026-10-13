@@ -543,7 +543,7 @@ function QuickCommands({ system = null }) {
             <span>{command.icon}</span><strong>{command.label}</strong>
           </button>
         ))}
-        {commands.length === 1 && <span className="cc-quick-empty">AI and connected tool actions appear when their services are configured.</span>}
+        
       </div>
       {resultText && <div className="cc-quick-result" role="status" aria-live="polite"><strong>COMMAND OUTPUT</strong><pre>{resultText}</pre></div>}
     </section>
@@ -1068,7 +1068,7 @@ export default function DashboardHome({
           <Radar findings={radarFindings} onRadarScan={onRadarScan} sensorStatus={sensorStatus} />
         </Panel>
 
-        <Panel eyebrow="LIVE MAP" title="OpenStreetMap + Street View" className="cc-map-panel">
+        <Panel eyebrow="LIVE MAP" title="Live 2D Map" className="cc-map-panel">
           <LiveMap onOpenMap={onOpenMap} />
         </Panel>
 

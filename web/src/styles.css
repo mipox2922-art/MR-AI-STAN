@@ -6696,3 +6696,15 @@ button { cursor: pointer; }
   .command-center-reference .cc-radar-source { grid-template-columns: repeat(2,minmax(0,1fr)); }
   .command-center-reference .cc-radar-controls { grid-template-columns: repeat(2,minmax(0,1fr)); }
 }
+
+/* Dashboard map card shows the actual 2D road layer; detailed GPS/Street View stays in Tracking Map. */
+.dashboard-main .cc-map-panel .cc-map-frame-grid {
+  grid-template-columns: minmax(0,1fr) !important;
+  height: auto;
+  min-height: 0;
+}
+.dashboard-main .cc-map-panel .cc-street-view,
+.dashboard-main .cc-map-panel .cc-map-readout,
+.dashboard-main .cc-map-panel .cc-map-tracking-note {
+  display: none !important;
+}
