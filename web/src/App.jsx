@@ -41,6 +41,7 @@ import CommandPalette from "./components/CommandPalette";
 import DashboardHome from "./components/DashboardHome";
 import GmailPanel from "./components/GmailPanel";
 import SchedulerPanel from "./components/SchedulerPanel";
+import JobResearch from "./components/JobResearch";
 import TaskCenter from "./components/TaskCenter";
 import MemoryCenter from "./components/MemoryCenter";
 import VoiceControl from "./components/VoiceControl";
@@ -51,6 +52,7 @@ const NAV = [
   ["dashboard", "⌂", "Dashboard"],
   ["core", "◉", "AI Core"],
   ["agents", "◆", "Agents"],
+  ["jobs", "⌕", "Job Research"],
   ["browser", "↗", "Browser Hands"],
   ["device", "⌁", "Device Lab"],
   ["creative", "✦", "Creative Studio"],
@@ -59,7 +61,7 @@ const NAV = [
   ["tools", "⚙", "Toolbox"],
   ["web", "◎", "Web Intelligence"],
   ["gmail", "✉", "Gmail"],
-  ["calendar", "□", "Calendar"],
+  ["calendar", "□", "Schedules"],
   ["tasks", "✓", "Tasks"],
   ["memory", "◇", "Memory"],
   ["system", "⌘", "Settings"],
@@ -773,6 +775,7 @@ function App() {
           )}
 
           {active === "agents" && <AgentsPanel agents={agents} onPlan={createPlan} />}
+          {active === "jobs" && <JobResearch />}
           {active === "browser" && <BrowserHands />}
           {active === "device" && <DeviceLab />}
           {active === "creative" && <CreativeStudio />}
