@@ -199,9 +199,31 @@ def system_diagnostics(current_user=Depends(get_current_user)):
         },
         {
             "id": "scheduler",
-            "label": "Unattended scheduler",
-            "status": "SECRET_CONFIGURED" if len(settings.cloudflare_cron_secret.strip()) >= 32 else "SETUP_REQUIRED",
-            "detail": "The backend cron secret is configured. The external trigger must use the same secret." if len(settings.cloudflare_cron_secret.strip()) >= 32 else "Set CLOUDFLARE_CRON_SECRET on Render and the matching MR_AI_CRON_SECRET in GitHub Actions.",
+            "label": "Render in-process scheduler",
+            "status": (
+                "ENABLED"
+                if settings.scheduler_enabled and not settings.serverless_mode
+                else "DISABLED"
+            ),
+            "detail": (
+                "The scheduler loop runs inside the Render backend while the instance is awake."
+                if settings.scheduler_enabled and not settings.serverless_mode
+                else "The in-process scheduler is disabled by configuration."
+            ),
+        },
+        {
+            "id": "scheduler_wakeup",
+            "label": "Optional GitHub Actions wake-up trigger",
+            "status": (
+                "RENDER_SECRET_CONFIGURED"
+                if len(settings.cloudflare_cron_secret.strip()) >= 32
+                else "OPTIONAL_NOT_CONFIGURED"
+            ),
+            "detail": (
+                "A trigger secret is configured on Render. This diagnostic cannot confirm that GitHub Actions has the matching secret."
+                if len(settings.cloudflare_cron_secret.strip()) >= 32
+                else "Not required while the Render backend stays awake. If the instance sleeps, queued work pauses until it wakes; GitHub Actions can provide an optional authenticated trigger."
+            ),
         },
         {
             "id": "device_bridge",
