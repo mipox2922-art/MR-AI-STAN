@@ -60,11 +60,11 @@ def _service_status() -> dict:
     ai_ready = any((gemini_configured, kimi_configured, openrouter_configured, mistral_configured, grok_configured))
 
     return {
-        "ai_core": "READY" if ai_ready else "NOT_CONFIGURED",
+        "ai_core": "CONFIGURED" if ai_ready else "NOT_CONFIGURED",
         "database": _database_status(),
         "memory": "ONLINE",
         "web_app": "ONLINE",
-        "agents": "ONLINE",
+        "agents": "REGISTERED",
         "voice": "NOT_CONFIGURED",
         "extension": "NOT_CONNECTED",
         "gemini": "CONFIGURED" if gemini_configured else "NOT_CONFIGURED",
