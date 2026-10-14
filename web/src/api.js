@@ -77,25 +77,27 @@ async function request(path, options = {}, timeoutMs = DEFAULT_API_TIMEOUT_MS) {
   const controller = new AbortController();
   const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
   let response;
+  let rawBody;
   try {
     response = await fetch(`${API_URL}${path}`, {
       ...options,
       headers,
       signal: controller.signal
     });
+    // Keep the timeout active until the entire response body is available,
+    // not just until the server sends its headers.
+    rawBody = await response.text();
   } catch (error) {
     if (controller.signal.aborted) {
       throw new ApiError(`MR AI backend timed out while requesting ${path}.`, 0);
     }
-    if (error instanceof TypeError) {
+    if (!response && error instanceof TypeError) {
       throw new ApiError(`Cannot reach MR AI backend at ${API_URL}. Check backend availability and CORS.`, 0);
     }
     throw error;
   } finally {
     window.clearTimeout(timeoutId);
   }
-
-  const rawBody = await response.text();
   let data = {};
   if (rawBody) {
     try {
