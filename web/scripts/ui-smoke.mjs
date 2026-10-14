@@ -138,7 +138,13 @@ async function apiMock(route) {
     return sendJson(route, { status: "NOT_CONFIGURED", configured: false, connected: false, scope: [] });
   }
   if (method === "GET" && path === "/ai/history") return sendJson(route, { messages: [] });
-  if (method === "POST" && path === "/ai/chat") return sendJson(route, { response: "E2E response from mocked API", provider: body.provider || "openrouter" });
+  if (method === "POST" && path === "/ai/chat") {
+    if (body.message === "Timeout regression test") {
+      await new Promise(resolve => setTimeout(resolve, 13000));
+      return sendJson(route, { response: "Delayed chat response confirmed", provider: body.provider || "openrouter" });
+    }
+    return sendJson(route, { response: "E2E response from mocked API", provider: body.provider || "openrouter" });
+  }
   if (method === "GET" && path === "/agents/briefing") return sendJson(route, { status: "READY", briefing: "Mock briefing only" });
   if (method === "POST" && path === "/agents/plan") return sendJson(route, planFor(String(body.request || "")));
   if (method === "POST" && path === "/agents/mission") {
@@ -437,6 +443,12 @@ async function main() {
   await page.locator(".chat-panel .chat-input > button").last().click();
   await page.locator(".chat-panel .messages").getByText("E2E response from mocked API", { exact: true }).waitFor({ state: "visible", timeout: 7000 });
   completedChecks.push("AI Core state selector, provider selector and chat send");
+
+  const delayedChatReply = page.locator(".chat-panel .messages .message.assistant").filter({ hasText: "Delayed chat response confirmed" });
+  await coreInput.fill("Timeout regression test");
+  await page.locator(".chat-panel .chat-input > button").last().click();
+  await delayedChatReply.waitFor({ state: "visible", timeout: 20000 });
+  completedChecks.push("AI chat stays connected when an answer takes longer than 12 seconds");
 
   await goTo("Agents");
   const missionInput = page.locator(".planner-row input");
