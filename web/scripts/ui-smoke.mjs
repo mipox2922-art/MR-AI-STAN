@@ -456,7 +456,9 @@ async function main() {
     const currentMessages = await page.locator(".chat-panel .messages").innerText().catch(() => "(messages unavailable)");
     throw new Error(`Delayed chat regression failed. delayedRequests=${delayedChatRequests}; requestBodies=${JSON.stringify(delayedChatRequestBodies)}; messages=${JSON.stringify(currentMessages)}; consoleErrors=${JSON.stringify(consoleErrors)}; failedResponses=${JSON.stringify(failedResponses)}; original=${error.message}`);
   }
-  completedChecks.push("AI chat stays connected when an answer takes longer than 12 seconds");
+  assert.equal(delayedChatRequests, 1, "The typed timeout-regression message should reach /ai/chat exactly once.");
+  assert.equal(delayedChatRequestBodies.at(-1)?.message, "Timeout regression test", "The SEND button must submit the actual typed message, not a React click event.");
+  completedChecks.push("AI Core SEND submits typed text and accepts a response delayed beyond 12 seconds");
 
   await goTo("Agents");
   const missionInput = page.locator(".planner-row input");
