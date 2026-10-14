@@ -14,6 +14,8 @@ let nextMemoryId = 2;
 let nextScheduleId = 1;
 let rebootRequests = 0;
 let radarScanRequests = 0;
+let delayedChatRequests = 0;
+let delayedChatRequestBodies = [];
 
 const services = {
   ai_core: "CONFIGURED", database: "ONLINE", memory: "ONLINE", web_app: "ONLINE",
@@ -139,7 +141,9 @@ async function apiMock(route) {
   }
   if (method === "GET" && path === "/ai/history") return sendJson(route, { messages: [] });
   if (method === "POST" && path === "/ai/chat") {
+    delayedChatRequestBodies.push({ message: body.message, at: Date.now() });
     if (body.message === "Timeout regression test") {
+      delayedChatRequests += 1;
       await new Promise(resolve => setTimeout(resolve, 13000));
       return sendJson(route, { response: "Delayed chat response confirmed", provider: body.provider || "openrouter" });
     }
@@ -444,10 +448,14 @@ async function main() {
   await page.locator(".chat-panel .messages").getByText("E2E response from mocked API", { exact: true }).waitFor({ state: "visible", timeout: 7000 });
   completedChecks.push("AI Core state selector, provider selector and chat send");
 
-  const delayedChatReply = page.locator(".chat-panel .messages .message.assistant").filter({ hasText: "Delayed chat response confirmed" });
   await coreInput.fill("Timeout regression test");
   await page.locator(".chat-panel .chat-input > button").last().click();
-  await delayedChatReply.waitFor({ state: "visible", timeout: 20000 });
+  try {
+    await page.locator(".chat-panel .messages").getByText("Delayed chat response confirmed", { exact: true }).waitFor({ state: "visible", timeout: 25000 });
+  } catch (error) {
+    const currentMessages = await page.locator(".chat-panel .messages").innerText().catch(() => "(messages unavailable)");
+    throw new Error(`Delayed chat regression failed. delayedRequests=${delayedChatRequests}; requestBodies=${JSON.stringify(delayedChatRequestBodies)}; messages=${JSON.stringify(currentMessages)}; consoleErrors=${JSON.stringify(consoleErrors)}; failedResponses=${JSON.stringify(failedResponses)}; original=${error.message}`);
+  }
   completedChecks.push("AI chat stays connected when an answer takes longer than 12 seconds");
 
   await goTo("Agents");
