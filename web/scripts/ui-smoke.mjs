@@ -14,6 +14,8 @@ let nextMemoryId = 2;
 let nextScheduleId = 1;
 let rebootRequests = 0;
 let radarScanRequests = 0;
+let delayedChatRequests = 0;
+let delayedChatRequestBodies = [];
 
 const services = {
   ai_core: "CONFIGURED", database: "ONLINE", memory: "ONLINE", web_app: "ONLINE",
@@ -138,7 +140,15 @@ async function apiMock(route) {
     return sendJson(route, { status: "NOT_CONFIGURED", configured: false, connected: false, scope: [] });
   }
   if (method === "GET" && path === "/ai/history") return sendJson(route, { messages: [] });
-  if (method === "POST" && path === "/ai/chat") return sendJson(route, { response: "E2E response from mocked API", provider: body.provider || "openrouter" });
+  if (method === "POST" && path === "/ai/chat") {
+    delayedChatRequestBodies.push({ message: body.message, at: Date.now() });
+    if (body.message === "Timeout regression test") {
+      delayedChatRequests += 1;
+      await new Promise(resolve => setTimeout(resolve, 13000));
+      return sendJson(route, { response: "Delayed chat response confirmed", provider: body.provider || "openrouter" });
+    }
+    return sendJson(route, { response: "E2E response from mocked API", provider: body.provider || "openrouter" });
+  }
   if (method === "GET" && path === "/agents/briefing") return sendJson(route, { status: "READY", briefing: "Mock briefing only" });
   if (method === "POST" && path === "/agents/plan") return sendJson(route, planFor(String(body.request || "")));
   if (method === "POST" && path === "/agents/mission") {
@@ -437,6 +447,18 @@ async function main() {
   await page.locator(".chat-panel .chat-input > button").last().click();
   await page.locator(".chat-panel .messages").getByText("E2E response from mocked API", { exact: true }).waitFor({ state: "visible", timeout: 7000 });
   completedChecks.push("AI Core state selector, provider selector and chat send");
+
+  await coreInput.fill("Timeout regression test");
+  await page.locator(".chat-panel .chat-input > button").last().click();
+  try {
+    await page.locator(".chat-panel .messages").getByText("Delayed chat response confirmed", { exact: true }).waitFor({ state: "visible", timeout: 25000 });
+  } catch (error) {
+    const currentMessages = await page.locator(".chat-panel .messages").innerText().catch(() => "(messages unavailable)");
+    throw new Error(`Delayed chat regression failed. delayedRequests=${delayedChatRequests}; requestBodies=${JSON.stringify(delayedChatRequestBodies)}; messages=${JSON.stringify(currentMessages)}; consoleErrors=${JSON.stringify(consoleErrors)}; failedResponses=${JSON.stringify(failedResponses)}; original=${error.message}`);
+  }
+  assert.equal(delayedChatRequests, 1, "The typed timeout-regression message should reach /ai/chat exactly once.");
+  assert.equal(delayedChatRequestBodies.at(-1)?.message, "Timeout regression test", "The SEND button must submit the actual typed message, not a React click event.");
+  completedChecks.push("AI Core SEND submits typed text and accepts a response delayed beyond 12 seconds");
 
   await goTo("Agents");
   const missionInput = page.locator(".planner-row input");

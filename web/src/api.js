@@ -50,6 +50,10 @@ export function clearToken() {
   syncExtensionAuthToken("");
 }
 
+const DEFAULT_API_TIMEOUT_MS = 60000;
+const CHAT_API_TIMEOUT_MS = 98000;
+const TOOL_API_TIMEOUT_MS = 45000;
+
 class ApiError extends Error {
   constructor(message, status) {
     super(message);
@@ -58,7 +62,7 @@ class ApiError extends Error {
   }
 }
 
-async function request(path, options = {}) {
+async function request(path, options = {}, timeoutMs = DEFAULT_API_TIMEOUT_MS) {
   const token = getToken();
 
   const headers = {
@@ -71,7 +75,7 @@ async function request(path, options = {}) {
   }
 
   const controller = new AbortController();
-  const timeoutId = window.setTimeout(() => controller.abort(), 12000);
+  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
   let response;
   try {
     response = await fetch(`${API_URL}${path}`, {
@@ -156,7 +160,7 @@ export function chat(message, provider = "gemini", toolContext = null) {
       provider,
       tool_context: toolContext
     })
-  });
+  }, CHAT_API_TIMEOUT_MS);
 }
 
 
@@ -462,7 +466,7 @@ export function planAgentWork(requestText) {
   return request("/agents/plan", {
     method: "POST",
     body: JSON.stringify({ request: requestText })
-  });
+  }, TOOL_API_TIMEOUT_MS);
 }
 
 
@@ -470,7 +474,7 @@ export function executeMission(requestText) {
   return request("/agents/mission", {
     method: "POST",
     body: JSON.stringify({ request: requestText }),
-  });
+  }, TOOL_API_TIMEOUT_MS);
 }
 
 export function reportMissionHandoff(missionId, status, evidence) {
@@ -484,7 +488,7 @@ export function executeAgentAction(action, payload = {}) {
   return request("/agents/execute", {
     method: "POST",
     body: JSON.stringify({ action, ...payload })
-  });
+  }, TOOL_API_TIMEOUT_MS);
 }
 
 export function browserDrag(selector, dx, dy) {
@@ -516,7 +520,7 @@ export function searchToolWeb(query) {
   return request("/tools/search", {
     method: "POST",
     body: JSON.stringify({ query }),
-  });
+  }, TOOL_API_TIMEOUT_MS);
 }
 
 
@@ -524,19 +528,19 @@ export function dispatchTool(command) {
   return request("/tools/dispatch", {
     method: "POST",
     body: JSON.stringify({ command }),
-  });
+  }, TOOL_API_TIMEOUT_MS);
 }
 
 export function routeTool(command) {
   return request("/tools/route", {
     method: "POST",
     body: JSON.stringify({ command }),
-  });
+  }, TOOL_API_TIMEOUT_MS);
 }
 
 
 export function getExecutiveBriefing() {
-  return request("/agents/briefing");
+  return request("/agents/briefing", {}, TOOL_API_TIMEOUT_MS);
 }
 
 
@@ -544,7 +548,7 @@ export function runOrchestrator(message) {
   return request("/orchestrator/run", {
     method: "POST",
     body: JSON.stringify({ message }),
-  });
+  }, TOOL_API_TIMEOUT_MS);
 }
 
 export function getOrchestratorExecutions() {
@@ -565,7 +569,7 @@ export function resolveApproval(approvalId, decision) {
 
 export function researchJobs(query, limit = 25) {
   const params = new URLSearchParams({ query, limit: String(limit) });
-  return request("/jobs/research?" + params.toString());
+  return request("/jobs/research?" + params.toString(), {}, TOOL_API_TIMEOUT_MS);
 }
 
 export function saveJob(job) {
