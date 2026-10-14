@@ -252,7 +252,7 @@ export default function Chat({ onState, onModToggle, onPowerCommand }) {
             if (getPowerCommand(text) || getModeCommand(text) !== null) send(text);
           }}
         />
-        <button onClick={send} disabled={sending}>
+        <button onClick={() => send()} disabled={sending}>
           {sending ? "..." : "SEND"}
         </button>
       </div>
