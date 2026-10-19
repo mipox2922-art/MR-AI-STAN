@@ -397,24 +397,45 @@ function Radar({ findings = [], onRadarScan, sensorStatus = {}, onOpenDevice }) 
   );
 }
 
-function WebResearch() {
+function WebResearch({ available = false }) {
   const [query, setQuery] = useState("");
-  const [status, setStatus] = useState("READY");
+  const [status, setStatus] = useState(available ? "IKO TAYARI" : "HAIJAUNGANISHWA");
   const [results, setResults] = useState([]);
+  const [message, setMessage] = useState(
+    available ? "" : "Utafutaji wa mtandao haujaunganishwa. Tafuta kazi kupitia Job Research, au washa search provider kwenye Settings."
+  );
+
+  useEffect(() => {
+    setStatus(available ? "IKO TAYARI" : "HAIJAUNGANISHWA");
+    setMessage(
+      available ? "" : "Utafutaji wa mtandao haujaunganishwa. Tafuta kazi kupitia Job Research, au washa search provider kwenye Settings."
+    );
+    if (!available) setResults([]);
+  }, [available]);
 
   async function runSearch(event) {
     event?.preventDefault();
     const value = query.trim();
     if (!value) return;
+    if (!available) {
+      setStatus("HAIJAUNGANISHWA");
+      setMessage("Web Research haipatikani mpaka search provider iunganishwe. Mfumo haujatengeneza matokeo ya kubuni.");
+      return;
+    }
 
-    setStatus("SEARCHING");
+    setStatus("INATAFUTA...");
+    setMessage("");
+    setResults([]);
     try {
       const data = await searchToolWeb(value);
-      setResults(Array.isArray(data?.results) ? data.results.slice(0, 4) : []);
-      setStatus(String(data?.status || "UNKNOWN").toUpperCase());
+      const found = Array.isArray(data?.results) ? data.results.slice(0, 4) : [];
+      setResults(found);
+      setStatus(String(data?.status || "HAIJULIKANI").toUpperCase().replaceAll("_", " "));
+      setMessage(data?.message || (found.length ? "" : "Hakuna matokeo yaliyothibitishwa kwa utafutaji huu."));
     } catch (error) {
       setResults([]);
-      setStatus(error.message);
+      setStatus("KUNA HITILAFU");
+      setMessage(error?.message || "Utafutaji umeshindikana.");
     }
   }
 
@@ -424,10 +445,10 @@ function WebResearch() {
         <input
           value={query}
           onChange={event => setQuery(event.target.value)}
-          placeholder="SEARCH THE WEB..."
-          aria-label="Web research query"
+          placeholder="Tafuta mtandaoni..."
+          aria-label="Utafutaji wa mtandao"
         />
-        <button type="submit" aria-label="Search">›</button>
+        <button type="submit" aria-label="Tafuta">›</button>
       </form>
       <div className="cc-research-status">{status}</div>
       {results.length > 0 ? results.map((result, index) => (
@@ -435,12 +456,12 @@ function WebResearch() {
           <span className="cc-research-icon">◎</span>
           <div>
             <a href={result.url} target="_blank" rel="noreferrer"><strong>{result.title || result.url}</strong></a>
-            <small>{result.content || result.engine || "WEB SOURCE"}</small>
+            <small>{result.content || result.engine || "Chanzo cha mtandao"}</small>
           </div>
         </article>
       )) : (
         <div className="cc-research-empty">
-          {status === "READY" ? "ENTER A QUERY TO START VERIFIED WEB RESEARCH." : "NO VERIFIED RESULTS."}
+          {message || (available ? "Andika swali ili kutafuta taarifa zilizopo." : "Mtoa huduma wa utafutaji hajaunganishwa.")}
         </div>
       )}
     </div>
@@ -1258,12 +1279,8 @@ export default function DashboardHome({
         </Panel>
       </div>
 
-      <div className="cc-main-grid">
-        <Panel eyebrow="MR AI CHAT" title="Mazungumzo na MR AI" className="cc-chat-panel">
-          <Chat onState={onState} onModToggle={onModToggle} onPowerCommand={onPowerCommand} />
-        </Panel>
-
-        <Panel eyebrow="RADAR SCAN" title="Radar ya Vifaa" badge={`${radarFindings.length} CONTACTS`} className="cc-radar-panel">
+      <div className="cc-main-grid has-research">
+        <Panel eyebrow="RADAR SCAN" title="Radar ya Vifaa" badge={\`${radarFindings.length} CONTACTS\`} className="cc-radar-panel">
           <Radar findings={radarFindings} onRadarScan={onRadarScan} sensorStatus={sensorStatus} onOpenDevice={onOpenDevice} />
         </Panel>
 
@@ -1271,14 +1288,16 @@ export default function DashboardHome({
           <LiveMap onOpenMap={onOpenMap} />
         </Panel>
 
-        {services.web_search === "CONFIGURED" && (
-          <Panel eyebrow="WEB RESEARCH" title="Utafutaji wa Mtandaoni" className="cc-research-panel">
-            <WebResearch />
-          </Panel>
-        )}
+        <Panel eyebrow="MR AI CHAT" title="Mazungumzo na MR AI" className="cc-chat-panel">
+          <Chat onState={onState} onModToggle={onModToggle} onPowerCommand={onPowerCommand} />
+        </Panel>
+
+        <Panel eyebrow="WEB RESEARCH" title="Utafutaji wa Mtandaoni" className="cc-research-panel">
+          <WebResearch available={services.web_search === "CONFIGURED"} />
+        </Panel>
       </div>
 
-      <details className="cc-dashboard-drawer cc-mission-drawer">
+            <details className="cc-dashboard-drawer cc-mission-drawer">
         <summary>
           <span><strong>MISSION CONTROL</strong><small>Panga kazi na uone matokeo ya mawakala</small></span>
           <b>FUNGUA <span aria-hidden="true">＋</span></b>
@@ -1288,13 +1307,7 @@ export default function DashboardHome({
         </Panel>
       </details>
 
-      <details className="cc-dashboard-drawer cc-commands-drawer">
-        <summary>
-          <span><strong>QUICK COMMANDS</strong><small>Ukaguzi, ripoti na zana za ziada</small></span>
-          <b>FUNGUA <span aria-hidden="true">＋</span></b>
-        </summary>
-        <QuickCommands system={system} />
-      </details>
+      <QuickCommands system={system} />
 
 
     </div>
