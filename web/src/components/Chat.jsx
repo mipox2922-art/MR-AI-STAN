@@ -2,6 +2,57 @@ import { useEffect, useRef, useState } from "react";
 import { chat, routeTool, getExecutiveBriefing, getChatHistory } from "../api";
 import VoiceControl from "./VoiceControl";
 
+
+function renderInlineMessage(text) {
+  return String(text || "").split(/(\*\*[^*]+\*\*)/g).map((part, index) => {
+    if (part.startsWith("**") && part.endsWith("**")) {
+      return <strong key={index}>{part.slice(2, -2)}</strong>;
+    }
+    return part;
+  });
+}
+
+function ChatMessageContent({ content }) {
+  const lines = String(content || "").split(/\r?\n/);
+  return (
+    <div className="chat-message-body">
+      {lines.map((line, index) => {
+        const trimmed = line.trim();
+        if (!trimmed) return <div className="chat-message-spacer" key={index} />;
+        const heading = trimmed.match(/^#{1,4}\s+(.+)$/);
+        if (heading) return <strong className="chat-message-heading" key={index}>{renderInlineMessage(heading[1])}</strong>;
+        const listItem = trimmed.match(/^(?:([-*•])|(\d+[.)]))\s+(.+)$/);
+        if (listItem) {
+          return (
+            <div className="chat-message-list-item" key={index}>
+              <span>{listItem[1] || listItem[2]}</span>
+              <div>{renderInlineMessage(listItem[3])}</div>
+            </div>
+          );
+        }
+        return <p className="chat-message-paragraph" key={index}>{renderInlineMessage(trimmed)}</p>;
+      })}
+    </div>
+  );
+}
+
+function readableRoutingStatus(value) {
+  const raw = String(value || "").trim();
+  const upper = raw.toUpperCase();
+  if (!raw || upper === "AI_ONLY") return "MAZUNGUMZO YA AI";
+  if (upper === "ROUTING") return "NACHAMBUA OMBI...";
+  if (upper.includes("EXECUTIVE BRIEFING")) return "MUHTASARI WA MFUMO";
+  if (upper.includes("TOOL ROUTER ERROR") || upper.includes("BRIEFING ERROR")) return "ZANA HAIPATIKANI · AI INAENDELEA";
+  if (upper.includes("AGENT:")) {
+    const agent = raw.match(/AGENT:\s*([^/]+)/i)?.[1]?.trim();
+    const tool = raw.match(/TOOL:\s*([^/]+)/i)?.[1]?.trim();
+    return "WAKALA: " + (agent || "MR AI") + (tool ? " · ZANA: " + tool : "");
+  }
+  if (upper.includes("TOOL:")) return "ZANA: " + (raw.match(/TOOL:\s*([^/]+)/i)?.[1]?.trim() || "IMECHAGULIWA");
+  if (upper.includes("READY")) return "IKO TAYARI";
+  return raw.replaceAll("_", " ");
+}
+
 export default function Chat({ onState, onModToggle, onPowerCommand }) {
   const [message, setMessage] = useState("");
   const [provider, setProvider] = useState("openrouter");
@@ -12,7 +63,7 @@ export default function Chat({ onState, onModToggle, onPowerCommand }) {
   const [messages, setMessages] = useState([
     {
       role: "assistant",
-      content: "Nipo boss 😎. Sema kazi."
+      content: "Habari Boss Ferisi. Niambie unachotaka nifanye. Nitakujibu kwa Kiswahili na nitaeleza wazi kazi iliyokamilika, inayosubiri muunganisho, au iliyoshindikana."
     }
   ]);
 
@@ -210,9 +261,9 @@ export default function Chat({ onState, onModToggle, onPowerCommand }) {
       <div className="chat-header">
         <div>
           <strong>MR AI CORE</strong>
-          <span>SECURE COMMAND CHANNEL</span>
+          <span>MAZUNGUMZO NA MR AI</span>
         </div>
-        <span className="tool-routing-status">{toolStatus}</span>
+        <span className="tool-routing-status" aria-live="polite" title={toolStatus}>{sending ? "NACHAMBUA OMBI..." : readableRoutingStatus(toolStatus)}</span>
         <select
           value={provider}
           onChange={e => setProvider(e.target.value)}
@@ -233,7 +284,7 @@ export default function Chat({ onState, onModToggle, onPowerCommand }) {
             <span>
               {item.role === "assistant" ? "MR AI" : "BOSS"}
             </span>
-            <p>{item.content}</p>
+            <ChatMessageContent content={item.content} />
           </div>
         ))}
       </div>
@@ -244,7 +295,7 @@ export default function Chat({ onState, onModToggle, onPowerCommand }) {
           onKeyDown={e => {
             if (e.key === "Enter") send();
           }}
-          placeholder="Mwambie MR AI kazi... (au sema 'zima', 'amka', au 'mod on')"
+          placeholder="Andika hapa unachotaka MR AI ikusaidie..."
         />
         <VoiceControl
           onTranscript={(text) => {
@@ -253,7 +304,7 @@ export default function Chat({ onState, onModToggle, onPowerCommand }) {
           }}
         />
         <button onClick={() => send()} disabled={sending}>
-          {sending ? "..." : "SEND"}
+          {sending ? "..." : "TUMA"}
         </button>
       </div>
     </section>
