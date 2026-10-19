@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { dispatchTool, searchToolWeb, planAgentWork, executeMission, chat, getExecutiveBriefing } from "../api";
+import { dispatchTool, searchToolWeb, planAgentWork, executeMission, chat, getExecutiveBriefing, browserNavigate, browserClick, browserType, browserScroll, browserDrag, getCurrentPage, reportMissionHandoff } from "../api";
 import HudOrb from "./HudOrb";
 import Chat from "./Chat";
 import LiveMap from "./LiveMap";
@@ -553,7 +553,27 @@ function QuickCommands({ system = null }) {
 }
 
 function statusLabel(value) {
-  return String(value || "READY").replaceAll("_", " ").replaceAll("-", " ");
+  const key = String(value || "READY").toUpperCase();
+  const labels = {
+    READY: "TAYARI",
+    PLANNED: "IMEPANGIWA",
+    PENDING: "INASUBIRI KUANZA",
+    STARTING: "INAANZA",
+    RUNNING: "INAENDELEA",
+    IN_PROGRESS: "INAENDELEA",
+    WORKING: "INAFANYA KAZI",
+    EXECUTING: "INAENDESHA",
+    COMPLETED: "IMEKAMILIKA",
+    WAITING: "INASUBIRI",
+    WAITING_FOR_HAND: "INASUBIRI MUUNGANISHO",
+    WAITING_FOR_VERIFICATION: "INASUBIRI UTHIBITISHO",
+    WAITING_APPROVAL: "INASUBIRI IDHINI",
+    NOT_CONNECTED: "HAIJAUNGANISHWA",
+    FAILED: "IMESHINDWA",
+    ERROR: "KUNA HITILAFU",
+    NO_ACTIVE_MISSION: "HAKUNA KAZI INAYOENDELEA",
+  };
+  return labels[key] || key.replaceAll("_", " ").replaceAll("-", " ");
 }
 
 function isTaskActive(task) {
@@ -580,6 +600,23 @@ function agentRuntimeLabel(value) {
     ERROR: "KUNA HITILAFU",
   };
   return labels[key] || key.replaceAll("_", " ");
+}
+
+function agentDescriptionSwahili(id, fallback) {
+  const descriptions = {
+    orchestrator: "Hupanga kazi, hugawa hatua na kufuatilia ushahidi wa matokeo.",
+    research: "Hutafuta taarifa na kuripoti vyanzo vilivyopatikana.",
+    browser: "Hufanya kazi kwenye Chrome iliyounganishwa na kuidhinishwa.",
+    gmail: "Hutafuta na kusoma barua baada ya Gmail kuunganishwa.",
+    jobs: "Hutafuta nafasi za kazi na kuonyesha viungo vya tangazo.",
+    coding: "Hukagua msimbo na kusaidia kutatua hitilafu za mradi.",
+    creative: "Husaidia kutengeneza mabango, nembo na michoro.",
+    device: "Huchunguza simu na vifaa kupitia Device Bridge ya PC.",
+    security: "Hukagua usanidi na usalama kwa ruhusa.",
+    memory: "Huhifadhi na kurejesha kumbukumbu zilizoidhinishwa.",
+    scheduler: "Hudhibiti kazi zilizowekwa kwenye ratiba.",
+  };
+  return descriptions[String(id || "").toLowerCase()] || fallback || "Mwakala maalumu wa MR AI.";
 }
 
 function AgentFleet({ agents = [], tasks = [], missionSnapshot = null, onOpenAgents, compact = false }) {
@@ -639,7 +676,7 @@ function AgentFleet({ agents = [], tasks = [], missionSnapshot = null, onOpenAge
                 <span className={"cc-agent-state state-" + statusClass}>{agentRuntimeLabel(rawState)}</span>
               </div>
               <strong className="cc-agent-name">{agent.name || id}</strong>
-              <p>{agent.description || "Mwakala maalumu wa MR AI."}</p>
+              <p>{agentDescriptionSwahili(id, agent.description)}</p>
               <div className="cc-agent-current"><span>KAZI YA SASA</span><strong>{currentWork}</strong></div>
               <div className="cc-agent-capabilities">{(agent.capabilities || []).slice(0, 3).join(" · ")}</div>
             </article>
@@ -690,13 +727,80 @@ function MissionWorkbench({ onMissionUpdate }) {
     if (!value || busy) return;
     setBusy("RUN");
     setError("");
+    let latest = null;
     try {
-      const result = await executeMission(value);
-      setMissionResult(result);
-      if (result?.plan) setPlanResult(result.plan);
-      onMissionUpdate?.(result);
+      let finalResult = await executeMission(value);
+      latest = finalResult;
+      const handoffStep = finalResult?.steps?.find(
+        step => step?.status === "WAITING_FOR_HAND" && step?.handoff?.action
+      );
+
+      if (handoffStep && finalResult?.mission?.id) {
+        setMissionResult({ ...finalResult, status: "HAND_EXECUTING" });
+        const action = handoffStep.handoff.action;
+        const payload = handoffStep.handoff.payload || {};
+        let evidence;
+
+        switch (action) {
+          case "NAVIGATE":
+            evidence = await browserNavigate(payload.url);
+            break;
+          case "GET_PAGE_DATA":
+            evidence = await getCurrentPage();
+            break;
+          case "CLICK":
+            evidence = await browserClick(payload.selector);
+            break;
+          case "TYPE":
+            evidence = await browserType(payload.selector, payload.value);
+            break;
+          case "SCROLL":
+            evidence = await browserScroll(Number(payload.amount || 700));
+            break;
+          case "DRAG":
+            evidence = await browserDrag(payload.selector, Number(payload.dx || 0), Number(payload.dy || 0));
+            break;
+          default:
+            throw new Error("Kitendo cha browser hakitumiki: " + action);
+        }
+
+        const verified = await reportMissionHandoff(finalResult.mission.id, "COMPLETED", {
+          agent: handoffStep.agent,
+          tool: "browser_hands",
+          action,
+          result: evidence,
+        });
+        finalResult = {
+          ...finalResult,
+          status: verified.status,
+          mission: {
+            ...finalResult.mission,
+            status: verified.mission.status,
+            progress: verified.mission.progress,
+            result: verified.mission.result,
+          },
+          next_action: verified.next_action || finalResult.next_action,
+          steps: finalResult.steps.map(step => step.step === handoffStep.step
+            ? { ...step, status: verified.verified === true ? "COMPLETED" : verified.status, verified: verified.verified === true, evidence: { message: "Browser imerudisha matokeo. Hali ya mwisho inahitaji uthibitisho huru.", result: evidence } }
+            : step),
+        };
+      }
+
+      setMissionResult(finalResult);
+      if (finalResult?.plan) setPlanResult(finalResult.plan);
+      onMissionUpdate?.(finalResult);
     } catch (err) {
-      setError(err?.message || "Mission could not be started.");
+      const reason = err?.message || "Kazi haikuweza kuanza.";
+      if (latest?.mission) {
+        setMissionResult({
+          ...latest,
+          status: "WAITING",
+          next_action: "Kazi imesimama kwa sababu muunganisho unaohitajika haujapatikana: " + reason,
+        });
+        onMissionUpdate?.(latest);
+      } else {
+        setError(reason);
+      }
     } finally {
       setBusy("");
     }
@@ -714,44 +818,75 @@ function MissionWorkbench({ onMissionUpdate }) {
         <p>Andika kazi unayotaka MR AI ifanye. Panga kwanza ili kuona agents watakaohusika; endesha mission ili runtime ijaribu hatua zinazoungwa mkono. Hatua zinazohitaji browser/device integration zitaonyeshwa kama WAITING badala ya kudai zimekamilika.</p>
       </div>
       <form className="cc-mission-form" onSubmit={createPlan}>
-        <label htmlFor="cc-mission-request">MISSION / LENGO LA BOSS FERISI</label>
+        <label htmlFor="cc-mission-request">KAZI / LENGO LA BOSS FERISI</label>
         <input
           id="cc-mission-request"
           value={request}
           onChange={event => setRequest(event.target.value)}
-          placeholder="Mfano: kagua mfumo, tafuta taarifa, au panga mradi wangu..."
+          placeholder="Andika kazi, mfano: tafuta ajira za remote za Python..."
           maxLength={1000}
           required
         />
         <div className="cc-mission-actions">
-          <button type="submit" disabled={Boolean(busy) || !request.trim()}>{busy === "PLAN" ? "INAPANGA..." : "PLAN MISSION"}</button>
-          <button type="button" className="primary-button" disabled={Boolean(busy) || !request.trim()} onClick={runMission}>{busy === "RUN" ? "INAENDESHA..." : "RUN MISSION"}</button>
+          <button type="submit" disabled={Boolean(busy) || !request.trim()}>{busy === "PLAN" ? "INAPANGA..." : "PANGA KAZI"}</button>
+          <button type="button" className="primary-button" disabled={Boolean(busy) || !request.trim()} onClick={runMission}>{busy === "RUN" ? "INAENDESHA..." : "ANZA KAZI"}</button>
         </div>
       </form>
       <div className="cc-mission-examples">
-        <span>QUICK START</span>
+        <span>ANZA HAPA</span>
         {examples.map(example => <button type="button" key={example} onClick={() => setRequest(example)}>{example}</button>)}
       </div>
       {error && <div className="cc-workbench-error" role="alert">{error}</div>}
       {current ? (
         <div className="cc-mission-result" aria-live="polite">
           <div className="cc-mission-result-head">
-            <div><span>MISSION STATE</span><strong>{statusLabel(missionResult?.status || planResult?.status || "PLANNED")}</strong></div>
-            {missionResult?.mission?.id && <div><span>MISSION ID</span><strong>#{missionResult.mission.id}</strong></div>}
-            {missionResult?.mission?.progress !== undefined && <div><span>PROGRESS</span><strong>{missionResult.mission.progress}%</strong></div>}
+            <div><span>HALI YA KAZI</span><strong>{statusLabel(missionResult?.status || planResult?.status || "PLANNED")}</strong></div>
+            {missionResult?.mission?.id && <div><span>ID YA KAZI</span><strong>#{missionResult.mission.id}</strong></div>}
+            {missionResult?.mission?.progress !== undefined && <div><span>MAENDELEO</span><strong>{missionResult.mission.progress}%</strong></div>}
           </div>
           {steps.length ? (
             <div className="cc-mission-steps">
-              {steps.map((step, index) => (
-                <div className="cc-mission-step" key={step.step || `${step.agent}-${index}`}>
-                  <span className="cc-step-number">{String(step.step || index + 1).padStart(2, "0")}</span>
-                  <div><strong>{step.name || step.agent || "Agent step"}</strong><small>{step.tool || (Array.isArray(step.tools) ? step.tools.slice(0, 3).join(" · ") : "") || (Array.isArray(step.capabilities) ? step.capabilities.slice(0, 3).join(" · ") : "Waiting for runtime details")}</small></div>
-                  <span className={`cc-agent-state state-${statusLabel(step.status).toLowerCase().replaceAll(" ", "-")}`}>{statusLabel(step.status)}</span>
-                </div>
-              ))}
+              {steps.map((step, index) => {
+                const evidence = step.evidence || {};
+                const jobs = Array.isArray(evidence.results) ? evidence.results.slice(0, 5) : [];
+                const rawStatus = String(step.status || "PLANNED").toLowerCase().replaceAll("_", "-");
+                const displayName = step.name || ({
+                  orchestrator: "MR AI Orchestrator",
+                  jobs: "Mtafutaji wa Ajira",
+                  research: "Mtafiti",
+                  browser: "Msimamizi wa Kivinjari",
+                  gmail: "Msimamizi wa Barua Pepe",
+                  device: "Mtaalamu wa Vifaa",
+                  coding: "Mhandisi wa Msimbo",
+                  memory: "Msimamizi wa Kumbukumbu",
+                  scheduler: "Msimamizi wa Ratiba",
+                }[String(step.agent || "").toLowerCase()] || step.agent || "Wakala");
+                return (
+                  <div className="cc-mission-step" key={step.step || (step.agent + "-" + index)}>
+                    <span className="cc-step-number">{String(step.step || index + 1).padStart(2, "0")}</span>
+                    <div className="cc-mission-step-main">
+                      <strong>{displayName}</strong>
+                      <small>{step.tool || (Array.isArray(step.tools) ? step.tools.slice(0, 3).join(" · ") : "") || (Array.isArray(step.capabilities) ? step.capabilities.slice(0, 3).join(" · ") : "Inasubiri zana inayohitajika")}</small>
+                      {evidence.message && <p className="cc-mission-step-note">{evidence.message}</p>}
+                      {jobs.length > 0 && (
+                        <div className="cc-mission-job-results">
+                          {jobs.map((job, jobIndex) => (
+                            <a href={job.url} key={job.url || jobIndex} target="_blank" rel="noreferrer">
+                              <strong>{job.title || "Nafasi ya kazi"}</strong>
+                              <span>{job.company || "Mwajiri hajatambuliwa"} · {job.location || "Eneo halijawekwa"} · {job.source || "Chanzo"}</span>
+                            </a>
+                          ))}
+                        </div>
+                      )}
+                      {evidence.note && <small className="cc-mission-step-note">{evidence.note}</small>}
+                    </div>
+                    <span className={"cc-agent-state state-" + rawStatus}>{statusLabel(step.status)}</span>
+                  </div>
+                );
+              })}
             </div>
           ) : <p className="cc-agent-empty">Plan returned no specialist steps.</p>}
-          {missionResult?.next_action && <div className="cc-next-action"><strong>NEXT ACTION</strong><span>{missionResult.next_action}</span></div>}
+          {missionResult?.next_action && <div className="cc-next-action"><strong>HATUA INAYOFUATA</strong><span>{missionResult.next_action}</span></div>}
         </div>
       ) : (
         <div className="cc-workbench-empty"><strong>WAITING FOR YOUR MISSION</strong><span>Agent plan and run evidence will appear here. Nothing runs until you press a mission button.</span></div>
