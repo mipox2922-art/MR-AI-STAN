@@ -58,6 +58,68 @@ async def execute_mission(
     steps = []
     for index, step in enumerate(plan["steps"], start=1):
         agent_id = step["agent"]
+
+        # Job Research has a real no-key public-feed hand: RemoteOK and Remotive.
+        # Execute it here instead of showing a specialist tile that never does work.
+        if agent_id == "jobs":
+            import re
+            from ..routers.jobs import research_public_jobs
+
+            query = re.sub(
+                r"^(?:tafuta|nitafutie|tafutia|find(?: me)?|search for|search|research|job research)\\b",
+                "",
+                request.strip(),
+                flags=re.IGNORECASE,
+            ).strip(" :,-")
+            query = re.sub(
+                r"^(?:ajira|kazi|jobs?)(?:\\s+(?:za\\s+)?remote)?(?:\\s+(?:za|for|in))?\\s*",
+                "",
+                query,
+                flags=re.IGNORECASE,
+            ).strip()
+            query = query or "remote jobs"
+            try:
+                result = await research_public_jobs(query, limit=15)
+                result_status = str(result.get("status", "FAILED")).upper()
+                successful_search = result_status in {"COMPLETED", "NO_RESULTS"}
+                result_count = int(result.get("count") or len(result.get("results") or []))
+                message = (
+                    f"Utafutaji wa ajira umekamilika. Nafasi zilizopatikana: {result_count}."
+                    if result_count
+                    else "Utafutaji umekamilika lakini hakuna nafasi zinazolingana na maneno haya."
+                )
+                steps.append({
+                    "step": index,
+                    "agent": agent_id,
+                    "name": step.get("name", "Job Research Agent"),
+                    "tool": "public_job_feeds",
+                    "status": "COMPLETED" if successful_search else "FAILED",
+                    "verified": successful_search,
+                    "evidence": {
+                        "message": message,
+                        "query": query,
+                        "count": result_count,
+                        "sources": result.get("sources", []),
+                        "source_warnings": result.get("source_warnings", []),
+                        "results": (result.get("results") or [])[:5],
+                        "note": result.get("note", "Kagua tangazo kwenye tovuti ya mwajiri kabla ya kutuma ombi."),
+                    },
+                })
+            except Exception as exc:
+                steps.append({
+                    "step": index,
+                    "agent": agent_id,
+                    "name": step.get("name", "Job Research Agent"),
+                    "tool": "public_job_feeds",
+                    "status": "FAILED",
+                    "verified": False,
+                    "evidence": {
+                        "message": f"Utafutaji wa ajira umeshindwa: {type(exc).__name__}. Jaribu tena baadaye.",
+                        "query": query,
+                    },
+                })
+            continue
+
         if agent_id == "orchestrator" and "system_telemetry" in step["tools"]:
             result = system_status(user)
             steps.append({
@@ -126,8 +188,16 @@ async def execute_mission(
             },
         })
 
-    finished = all(step["status"] == "COMPLETED" for step in steps)
-    mission.status = "COMPLETED" if finished else "WAITING"
+    finished = bool(steps) and all(step["status"] == "COMPLETED" for step in steps)
+    failed = any(step["status"] == "FAILED" for step in steps)
+    mission_waiting = any(
+        str(step["status"]).upper() in {
+            "WAITING", "WAITING_FOR_HAND", "WAITING_FOR_VERIFICATION",
+            "WAITING_APPROVAL", "NOT_CONNECTED",
+        }
+        for step in steps
+    )
+    mission.status = "COMPLETED" if finished else "WAITING" if mission_waiting else "FAILED" if failed else "WAITING"
     mission.progress = 100 if finished else int(
         sum(step["status"] == "COMPLETED" for step in steps)
         / max(1, len(steps))
@@ -140,7 +210,7 @@ async def execute_mission(
     })
     db.add(ActivityLog(
         user_id=user.id,
-        action="MISSION_COMPLETED" if finished else "MISSION_WAITING",
+        action="MISSION_COMPLETED" if finished else "MISSION_FAILED" if mission.status == "FAILED" else "MISSION_WAITING",
         details=f"Mission {mission.id}: {mission.status}",
     ))
     db.commit()
@@ -152,8 +222,10 @@ async def execute_mission(
         "plan": plan,
         "steps": steps,
         "next_action": (
-            "Mission verified complete."
+            "Mission verified complete. Review the evidence returned for each step."
             if finished
-            else "Connect the required permissioned hands, then resume the waiting steps."
+            else "At least one step failed. Review that step's evidence and retry after correcting the cause."
+            if mission.status == "FAILED"
+            else "Connect the required permissioned browser/device/mail hand, then rerun the waiting step."
         ),
     }
