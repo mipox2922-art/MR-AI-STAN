@@ -267,6 +267,7 @@ function AgentResultView({ result, kind }) {
           {steps.map((step, index) => {
             const stepStatus = String(step.status || "PLANNED").toUpperCase();
             const details = step.evidence?.message || step.evidence?.note || step.message || step.reason || "";
+            const jobResults = Array.isArray(step.evidence?.results) ? step.evidence.results.slice(0, 5) : [];
             const tool = step.tool || (Array.isArray(step.tools) ? step.tools.slice(0, 2).join(" · ") : "");
             return (
               <article className={"agent-result-step state-" + stepStatus.toLowerCase().replaceAll("_", "-")} key={step.step || (step.agent + "-" + index)}>
@@ -275,6 +276,16 @@ function AgentResultView({ result, kind }) {
                   <strong>{agentDisplayName(step.name || step.agent || "Agent")}</strong>
                   {tool && <small>{tool}</small>}
                   {details && <p>{details}</p>}
+                  {jobResults.length > 0 && (
+                    <div className="agent-result-jobs">
+                      {jobResults.map((job, jobIndex) => (
+                        <a href={job.url} key={job.url || jobIndex} target="_blank" rel="noreferrer">
+                          <strong>{job.title || "Nafasi ya kazi"}</strong>
+                          <span>{job.company || "Mwajiri hajatambuliwa"} · {job.location || "Eneo halijawekwa"} · {job.source || "Chanzo"}</span>
+                        </a>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 <span className="agent-result-step-state">{agentStatusText(stepStatus, kind)}</span>
               </article>
