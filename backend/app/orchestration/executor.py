@@ -66,13 +66,13 @@ async def execute_mission(
             from ..routers.jobs import research_public_jobs
 
             query = re.sub(
-                r"^(?:tafuta|nitafutie|tafutia|find(?: me)?|search for|search|research|job research)\\b",
+                r"^(?:tafuta|nitafutie|tafutia|find(?: me)?|search for|search|research|job research)\b",
                 "",
                 request.strip(),
                 flags=re.IGNORECASE,
             ).strip(" :,-")
             query = re.sub(
-                r"^(?:ajira|kazi|jobs?)(?:\\s+(?:za\\s+)?remote)?(?:\\s+(?:za|for|in))?\\s*",
+                r"^(?:ajira|kazi|jobs?)(?:\s+(?:za\s+)?remote)?(?:\s+(?:za|for|in))?\s*",
                 "",
                 query,
                 flags=re.IGNORECASE,
