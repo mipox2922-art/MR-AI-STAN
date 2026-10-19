@@ -188,10 +188,10 @@ function MissionOverview({ tasks = [] }) {
   return (
     <div className="cc-mission">
       <div className="cc-mission-copy">
-        <p>Execute, monitor and verify assigned operations with evidence from the MR AI runtime.</p>
-        <span>CURRENT FOCUS</span>
-        <strong>{focus}</strong>
-        <small className="cc-mission-summary">{active.length} ACTIVE · {tasks.length} TOTAL TASKS</small>
+        <p>Muhtasari wa kazi zilizorekodiwa na maendeleo yaliyothibitishwa.</p>
+        <span>KAZI INAYOANGALIWA</span>
+        <strong>{focus === "NO ACTIVE MISSION" ? "Hakuna kazi inayoendelea" : focus}</strong>
+        <small className="cc-mission-summary">{active.length} ZINAENDELEA · {tasks.length} JUMLA</small>
       </div>
       <div className="cc-mission-graph">
         <div className="cc-graph-grid" />
@@ -203,7 +203,7 @@ function MissionOverview({ tasks = [] }) {
             return <circle key={i} cx={x} cy={y} r="1.35" fill="var(--c)" />;
           })}
         </svg>
-        {!chart && <span className="cc-chart-empty">WAITING FOR VERIFIED TASK PROGRESS</span>}
+        {!chart && <span className="cc-chart-empty">Hakuna maendeleo ya kazi yaliyorekodiwa bado</span>}
         <div className="cc-chart-axis"><span>00</span><span>04</span><span>08</span><span>12</span><span>16</span><span>20</span><span>24</span></div>
       </div>
     </div>
@@ -1229,7 +1229,7 @@ export default function DashboardHome({
       <ExecutiveMorningBrief system={system} gmailStatus={gmailStatus} tasks={tasks} onOpenAgents={onOpenAgents} onOpenTasks={onOpenTasks} onOpenGmail={onOpenGmail} onOpenJobs={onOpenJobs} />
 
       <div className="cc-top-grid">
-        <Panel eyebrow="BACKEND TELEMETRY" title="Runtime Status">
+        <Panel eyebrow="TELEMETRY YA BACKEND" title="Hali ya Runtime">
           <SystemStatus
             telemetry={telemetry}
             telemetryHistory={telemetryHistory}
@@ -1239,50 +1239,62 @@ export default function DashboardHome({
           />
         </Panel>
 
-        <Panel eyebrow="AI CORE STATUS" title="AI Core Status" badge={working ? "WORKING MODE" : "NORMAL MODE"}>
+        <Panel eyebrow="HALI YA AI CORE" title="AI Core" badge={working ? "WORKING MODE" : "NORMAL MODE"}>
           <div className="cc-core-status">
             <div className="cc-core-readout">
               <div><span>AI MODEL</span><strong>{topReadout.model}</strong></div>
               <div><span>AI TIER</span><strong>{topReadout.tier}</strong></div>
               <div><span>AI RUNTIME</span><strong>{system?.ai?.ready ? "LIVE-TESTED" : system?.ai?.configured ? "CONFIGURED · NOT TESTED" : "NOT CONFIGURED"}</strong></div>
               <div><span>UPTIME</span><strong>{topReadout.uptime}</strong></div>
-              <div><span>STATUS</span><strong>{topReadout.status}</strong></div>
-              <div><span>TASKS</span><strong>{topReadout.active}</strong></div>
+              <div><span>HALI</span><strong>{topReadout.status}</strong></div>
+              <div><span>KAZI HAI</span><strong>{topReadout.active}</strong></div>
             </div>
             <HudOrb state={coreState} working={working} />
           </div>
         </Panel>
 
-        <Panel eyebrow="AGENT CREW" title="Mawakala wa MR AI" badge={agents.length + " WALIOSAJILIWA"} className="cc-agent-fleet-panel">
-          <AgentFleet agents={agents} tasks={tasks} missionSnapshot={missionSnapshot} onOpenAgents={onOpenAgents} compact />
+        <Panel eyebrow="MISSION OVERVIEW" title="Muhtasari wa Kazi">
+          <MissionOverview tasks={tasks} />
         </Panel>
       </div>
 
       <div className="cc-main-grid">
-        <Panel eyebrow="RADAR SCAN" title="Radar Scan" badge={`${radarFindings.length} CONTACTS`} className="cc-radar-panel">
-          <Radar findings={radarFindings} onRadarScan={onRadarScan} sensorStatus={sensorStatus} onOpenDevice={onOpenDevice} />
-        </Panel>
-
-        <Panel eyebrow="LIVE MAP" title="Live 2D Map" className="cc-map-panel">
-          <LiveMap onOpenMap={onOpenMap} />
-        </Panel>
-
-        <Panel eyebrow="MR AI CHAT" title="MR AI Chat" className="cc-chat-panel">
+        <Panel eyebrow="MR AI CHAT" title="Mazungumzo na MR AI" className="cc-chat-panel">
           <Chat onState={onState} onModToggle={onModToggle} onPowerCommand={onPowerCommand} />
         </Panel>
 
+        <Panel eyebrow="RADAR SCAN" title="Radar ya Vifaa" badge={`${radarFindings.length} CONTACTS`} className="cc-radar-panel">
+          <Radar findings={radarFindings} onRadarScan={onRadarScan} sensorStatus={sensorStatus} onOpenDevice={onOpenDevice} />
+        </Panel>
+
+        <Panel eyebrow="LIVE MAP" title="Ramani ya 2D" className="cc-map-panel">
+          <LiveMap onOpenMap={onOpenMap} />
+        </Panel>
+
         {services.web_search === "CONFIGURED" && (
-          <Panel eyebrow="WEB RESEARCH" title="Web Research" className="cc-research-panel">
+          <Panel eyebrow="WEB RESEARCH" title="Utafutaji wa Mtandaoni" className="cc-research-panel">
             <WebResearch />
           </Panel>
         )}
       </div>
 
-      <Panel eyebrow="MISSION CONTROL" title="Wape Mawakala Kazi" badge="MATOKEO YA KWELI TU" className="cc-mission-workbench-panel">
-        <MissionWorkbench onMissionUpdate={handleMissionUpdate} />
-      </Panel>
+      <details className="cc-dashboard-drawer cc-mission-drawer">
+        <summary>
+          <span><strong>MISSION CONTROL</strong><small>Panga kazi na uone matokeo ya mawakala</small></span>
+          <b>FUNGUA <span aria-hidden="true">＋</span></b>
+        </summary>
+        <Panel eyebrow="MISSION CONTROL" title="Wape Mawakala Kazi" badge="MATOKEO YALIYOTHIBITISHWA" className="cc-mission-workbench-panel">
+          <MissionWorkbench onMissionUpdate={handleMissionUpdate} />
+        </Panel>
+      </details>
 
-      <QuickCommands system={system} />
+      <details className="cc-dashboard-drawer cc-commands-drawer">
+        <summary>
+          <span><strong>QUICK COMMANDS</strong><small>Ukaguzi, ripoti na zana za ziada</small></span>
+          <b>FUNGUA <span aria-hidden="true">＋</span></b>
+        </summary>
+        <QuickCommands system={system} />
+      </details>
 
 
     </div>
