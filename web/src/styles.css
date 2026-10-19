@@ -6873,7 +6873,7 @@ button { cursor: pointer; }
 .command-center-reference .cc-mission {
   display: grid;
   grid-template-columns: minmax(0,.95fr) minmax(0,1.2fr);
-  grid-template-rows: 1fr auto;
+  grid-template-rows: minmax(0,1fr);
   align-items: center;
   gap: 7px;
   min-height: 0;
@@ -7194,7 +7194,7 @@ button { cursor: pointer; }
 .agent-result-next { padding: 7px; border-left: 2px solid #ff5369; background: rgba(255,49,69,.05); }
 .agent-result-disclaimer { color: #a9959b; }
 
-@media (min-width: 761px) and (max-width: 1450px) {
+@media (min-width: 761px) and (max-width: 1200px) {
   .command-center-reference .cc-main-grid {
     grid-template-columns: repeat(2,minmax(0,1fr));
     grid-template-areas: "radar map" "chat research";
@@ -7238,4 +7238,38 @@ button { cursor: pointer; }
   .agent-result-step { grid-template-columns: 23px minmax(0,1fr); }
   .agent-result-step-state { grid-column: 2; justify-self: start; }
 }
+
+
+/* Formatted assistant messages remain legible after the style consolidation. */
+.command-center-reference .cc-chat-panel .chat-message-body {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.command-center-reference .cc-chat-panel .chat-message-spacer { height: 2px; }
+.command-center-reference .cc-chat-panel .chat-message-heading {
+  display: block;
+  margin-top: 3px;
+  color: #ff9aa7;
+  font-size: 10px;
+  line-height: 1.4;
+}
+.command-center-reference .cc-chat-panel .chat-message-list-item {
+  display: grid;
+  grid-template-columns: 14px minmax(0,1fr);
+  gap: 4px;
+  min-width: 0;
+  font-size: 10px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+.command-center-reference .cc-chat-panel .chat-message-list-item > span { color: #ff8190; font-weight: 800; }
+.command-center-reference .cc-chat-panel .chat-message-body code {
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: rgba(255,255,255,.07);
+  color: #ffd6dc;
+  font-size: 9px;
+}
+.command-center-reference .cc-chat-panel .chat-message-body strong { color: #fff3f5; }
 
