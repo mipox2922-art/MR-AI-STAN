@@ -347,6 +347,15 @@ async function main() {
     const footer = document.querySelector(".cc-system-footer")?.textContent || "";
     return footer.includes("ONLINE") && !footer.includes("WAITING");
   }, undefined, { timeout: 7000 });
+  const executiveDetails = page.locator(".cc-executive-details");
+  await executiveDetails.locator("summary").click();
+  await executiveDetails.locator(".cc-exec-agent-crew").waitFor({ state: "visible", timeout: 7000 });
+  assert.equal(await executiveDetails.locator(".cc-exec-agent-card").count(), 8,
+    "The expanded Executive Briefing should show up to eight registered agent cards.");
+  assert.ok(await executiveDetails.getByText("INASUBIRI KAZI", { exact: true }).count() > 0,
+    "Registered agents without an active assignment must be clearly marked idle, not working.");
+  await executiveDetails.locator("summary").click();
+  completedChecks.push("executive briefing expands to a task-backed Agent Crew roster");
   assert.equal(radarScanRequests, 0, "After initial telemetry refresh completes, dashboard polling must not scan local sensor hardware.");
   const nav = page.locator(".sidebar nav button");
   assert.equal(await nav.count(), 16, "All 16 main navigation entries should render.");
@@ -388,7 +397,7 @@ async function main() {
     await page.locator(".cc-quick-grid button").filter({ hasText: label }).click();
     await page.waitForFunction(expected => document.querySelector(".cc-quick-head strong")?.textContent?.includes(expected), label, { timeout: 7000 });
   }
-  const dashboardSearch = page.locator('.cc-research-search input[placeholder="SEARCH THE WEB..."]');
+  const dashboardSearch = page.locator(".cc-research-search input");
   await dashboardSearch.fill("MR AI smoke query");
   await dashboardSearch.press("Enter");
   await page.getByText("Smoke Search Result", { exact: true }).waitFor({ state: "visible", timeout: 7000 });
@@ -461,17 +470,17 @@ async function main() {
   completedChecks.push("AI Core SEND submits typed text and accepts a response delayed beyond 12 seconds");
 
   await goTo("Agents");
-  const missionInput = page.locator(".planner-row input");
+  const missionInput = page.locator(".agent-planner-form input");
   await missionInput.fill("Kagua afya ya mfumo wa MR AI");
-  await page.locator(".planner-row button").filter({ hasText: "PLAN" }).click();
-  const planOutput = page.locator(".plan-output").first();
+  await page.locator(".agent-planner-form button").filter({ hasText: "PANGA KAZI" }).click();
+  const planOutput = page.locator(".agent-result-plan").first();
   await planOutput.waitFor({ state: "visible", timeout: 7000 });
   const planText = await planOutput.innerText();
   assert.match(planText, /MR AI Orchestrator/, "System-health plan should route to the Orchestrator.");
   assert.doesNotMatch(planText, /Research Agent/, "System-health plan should not add an unrelated Research Agent.");
-  await page.locator(".planner-row button").filter({ hasText: "RUN MISSION" }).click();
-  await page.locator(".mission-output").getByText(/COMPLETED/).waitFor({ state: "visible", timeout: 7000 });
-  completedChecks.push("Mission Planner PLAN + RUN path; health plan contains Orchestrator only");
+  await page.locator(".agent-planner-form button").filter({ hasText: "ANZA KAZI" }).click();
+  await page.locator(".agent-result-run .agent-result-step-state").filter({ hasText: "IMEKAMILIKA" }).first().waitFor({ state: "visible", timeout: 7000 });
+  completedChecks.push("Mission Planner PANGA KAZI + ANZA KAZI path; health plan contains Orchestrator only");
 
   await goTo("Browser Hands");
   const hands = page.locator(".tool-panel");
