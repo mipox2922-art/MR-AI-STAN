@@ -6742,11 +6742,22 @@ button { cursor: pointer; }
   min-width: 0;
 }
 .command-center-reference .cc-main-grid > .cc-panel {
+  display: flex;
+  flex-direction: column;
   grid-column: auto !important;
   min-width: 0;
   height: 370px;
   min-height: 0;
   overflow: hidden;
+}
+.command-center-reference .cc-main-grid > .cc-panel > .cc-panel-head { flex: 0 0 auto; }
+.command-center-reference .cc-main-grid > .cc-panel > .cc-radar-wrap,
+.command-center-reference .cc-main-grid > .cc-panel > .cc-live-map,
+.command-center-reference .cc-main-grid > .cc-panel > .chat-panel,
+.command-center-reference .cc-main-grid > .cc-panel > .cc-research {
+  flex: 1 1 auto;
+  height: auto;
+  min-height: 0;
 }
 .command-center-reference .cc-radar-panel { grid-area: radar; }
 .command-center-reference .cc-map-panel { grid-area: map; }
@@ -6758,10 +6769,11 @@ button { cursor: pointer; }
 .command-center-reference .cc-research-panel > .cc-research {
   display: flex;
   flex-direction: column;
+  flex: 1 1 auto;
   gap: 9px;
   min-width: 0;
   min-height: 0;
-  height: 100%;
+  height: auto;
 }
 .command-center-reference .cc-radar-wrap { overflow-y: auto; scrollbar-width: thin; }
 .command-center-reference .cc-radar-controls { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 6px; }
