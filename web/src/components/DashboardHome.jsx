@@ -630,8 +630,6 @@ function AgentFleet({ agents = [], tasks = [], missionSnapshot = null, onOpenAge
   const activeTaskCount = tasks.filter(task => workingStatuses.includes(String(task.status || "").toUpperCase())).length;
   const waitingTaskCount = tasks.filter(task => waitingStatuses.includes(String(task.status || "").toUpperCase())).length;
   const waitingCount = waitingTaskCount + steps.filter(step => waitingStatuses.includes(String(step.status || "").toUpperCase())).length;
-  const visibleAgents = compact ? agents.slice(0, 4) : agents;
-
   function assignmentFor(agent) {
     const id = String(agent.id || "").toLowerCase().trim();
     const name = String(agent.name || "").toLowerCase().trim();
@@ -644,6 +642,23 @@ function AgentFleet({ agents = [], tasks = [], missionSnapshot = null, onOpenAge
       return bWorking - aWorking;
     })[0] || null;
   }
+
+  function priorityFor(agent) {
+    const id = String(agent.id || "").toLowerCase();
+    const task = assignmentFor(agent);
+    const taskStatus = String(task?.status || "").toUpperCase();
+    const step = [...steps].reverse().find(item => String(item.agent || "").toLowerCase() === id);
+    const stepStatus = String(step?.status || "").toUpperCase();
+    if (workingStatuses.includes(taskStatus) || ["RUNNING", "IN_PROGRESS", "WORKING", "EXECUTING"].includes(stepStatus)) return 100;
+    if (waitingStatuses.includes(taskStatus) || waitingStatuses.includes(stepStatus)) return 80;
+    if (step && stepStatus !== "PLANNED") return 70;
+    if (task) return 50;
+    if (step) return 40;
+    return 0;
+  }
+
+  const rankedAgents = compact ? [...agents].sort((a, b) => priorityFor(b) - priorityFor(a)) : agents;
+  const visibleAgents = compact ? rankedAgents.slice(0, 4) : rankedAgents;
 
   return (
     <div className="cc-agent-fleet-wrap">
