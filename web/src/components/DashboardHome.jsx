@@ -1001,7 +1001,126 @@ function ActiveTasks({ tasks = [] }) {
 }
 
 
-function ExecutiveMorningBrief({ system, gmailStatus, tasks = [], onOpenAgents, onOpenTasks, onOpenGmail, onOpenJobs }) {
+function AgentCrewRoster({ agents = [], tasks = [], onOpenAgents }) {
+  const visibleAgents = agents.slice(0, 8);
+  const activeStatuses = new Set(["RUNNING", "IN_PROGRESS", "WORKING", "EXECUTING"]);
+  const terminalStatuses = new Set(["COMPLETED", "FAILED", "CANCELLED"]);
+
+  function agentName(agent) {
+    const id = String(agent?.id || "").toLowerCase();
+    const names = {
+      orchestrator: "MR AI Orchestrator",
+      research: "Mtafiti",
+      browser: "Msimamizi wa Kivinjari",
+      gmail: "Msimamizi wa Barua Pepe",
+      jobs: "Mtafutaji wa Ajira",
+      coding: "Mhandisi wa Msimbo",
+      creative: "Mbunifu",
+      device: "Mtaalamu wa Vifaa",
+      security: "Mtaalamu wa Usalama",
+      memory: "Msimamizi wa Kumbukumbu",
+      scheduler: "Msimamizi wa Ratiba",
+    };
+    return agent?.name || names[id] || id.replaceAll("_", " ") || "Wakala";
+  }
+
+  function agentDescription(agent) {
+    const id = String(agent?.id || "").toLowerCase();
+    const descriptions = {
+      orchestrator: "Hupanga mission na kugawa hatua kwa wataalamu.",
+      research: "Hutafuta taarifa na kuhifadhi vyanzo.",
+      browser: "Hufanya hatua kwenye browser iliyoidhinishwa.",
+      gmail: "Hutafuta na kusoma barua ikiwa Gmail imeunganishwa.",
+      jobs: "Hutafuta nafasi za kazi na maelezo ya waajiri.",
+      coding: "Hukagua msimbo na kusaidia kutafuta hitilafu.",
+      creative: "Husaidia kubuni picha, mabango na maudhui.",
+      device: "Huchunguza vifaa kupitia Device Bridge.",
+      security: "Hukagua hali na mipangilio ya usalama.",
+      memory: "Hupanga na kurejesha kumbukumbu za mfumo.",
+      scheduler: "Hudhibiti kazi za ratiba.",
+    };
+    return descriptions[id] || agent?.description || "Mwakala maalumu wa MR AI.";
+  }
+
+  function assignedTasks(agent) {
+    const id = String(agent?.id || "").toLowerCase().trim();
+    const name = String(agent?.name || "").toLowerCase().trim();
+    return tasks.filter(task => {
+      const owner = String(task?.agent || "").toLowerCase().trim();
+      return owner === id || owner === name || (id && owner.replaceAll(" ", "_") === id);
+    });
+  }
+
+  function statusFor(agent) {
+    const assigned = assignedTasks(agent);
+    const active = assigned.find(task => activeStatuses.has(String(task.status || "").toUpperCase()));
+    const current = active || assigned.find(task => !terminalStatuses.has(String(task.status || "").toUpperCase()));
+    if (active) return {
+      label: "INAENDELEA",
+      tone: "active",
+      task: active.title || "Kazi inaendelea",
+    };
+    if (!current) return {
+      label: "INASUBIRI KAZI",
+      tone: "idle",
+      task: "Hakuna mission inayoendelea kwa wakala huyu.",
+    };
+    const raw = String(current.status || "WAITING").toUpperCase();
+    if (/FAILED|ERROR|REJECTED/.test(raw)) return {
+      label: "INAHITAJI UKAGUZI",
+      tone: "blocked",
+      task: current.title || "Kazi imeripoti tatizo.",
+    };
+    if (/WAITING|PENDING|PLANNED/.test(raw)) return {
+      label: "INASUBIRI",
+      tone: "waiting",
+      task: current.title || "Kazi inasubiri kuanza.",
+    };
+    return {
+      label: raw.replaceAll("_", " "),
+      tone: "waiting",
+      task: current.title || "Kazi imepangwa.",
+    };
+  }
+
+  return (
+    <section className="cc-exec-agent-crew" aria-label="Hali ya mawakala wa MR AI">
+      <div className="cc-exec-agent-crew-head">
+        <div>
+          <span className="cc-eyebrow">AGENT CREW // HALI YA KAZI</span>
+          <h2>Wafanyakazi wa MR AI</h2>
+          <p>{agents.length} mawakala wamesajiliwa. Hali ya “INAENDELEA” huonyeshwa tu pale kazi inayoendelea inapolingana na wakala.</p>
+        </div>
+        <button type="button" onClick={onOpenAgents}>FUNGUA CREW ↗</button>
+      </div>
+      {visibleAgents.length ? (
+        <div className="cc-exec-agent-grid">
+          {visibleAgents.map(agent => {
+            const status = statusFor(agent);
+            return (
+              <article className="cc-exec-agent-card" key={agent.id || agent.name}>
+                <div className="cc-exec-agent-card-head">
+                  <strong>{agentName(agent)}</strong>
+                  <span className={"cc-exec-agent-state state-" + status.tone}>{status.label}</span>
+                </div>
+                <p>{status.task === "Hakuna mission inayoendelea kwa wakala huyu." ? agentDescription(agent) : status.task}</p>
+              </article>
+            );
+          })}
+          {agents.length > visibleAgents.length && (
+            <button type="button" className="cc-exec-agent-more" onClick={onOpenAgents}>
+              +{agents.length - visibleAgents.length} mawakala wengine · ONA WOTE
+            </button>
+          )}
+        </div>
+      ) : (
+        <div className="cc-exec-agent-empty">Orodha ya mawakala haijarudi kutoka backend bado. Hakuna hali ya kazi inayobuniwa.</div>
+      )}
+    </section>
+  );
+}
+
+function ExecutiveMorningBrief({ system, gmailStatus, tasks = [], agents = [], onOpenAgents, onOpenTasks, onOpenGmail, onOpenJobs }) {
   const [briefing, setBriefing] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -1127,6 +1246,7 @@ function ExecutiveMorningBrief({ system, gmailStatus, tasks = [], onOpenAgents, 
           <span className="cc-exec-detail-copy">Latest activity, priorities and blockers</span>
           <strong>VIEW DETAILS <span aria-hidden="true">＋</span></strong>
         </summary>
+        <AgentCrewRoster agents={agents} tasks={tasks} onOpenAgents={onOpenAgents} />
         <div className="cc-executive-lower">
         <div className="cc-executive-activity">
           <div className="cc-exec-section-head"><div><span className="cc-eyebrow">AUDIT TRAIL</span><h2>Latest Operations</h2></div><button type="button" onClick={loadBriefing} disabled={loading}>{loading ? "SYNCING..." : "REFRESH ↻"}</button></div>
@@ -1247,7 +1367,7 @@ export default function DashboardHome({
         </div>
       </div>
 
-      <ExecutiveMorningBrief system={system} gmailStatus={gmailStatus} tasks={tasks} onOpenAgents={onOpenAgents} onOpenTasks={onOpenTasks} onOpenGmail={onOpenGmail} onOpenJobs={onOpenJobs} />
+      <ExecutiveMorningBrief system={system} gmailStatus={gmailStatus} tasks={tasks} agents={agents} onOpenAgents={onOpenAgents} onOpenTasks={onOpenTasks} onOpenGmail={onOpenGmail} onOpenJobs={onOpenJobs} />
 
       <div className="cc-top-grid">
         <Panel eyebrow="TELEMETRY YA BACKEND" title="Hali ya Runtime">
