@@ -901,6 +901,7 @@ function App() {
               onOpenTasks={() => setActive("tasks")}
               onOpenGmail={() => setActive("gmail")}
               onOpenJobs={() => setActive("jobs")}
+              onOpenDevice={() => setActive("device")}
               onRadarScan={handleRadarScan}
               clock={clock}
             />
