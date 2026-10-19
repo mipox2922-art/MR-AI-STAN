@@ -191,24 +191,146 @@ function AuthScreen({ onAuthenticated }) {
   );
 }
 
-function AgentsPanel({ agents, onPlan }) {
+
+function agentDisplayName(id) {
+  const names = {
+    orchestrator: "MR AI Orchestrator",
+    research: "Mtafiti",
+    browser: "Msimamizi wa Kivinjari",
+    gmail: "Msimamizi wa Barua Pepe",
+    jobs: "Mtafutaji wa Ajira",
+    coding: "Mhandisi wa Msimbo",
+    creative: "Mbunifu",
+    device: "Mtaalamu wa Vifaa",
+    security: "Mtaalamu wa Usalama",
+    memory: "Msimamizi wa Kumbukumbu",
+    scheduler: "Msimamizi wa Ratiba",
+  };
+  const value = String(id || "");
+  return names[value.toLowerCase()] || value.replaceAll("_", " ");
+}
+
+function agentStatusText(value, kind = "mission") {
+  const status = String(value || "").toUpperCase();
+  const labels = {
+    PLANNED: kind === "plan" ? "IMEPANGWA, BADO HAJAANZA" : "IMEPANGWA",
+    PENDING: "INASUBIRI KUANZA",
+    STARTING: "INAANZA",
+    RUNNING: "INAENDELEA",
+    IN_PROGRESS: "INAENDELEA",
+    WORKING: "INAFANYA KAZI",
+    COMPLETED: "IMEKAMILIKA",
+    WAITING: "INASUBIRI MUUNGANISHO",
+    WAITING_FOR_HAND: "INASUBIRI MUUNGANISHO",
+    WAITING_FOR_VERIFICATION: "INASUBIRI UTHIBITISHO",
+    NOT_CONNECTED: "HAIJAUNGANISHWA",
+    FAILED: "IMESHINDWA",
+    ERROR: "KUNA HITILAFU",
+    REJECTED: "IMEKATALIWA",
+    HAND_EXECUTING: "INAENDESHA KIVINJARI",
+  };
+  return labels[status] || status.replaceAll("_", " ") || "HAIJULIKANI";
+}
+
+function AgentResultView({ result, kind }) {
+  if (!result) return null;
+  const steps = Array.isArray(result.steps) ? result.steps : [];
+  const mission = result.mission || {};
+  const status = mission.status || result.status || (kind === "plan" ? "PLANNED" : "UNKNOWN");
+  const agents = Array.isArray(result.agents) && result.agents.length
+    ? result.agents
+    : [...new Set(steps.map(step => agentDisplayName(step.name || step.agent)).filter(Boolean))];
+  const completed = steps.filter(step => String(step.status || "").toUpperCase() === "COMPLETED").length;
+  const waiting = steps.filter(step => String(step.status || "").toUpperCase().includes("WAITING")).length;
+  const progress = Number.isFinite(Number(mission.progress)) ? Math.max(0, Math.min(100, Number(mission.progress))) : null;
+
+  return (
+    <section className={"agent-result " + (kind === "plan" ? "agent-result-plan" : "agent-result-run")} aria-live="polite">
+      <div className="agent-result-summary">
+        <div><span>HALI</span><strong>{agentStatusText(status, kind)}</strong></div>
+        {mission.id != null && <div><span>ID YA KAZI</span><strong>#{mission.id}</strong></div>}
+        {progress !== null && <div><span>MAENDELEO</span><strong>{progress}%</strong></div>}
+        {kind === "mission" && steps.length > 0 && <div><span>HATUA</span><strong>{completed}/{steps.length} zimekamilika · {waiting} zinasubiri</strong></div>}
+      </div>
+      {agents.length > 0 && (
+        <div className="agent-result-roster">
+          <span>MAWAKALA WALIOCHAGULIWA</span>
+          <strong>{agents.map(agentDisplayName).join(" · ")}</strong>
+        </div>
+      )}
+      {progress !== null && (
+        <div className="agent-result-progress"><i style={{ width: progress + "%" }} /></div>
+      )}
+      {result.reason && <p className="agent-result-note">{result.reason}</p>}
+      {steps.length > 0 && (
+        <div className="agent-result-steps">
+          {steps.map((step, index) => {
+            const stepStatus = String(step.status || "PLANNED").toUpperCase();
+            const details = step.evidence?.message || step.evidence?.note || step.message || step.reason || "";
+            const tool = step.tool || (Array.isArray(step.tools) ? step.tools.slice(0, 2).join(" · ") : "");
+            return (
+              <article className={"agent-result-step state-" + stepStatus.toLowerCase().replaceAll("_", "-")} key={step.step || (step.agent + "-" + index)}>
+                <span className="agent-result-step-number">{String(step.step || index + 1).padStart(2, "0")}</span>
+                <div className="agent-result-step-copy">
+                  <strong>{agentDisplayName(step.name || step.agent || "Agent")}</strong>
+                  {tool && <small>{tool}</small>}
+                  {details && <p>{details}</p>}
+                </div>
+                <span className="agent-result-step-state">{agentStatusText(stepStatus, kind)}</span>
+              </article>
+            );
+          })}
+        </div>
+      )}
+      {result.next_action && <p className="agent-result-next"><strong>HATUA INAYOFUATA:</strong> {result.next_action}</p>}
+      {result.message && !steps.length && <p className="agent-result-note">{result.message}</p>}
+      {kind === "plan" && <p className="agent-result-disclaimer">Huu ni mpango tu. Wakala huanza kutekeleza kazi baada ya kuendesha mission.</p>}
+    </section>
+  );
+}
+
+function agentSwahiliDescription(id, fallback) {
+  const descriptions = {
+    orchestrator: "Hupanga kazi, hugawa hatua na kufuatilia matokeo yaliyothibitishwa.",
+    research: "Hutafuta taarifa na kueleza vyanzo vinavyopatikana.",
+    browser: "Hufanya kazi kwenye kivinjari kilichounganishwa na kuruhusiwa.",
+    gmail: "Hutafuta na kusoma barua baada ya Gmail kuunganishwa.",
+    jobs: "Hutafuta nafasi za kazi na kusaidia maandalizi ya maombi.",
+    coding: "Hukagua msimbo, hutafuta hitilafu na kuandaa marekebisho.",
+    creative: "Husaidia kutengeneza mabango, nembo na michoro.",
+    device: "Huchunguza vifaa vinavyopatikana kupitia Device Bridge.",
+    security: "Hukagua usanidi na usalama wa mfumo kwa ruhusa.",
+    memory: "Huhifadhi na kurejesha kumbukumbu zilizoidhinishwa.",
+    scheduler: "Hudhibiti kazi za ratiba na ukumbusho.",
+  };
+  return descriptions[String(id || "").toLowerCase()] || fallback || "Mwakala maalumu wa MR AI.";
+}
+
+function AgentsPanel({ agents, tasks = [], onPlan }) {
   const [request, setRequest] = useState("");
   const [planResult, setPlanResult] = useState(null);
   const [missionResult, setMissionResult] = useState(null);
+  const [busy, setBusy] = useState("");
+  const workingTasks = tasks.filter(task => ["RUNNING", "IN_PROGRESS", "WORKING", "EXECUTING"].includes(String(task.status || "").toUpperCase()));
+  const queuedTasks = tasks.filter(task => ["PENDING", "WAITING", "WAITING_FOR_HAND"].includes(String(task.status || "").toUpperCase()));
 
   async function buildMissionPlan() {
-    if (!request.trim()) return;
+    if (!request.trim() || busy) return;
+    setBusy("PLAN");
     try {
       const result = await onPlan(request.trim());
       setPlanResult(result);
       setMissionResult(null);
     } catch (error) {
       setPlanResult({ status: "ERROR", reason: error.message });
+    } finally {
+      setBusy("");
     }
   }
 
   async function runMission() {
-    if (!request.trim()) return;
+    if (!request.trim() || busy) return;
+    setBusy("RUN");
     setMissionResult({ status: "STARTING" });
     try {
       const result = await executeMission(request.trim());
@@ -293,6 +415,8 @@ function AgentsPanel({ agents, onPlan }) {
       setMissionResult(finalResult);
     } catch (error) {
       setMissionResult({ status: "ERROR", reason: error.message });
+    } finally {
+      setBusy("");
     }
   }
 
@@ -300,38 +424,47 @@ function AgentsPanel({ agents, onPlan }) {
     <section className="panel large-panel">
       <div className="panel-head">
         <div>
-          <span className="eyebrow">AGENT ORCHESTRATION</span>
-          <h2>Specialist Fleet</h2>
+          <span className="eyebrow">USIMAMIZI WA MAWAKALA</span>
+          <h2>Mawakala wa MR AI</h2>
         </div>
-        <span className="badge">{agents.length} AGENTS</span>
+        <span className="badge">{agents.length} MAWAKALA · {workingTasks.length} KAZINI · {queuedTasks.length} ZINASUBIRI</span>
       </div>
 
+      <p className="agent-panel-intro">Hawa ni wataalamu waliosajiliwa. Hali ya KAZINI huonekana tu kazi inapoendelea kweli; kuwepo kwenye orodha hakumaanishi wakala anafanya kazi.</p>
       <div className="agent-grid">
-        {agents.map(agent => (
-          <article className="agent-card" key={agent.id}>
-            <div className="agent-icon">{agent.id === "device" ? "⌁" : agent.id === "creative" ? "✦" : "◆"}</div>
-            <div>
-              <strong>{agent.name}</strong>
-              <span>{agent.description}</span>
-              <small>{agent.risk} RISK · {agent.capabilities.length} TOOLS</small>
-            </div>
-          </article>
-        ))}
+        {agents.map(agent => {
+          const assigned = tasks.filter(task => {
+            const owner = String(task.agent || "").toLowerCase().trim();
+            const id = String(agent.id || "").toLowerCase();
+            const name = String(agent.name || "").toLowerCase();
+            return owner === id || owner === name || owner.replaceAll(" ", "_") === id;
+          });
+          const activeTask = assigned.find(task => ["RUNNING", "IN_PROGRESS", "WORKING", "EXECUTING"].includes(String(task.status || "").toUpperCase()));
+          const task = activeTask || assigned.find(item => !["COMPLETED", "FAILED", "CANCELLED"].includes(String(item.status || "").toUpperCase()));
+          const state = task ? agentStatusText(task.status) : "WANASUBIRI KAZI";
+          return (
+            <article className="agent-card" key={agent.id}>
+              <div className="agent-icon">{agent.id === "device" ? "⌁" : agent.id === "creative" ? "✦" : agent.id === "research" ? "◎" : agent.id === "security" ? "◈" : agent.id === "orchestrator" ? "MR" : "◆"}</div>
+              <div className="agent-card-copy">
+                <div className="agent-card-heading"><strong>{agentDisplayName(agent.id)}</strong><span className={"agent-result-step-state " + (activeTask ? "agent-working" : "agent-idle")}>{state}</span></div>
+                <span>{agentSwahiliDescription(agent.id, agent.description)}</span>
+                {task && <small className="agent-card-assignment">KAZI: {task.title || "Kazi isiyo na jina"} · {agentStatusText(task.status)}</small>}
+                <small>{agent.risk === "HIGH" ? "HATARI KUBWA" : agent.risk === "MEDIUM" ? "HATARI YA KATI" : "HATARI NDOGO"} · {(agent.capabilities || []).length} UWEZO</small>
+              </div>
+            </article>
+          );
+        })}
       </div>
 
-      <div className="planner">
-        <div className="panel-title">MISSION PLANNER</div>
-        <div className="planner-row">
-          <input value={request} onChange={e => setRequest(e.target.value)} placeholder="Mfano: nitafutie remote jobs za Python na React" />
-          <button onClick={buildMissionPlan}>PLAN</button>
-          <button className="primary-button" onClick={runMission}>RUN MISSION</button>
-        </div>
-        {planResult && (
-          <pre className="plan-output">{JSON.stringify(planResult, null, 2)}</pre>
-        )}
-        {missionResult && (
-          <pre className="plan-output mission-output">{JSON.stringify(missionResult, null, 2)}</pre>
-        )}
+      <div className="planner agent-planner">
+        <div className="panel-title">PANGA NA UENDESHE KAZI</div>
+        <form className="agent-planner-form" onSubmit={event => { event.preventDefault(); buildMissionPlan(); }}>
+          <input value={request} onChange={e => setRequest(e.target.value)} placeholder="Mfano: Kagua afya ya mfumo wa MR AI" disabled={Boolean(busy)} />
+          <button type="submit" disabled={Boolean(busy) || !request.trim()}>{busy === "PLAN" ? "INAPANGA..." : "PANGA KAZI"}</button>
+          <button type="button" className="primary-button" onClick={runMission} disabled={Boolean(busy) || !request.trim()}>{busy === "RUN" ? "INAENDESHA..." : "ANZA KAZI"}</button>
+        </form>
+        {planResult && <AgentResultView result={planResult} kind="plan" />}
+        {missionResult && <AgentResultView result={missionResult} kind="mission" />}
       </div>
     </section>
   );
@@ -793,7 +926,7 @@ function App() {
             </section>
           )}
 
-          {active === "agents" && <AgentsPanel agents={agents} onPlan={createPlan} />}
+          {active === "agents" && <AgentsPanel agents={agents} tasks={tasks} onPlan={createPlan} />}
           {active === "jobs" && <JobResearch />}
           {active === "browser" && <BrowserHands />}
           {active === "device" && <DeviceLab />}
