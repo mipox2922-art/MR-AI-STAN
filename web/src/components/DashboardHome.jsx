@@ -233,7 +233,7 @@ function radarRadius(finding) {
   return 28;
 }
 
-function Radar({ findings = [], onRadarScan, sensorStatus = {} }) {
+function Radar({ findings = [], onRadarScan, sensorStatus = {}, onOpenDevice }) {
   const points = findings.slice(0, 18);
   const [scanState, setScanState] = useState("READY");
   const [scanError, setScanError] = useState("");
@@ -384,8 +384,10 @@ function Radar({ findings = [], onRadarScan, sensorStatus = {} }) {
         </div>
       ) : (
         <div className="cc-radar-empty">
-          <strong>NO VERIFIED CONTACTS</strong>
-          <span>Local Wi-Fi, Bluetooth, Android and Fastboot scans require the permissioned MR AI Device Bridge. The hosted page cannot scan nearby devices by itself.</span>
+          <strong>HAKUNA DATA HALISI YA SENSOR</strong>
+          <span>Radar hii haijagundua kifaa chochote. Ukurasa ulioko mtandaoni hauwezi peke yake kusoma Wi-Fi, Bluetooth au simu zilizo karibu.</span>
+          <small>Unganisha Device Bridge kwenye PC yako kupitia sehemu ya Device Lab, kisha rudia scan.</small>
+          {onOpenDevice && <button type="button" className="cc-inline-button" onClick={onOpenDevice}>FUNGUA DEVICE LAB →</button>}
         </div>
       )}
 
@@ -558,60 +560,96 @@ function isTaskActive(task) {
   return !["COMPLETED", "FAILED", "CANCELLED"].includes(String(task?.status || "").toUpperCase());
 }
 
-function AgentFleet({ agents = [], tasks = [], missionSnapshot = null, onOpenAgents }) {
+
+function agentRuntimeLabel(value) {
+  const key = String(value || "STANDBY").toUpperCase();
+  const labels = {
+    STANDBY: "WANASUBIRI KAZI",
+    PLANNED: "IMEPANGIWA",
+    PENDING: "INASUBIRI KUANZA",
+    RUNNING: "INAENDELEA",
+    IN_PROGRESS: "INAENDELEA",
+    WORKING: "INAFANYA KAZI",
+    EXECUTING: "INAENDESHA",
+    COMPLETED: "IMEKAMILIKA",
+    WAITING: "INASUBIRI",
+    WAITING_FOR_HAND: "INASUBIRI MUUNGANISHO",
+    WAITING_FOR_VERIFICATION: "INASUBIRI UTHIBITISHO",
+    NOT_CONNECTED: "HAIJAUNGANISHWA",
+    FAILED: "IMESHINDWA",
+    ERROR: "KUNA HITILAFU",
+  };
+  return labels[key] || key.replaceAll("_", " ");
+}
+
+function AgentFleet({ agents = [], tasks = [], missionSnapshot = null, onOpenAgents, compact = false }) {
   const steps = Array.isArray(missionSnapshot?.steps)
     ? missionSnapshot.steps
     : Array.isArray(missionSnapshot?.plan?.steps)
       ? missionSnapshot.plan.steps
       : [];
-  const activeTaskCount = tasks.filter(isTaskActive).length;
-  const waitingCount = steps.filter(step => String(step.status || "").toUpperCase().includes("WAITING")).length;
+  const workingStatuses = ["RUNNING", "IN_PROGRESS", "WORKING", "EXECUTING"];
+  const waitingStatuses = ["WAITING", "WAITING_FOR_HAND", "WAITING_FOR_VERIFICATION"];
+  const activeTaskCount = tasks.filter(task => workingStatuses.includes(String(task.status || "").toUpperCase())).length;
+  const waitingTaskCount = tasks.filter(task => waitingStatuses.includes(String(task.status || "").toUpperCase())).length;
+  const waitingCount = waitingTaskCount + steps.filter(step => waitingStatuses.includes(String(step.status || "").toUpperCase())).length;
+  const visibleAgents = compact ? agents.slice(0, 4) : agents;
+
+  function assignmentFor(agent) {
+    const id = String(agent.id || "").toLowerCase().trim();
+    const name = String(agent.name || "").toLowerCase().trim();
+    return tasks.filter(task => {
+      const owner = String(task.agent || "").toLowerCase().trim();
+      return owner === id || owner === name || owner.replaceAll(" ", "_") === id;
+    }).sort((a, b) => {
+      const aWorking = workingStatuses.includes(String(a.status || "").toUpperCase()) ? 1 : 0;
+      const bWorking = workingStatuses.includes(String(b.status || "").toUpperCase()) ? 1 : 0;
+      return bWorking - aWorking;
+    })[0] || null;
+  }
 
   return (
     <div className="cc-agent-fleet-wrap">
       <div className="cc-agent-fleet-summary">
-        <div><span>REGISTERED</span><strong>{agents.length}</strong></div>
-        <div><span>ACTIVE TASKS</span><strong>{activeTaskCount}</strong></div>
-        <div><span>MISSION STEPS</span><strong>{steps.length}</strong></div>
-        <div><span>WAITING / HANDOFF</span><strong>{waitingCount}</strong></div>
+        <div><span>MAWAKALA WALIOSAJILIWA</span><strong>{agents.length}</strong></div>
+        <div><span>WANAFANYA KAZI SASA</span><strong>{activeTaskCount}</strong></div>
+        <div><span>KAZI ZILIZOREKODIWA</span><strong>{tasks.length}</strong></div>
+        <div><span>ZINAZOSUBIRI MUUNGANISHO</span><strong>{waitingCount}</strong></div>
       </div>
       <div className="cc-agent-fleet-grid">
-        {agents.map(agent => {
+        {visibleAgents.map(agent => {
           const id = String(agent.id || "").toLowerCase();
-          const name = String(agent.name || id);
-          const assigned = tasks.filter(task => {
-            const owner = String(task.agent || "").toLowerCase().trim();
-            return owner === id || owner === name.toLowerCase() || owner.replaceAll(" ", "_") === id;
-          });
-          const task = assigned.find(isTaskActive) || assigned[0];
+          const task = assignmentFor(agent);
           const step = [...steps].reverse().find(item => String(item.agent || "").toLowerCase() === id);
-          let state = "STANDBY";
-          let currentWork = "No task assigned";
+          let rawState = "STANDBY";
+          let currentWork = "Hakuna kazi iliyopangiwa kwa sasa";
           if (step) {
-            state = statusLabel(step.status);
-            currentWork = step.evidence?.message || step.tool || (Array.isArray(step.tools) ? step.tools.slice(0, 2).join(" · ") : "") || "Mission step assigned";
+            rawState = String(step.status || "PLANNED").toUpperCase();
+            currentWork = step.evidence?.message || step.tool || (Array.isArray(step.tools) ? step.tools.slice(0, 2).join(" · ") : "") || "Hatua imepangwa";
           } else if (task) {
-            state = statusLabel(task.status);
-            currentWork = task.title || "Assigned task";
+            rawState = String(task.status || "PENDING").toUpperCase();
+            currentWork = task.title || "Kazi iliyopangiwa";
           }
-          const statusClass = state.toLowerCase().replaceAll(" ", "-");
+          const statusClass = rawState.toLowerCase().replaceAll("_", "-");
+          const glyph = id === "device" ? "⌁" : id === "creative" ? "✦" : id === "research" ? "◎" : id === "security" ? "◈" : id === "orchestrator" ? "MR" : "◆";
           return (
             <article className="cc-agent-tile" key={agent.id}>
               <div className="cc-agent-tile-top">
-                <span className="cc-agent-glyph">{id === "device" ? "⌁" : id === "creative" ? "✦" : id === "research" ? "◎" : id === "security" ? "◈" : id === "orchestrator" ? "MR" : "◆"}</span>
-                <span className={`cc-agent-state state-${statusClass}`}>{state}</span>
+                <span className="cc-agent-glyph">{glyph}</span>
+                <span className={"cc-agent-state state-" + statusClass}>{agentRuntimeLabel(rawState)}</span>
               </div>
-              <strong className="cc-agent-name">{name}</strong>
-              <p>{agent.description || "Registered specialist agent."}</p>
-              <div className="cc-agent-current"><span>CURRENT WORK</span><strong>{currentWork}</strong></div>
+              <strong className="cc-agent-name">{agent.name || id}</strong>
+              <p>{agent.description || "Mwakala maalumu wa MR AI."}</p>
+              <div className="cc-agent-current"><span>KAZI YA SASA</span><strong>{currentWork}</strong></div>
               <div className="cc-agent-capabilities">{(agent.capabilities || []).slice(0, 3).join(" · ")}</div>
             </article>
           );
         })}
       </div>
-      {!agents.length && <div className="cc-agent-empty">Agent registry could not be loaded. Check backend connection and refresh the dashboard.</div>}
-      <button type="button" className="cc-inline-button cc-agent-open" onClick={onOpenAgents}>OPEN FULL AGENT CONTROL →</button>
-      <p className="cc-agent-legend">STANDBY means registered but not assigned active work. WAITING means a permissioned integration or device/browser hand is required.</p>
+      {!agents.length && <div className="cc-agent-empty">Orodha ya mawakala haikupatikana. Bonyeza REFRESH STATUS na ukague muunganisho wa backend.</div>}
+      {compact && agents.length > visibleAgents.length && <p className="cc-agent-legend">Wengine {agents.length - visibleAgents.length} wapo kwenye sehemu ya Agents.</p>}
+      <button type="button" className="cc-inline-button cc-agent-open" onClick={onOpenAgents}>FUNGUA USIMAMIZI WA MAWAKALA →</button>
+      <p className="cc-agent-legend">WANASUBIRI KAZI = wamesajiliwa tu. WAKO KAZINI = kuna kazi hai iliyoripotiwa. MUUNGANISHO UNAOHITAJIKA = kifaa au huduma bado haijaunganishwa.</p>
     </div>
   );
 }
@@ -984,12 +1022,19 @@ export default function DashboardHome({
   onOpenGmail,
   onOpenJobs,
   onRadarScan,
+  onOpenDevice,
   clock = null,
 }) {
   const telemetry = system?.telemetry || {};
   const services = system?.services || {};
   const uptime = formatUptime(telemetry.uptime_seconds);
   const activeCount = tasks.filter(t => !["COMPLETED", "FAILED"].includes(String(t.status || "").toUpperCase())).length;
+  const [missionSnapshot, setMissionSnapshot] = useState(null);
+
+  function handleMissionUpdate(snapshot) {
+    setMissionSnapshot(snapshot);
+    if (snapshot?.mission) onRefresh?.();
+  }
 
   const topReadout = useMemo(() => ({
     model: system?.ai?.model || "N/A",
@@ -1058,14 +1103,14 @@ export default function DashboardHome({
           </div>
         </Panel>
 
-        <Panel eyebrow="MISSION OVERVIEW" title="Mission Overview">
-          <MissionOverview tasks={tasks} />
+        <Panel eyebrow="AGENT CREW" title="Mawakala wa MR AI" badge={agents.length + " WALIOSAJILIWA"} className="cc-agent-fleet-panel">
+          <AgentFleet agents={agents} tasks={tasks} missionSnapshot={missionSnapshot} onOpenAgents={onOpenAgents} compact />
         </Panel>
       </div>
 
       <div className="cc-main-grid">
         <Panel eyebrow="RADAR SCAN" title="Radar Scan" badge={`${radarFindings.length} CONTACTS`} className="cc-radar-panel">
-          <Radar findings={radarFindings} onRadarScan={onRadarScan} sensorStatus={sensorStatus} />
+          <Radar findings={radarFindings} onRadarScan={onRadarScan} sensorStatus={sensorStatus} onOpenDevice={onOpenDevice} />
         </Panel>
 
         <Panel eyebrow="LIVE MAP" title="Live 2D Map" className="cc-map-panel">
@@ -1082,6 +1127,10 @@ export default function DashboardHome({
           </Panel>
         )}
       </div>
+
+      <Panel eyebrow="MISSION CONTROL" title="Wape Mawakala Kazi" badge="MATOKEO YA KWELI TU" className="cc-mission-workbench-panel">
+        <MissionWorkbench onMissionUpdate={handleMissionUpdate} />
+      </Panel>
 
       <QuickCommands system={system} />
 
