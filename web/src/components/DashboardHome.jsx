@@ -1280,7 +1280,7 @@ export default function DashboardHome({
       </div>
 
       <div className="cc-main-grid has-research">
-        <Panel eyebrow="RADAR SCAN" title="Radar ya Vifaa" badge={\`${radarFindings.length} CONTACTS\`} className="cc-radar-panel">
+        <Panel eyebrow="RADAR SCAN" title="Radar ya Vifaa" badge={`${radarFindings.length} CONTACTS`} className="cc-radar-panel">
           <Radar findings={radarFindings} onRadarScan={onRadarScan} sensorStatus={sensorStatus} onOpenDevice={onOpenDevice} />
         </Panel>
 
@@ -1297,7 +1297,7 @@ export default function DashboardHome({
         </Panel>
       </div>
 
-            <details className="cc-dashboard-drawer cc-mission-drawer">
+      <details className="cc-dashboard-drawer cc-mission-drawer">
         <summary>
           <span><strong>MISSION CONTROL</strong><small>Panga kazi na uone matokeo ya mawakala</small></span>
           <b>FUNGUA <span aria-hidden="true">＋</span></b>
