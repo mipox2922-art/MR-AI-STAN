@@ -1053,31 +1053,41 @@ function AgentCrewRoster({ agents = [], tasks = [], onOpenAgents }) {
 
   function statusFor(agent) {
     const assigned = assignedTasks(agent);
-    const active = assigned.find(task => activeStatuses.has(String(task.status || "").toUpperCase()));
-    const current = active || assigned.find(task => !terminalStatuses.has(String(task.status || "").toUpperCase()));
+    const readStatus = task => String(task?.status || "WAITING").toUpperCase();
+    const active = assigned.find(task => activeStatuses.has(readStatus(task)));
     if (active) return {
       label: "INAENDELEA",
       tone: "active",
       task: active.title || "Kazi inaendelea",
     };
+
+    const waiting = assigned.find(task =>
+      ["PENDING", "WAITING", "WAITING_FOR_HAND", "WAITING_FOR_VERIFICATION", "WAITING_APPROVAL", "PLANNED"].includes(readStatus(task))
+    );
+    if (waiting) return {
+      label: "INASUBIRI",
+      tone: "waiting",
+      task: waiting.title || "Kazi inasubiri kuanza.",
+    };
+
+    // Failed/error states are terminal, so check them explicitly before the
+    // generic non-terminal fallback. Otherwise they incorrectly appear idle.
+    const failed = assigned.find(task => /FAILED|ERROR|REJECTED/.test(readStatus(task)));
+    if (failed) return {
+      label: "INAHITAJI UKAGUZI",
+      tone: "blocked",
+      task: failed.title || "Kazi imeripoti tatizo.",
+    };
+
+    const current = assigned.find(task => !terminalStatuses.has(readStatus(task)));
     if (!current) return {
       label: "INASUBIRI KAZI",
       tone: "idle",
       task: "Hakuna mission inayoendelea kwa wakala huyu.",
     };
-    const raw = String(current.status || "WAITING").toUpperCase();
-    if (/FAILED|ERROR|REJECTED/.test(raw)) return {
-      label: "INAHITAJI UKAGUZI",
-      tone: "blocked",
-      task: current.title || "Kazi imeripoti tatizo.",
-    };
-    if (/WAITING|PENDING|PLANNED/.test(raw)) return {
-      label: "INASUBIRI",
-      tone: "waiting",
-      task: current.title || "Kazi inasubiri kuanza.",
-    };
+
     return {
-      label: raw.replaceAll("_", " "),
+      label: readStatus(current).replaceAll("_", " "),
       tone: "waiting",
       task: current.title || "Kazi imepangwa.",
     };
