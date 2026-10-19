@@ -7036,3 +7036,141 @@ button { cursor: pointer; }
   .command-center-reference .cc-exec-orbit { animation: none; }
 }
 
+
+/* Executive briefing agent crew roster: task-backed states, never decorative activity. */
+.command-center-reference .cc-exec-agent-crew {
+  min-width: 0;
+  margin: 12px 0;
+  padding: 12px;
+  border: 1px solid rgba(255,70,87,.22);
+  background: linear-gradient(135deg,rgba(20,8,13,.76),rgba(3,10,14,.82));
+}
+.command-center-reference .cc-exec-agent-crew-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.command-center-reference .cc-exec-agent-crew-head > div { min-width: 0; }
+.command-center-reference .cc-exec-agent-crew-head h2 {
+  margin: 4px 0 3px;
+  color: #f2f8fa;
+  font-size: 14px;
+  line-height: 1.3;
+}
+.command-center-reference .cc-exec-agent-crew-head p {
+  max-width: 850px;
+  margin: 0;
+  color: #aab9c0;
+  font-size: 10px;
+  line-height: 1.45;
+}
+.command-center-reference .cc-exec-agent-crew-head button {
+  flex: 0 0 auto;
+  min-height: 32px;
+  padding: 7px 10px;
+  border: 1px solid rgba(255,70,87,.34);
+  background: rgba(255,49,69,.08);
+  color: #ff9eaa;
+  font-size: 9px;
+  font-weight: 800;
+}
+.command-center-reference .cc-exec-agent-grid {
+  display: grid;
+  grid-template-columns: repeat(4,minmax(0,1fr));
+  gap: 7px;
+}
+.command-center-reference .cc-exec-agent-card {
+  display: grid;
+  align-content: start;
+  gap: 7px;
+  min-width: 0;
+  min-height: 76px;
+  padding: 9px;
+  border: 1px solid rgba(255,255,255,.075);
+  background: rgba(0,0,0,.22);
+}
+.command-center-reference .cc-exec-agent-card-head {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+.command-center-reference .cc-exec-agent-card-head > strong {
+  color: #f0f5f6;
+  font-size: 11px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+.command-center-reference .cc-exec-agent-state {
+  justify-self: start;
+  max-width: 100%;
+  padding: 3px 5px;
+  border: 1px solid rgba(155,174,183,.2);
+  color: #b9c6cb;
+  font-size: 8px;
+  font-weight: 800;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+.command-center-reference .cc-exec-agent-state.state-active {
+  color: #ff9eaa;
+  border-color: rgba(255,70,87,.36);
+  background: rgba(255,49,69,.08);
+}
+.command-center-reference .cc-exec-agent-state.state-idle {
+  color: #a7c9cd;
+  border-color: rgba(0,243,255,.18);
+  background: rgba(0,243,255,.035);
+}
+.command-center-reference .cc-exec-agent-state.state-waiting {
+  color: #e9cf99;
+  border-color: rgba(233,207,153,.24);
+}
+.command-center-reference .cc-exec-agent-state.state-blocked {
+  color: #ff9eaa;
+  border-color: rgba(255,70,87,.42);
+  background: rgba(255,49,69,.1);
+}
+.command-center-reference .cc-exec-agent-card p {
+  min-width: 0;
+  margin: 0;
+  color: #acb9c0;
+  font-size: 10px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+.command-center-reference .cc-exec-agent-more {
+  min-height: 76px;
+  padding: 9px;
+  border: 1px dashed rgba(255,70,87,.32);
+  background: rgba(255,49,69,.035);
+  color: #ffadb6;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1.45;
+  cursor: pointer;
+}
+.command-center-reference .cc-exec-agent-empty {
+  padding: 12px;
+  border: 1px dashed rgba(255,255,255,.12);
+  color: #adbdc4;
+  font-size: 11px;
+  line-height: 1.5;
+}
+@media (min-width: 761px) and (max-width: 1199px) {
+  .command-center-reference .cc-exec-agent-grid { grid-template-columns: repeat(3,minmax(0,1fr)); }
+}
+@media (max-width: 760px) {
+  .command-center-reference .cc-exec-agent-crew { margin: 8px 0; padding: 9px; }
+  .command-center-reference .cc-exec-agent-crew-head { align-items: flex-start; }
+  .command-center-reference .cc-exec-agent-crew-head h2 { font-size: 13px; }
+  .command-center-reference .cc-exec-agent-crew-head p { font-size: 10px; }
+  .command-center-reference .cc-exec-agent-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .command-center-reference .cc-exec-agent-card { padding: 8px; }
+}
+@media (max-width: 420px) {
+  .command-center-reference .cc-exec-agent-crew-head { flex-direction: column; }
+  .command-center-reference .cc-exec-agent-grid { grid-template-columns: minmax(0,1fr); }
+  .command-center-reference .cc-exec-agent-card { min-height: 0; }
+}
