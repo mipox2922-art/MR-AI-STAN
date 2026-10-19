@@ -6708,3 +6708,221 @@ button { cursor: pointer; }
 .dashboard-main .cc-map-panel .cc-map-tracking-note {
   display: none !important;
 }
+
+
+
+/* MOG343 command-center usability pass: clearer chat, agent evidence, and real sensor guidance. */
+.command-center-reference .cc-agent-fleet-panel {
+  min-width: 0;
+  border-color: rgba(255, 59, 79, .2);
+  background: linear-gradient(145deg, rgba(28, 10, 16, .92), rgba(8, 7, 11, .98));
+}
+.command-center-reference .cc-agent-fleet-panel .cc-agent-fleet-summary {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.command-center-reference .cc-agent-fleet-panel .cc-agent-fleet-summary div {
+  padding: 7px 8px;
+  border-color: rgba(255, 59, 79, .17);
+  background: rgba(255, 49, 69, .035);
+}
+.command-center-reference .cc-agent-fleet-panel .cc-agent-fleet-summary span {
+  font-size: 8px;
+  line-height: 1.3;
+  letter-spacing: .2px;
+}
+.command-center-reference .cc-agent-fleet-panel .cc-agent-fleet-summary strong {
+  color: #ff7182;
+  font-size: 18px;
+}
+.command-center-reference .cc-agent-fleet-panel .cc-agent-fleet-grid {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 6px;
+}
+.command-center-reference .cc-agent-fleet-panel .cc-agent-tile {
+  grid-template-columns: 30px minmax(0, 1fr);
+  gap: 4px 9px;
+  padding: 8px;
+  background: rgba(255, 49, 69, .025);
+}
+.command-center-reference .cc-agent-fleet-panel .cc-agent-tile-top {
+  grid-row: 1 / span 3;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: center;
+}
+.command-center-reference .cc-agent-fleet-panel .cc-agent-glyph {
+  border-color: rgba(255, 59, 79, .25);
+  background: rgba(255, 49, 69, .07);
+  color: #ff8190;
+}
+.command-center-reference .cc-agent-fleet-panel .cc-agent-state {
+  max-width: 100%;
+  padding: 3px 4px;
+  font-size: 7px;
+}
+.command-center-reference .cc-agent-fleet-panel .cc-agent-name {
+  font-size: 10px;
+}
+.command-center-reference .cc-agent-fleet-panel .cc-agent-tile p {
+  font-size: 9px;
+  line-height: 1.4;
+}
+.command-center-reference .cc-agent-fleet-panel .cc-agent-current {
+  padding-top: 5px;
+  margin-top: 2px;
+}
+.command-center-reference .cc-agent-fleet-panel .cc-agent-current span,
+.command-center-reference .cc-agent-fleet-panel .cc-agent-capabilities {
+  font-size: 8px;
+}
+.command-center-reference .cc-agent-fleet-panel .cc-agent-open {
+  min-height: 34px;
+  margin-top: 7px;
+}
+.command-center-reference .cc-agent-legend {
+  margin: 4px 0 0;
+  font-size: 8px;
+  line-height: 1.45;
+}
+
+/* Mission output is a readable status board, not a raw JSON dump. */
+.agent-panel-intro {
+  margin: 0 0 14px;
+  color: #9eb2ba;
+  font-size: 12px;
+  line-height: 1.55;
+}
+.agent-card-copy { min-width: 0; display: grid; gap: 5px; }
+.agent-card-heading { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; }
+.agent-card-heading strong { min-width: 0; }
+.agent-card-assignment { color: #ffb8c1 !important; overflow-wrap: anywhere; }
+.agent-planner-form { display: grid; grid-template-columns: minmax(0,1fr) auto auto; gap: 8px; }
+.agent-planner-form input { min-width: 0; }
+.agent-planner-form button { white-space: nowrap; }
+.agent-result {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid rgba(255,59,79,.18);
+  border-radius: 9px;
+  background: linear-gradient(150deg,rgba(28,10,16,.55),rgba(5,6,10,.78));
+  color: #f5e6e9;
+  min-width: 0;
+}
+.agent-result-summary { display: flex; flex-wrap: wrap; gap: 10px 18px; }
+.agent-result-summary > div { display: grid; gap: 4px; min-width: 100px; }
+.agent-result-summary span, .agent-result-roster > span { color: #b598a0; font-size: 9px; letter-spacing: .8px; font-weight: 800; }
+.agent-result-summary strong { color: #ff7d8d; font-size: 11px; line-height: 1.45; overflow-wrap: anywhere; }
+.agent-result-roster { display: grid; gap: 4px; }
+.agent-result-roster > strong { font-size: 11px; line-height: 1.5; overflow-wrap: anywhere; color: #f7e8eb; }
+.agent-result-progress { height: 5px; overflow: hidden; border-radius: 99px; background: rgba(255,255,255,.08); }
+.agent-result-progress i { display: block; height: 100%; background: linear-gradient(90deg,#a81931,#ff5369); transition: width .2s ease; }
+.agent-result-steps { display: grid; gap: 7px; }
+.agent-result-step { display: grid; grid-template-columns: 28px minmax(0,1fr) auto; align-items: start; gap: 9px; padding: 9px; border: 1px solid rgba(255,59,79,.12); border-radius: 7px; background: rgba(255,255,255,.018); min-width: 0; }
+.agent-result-step-number { display: grid; place-items: center; width: 27px; height: 27px; border-radius: 6px; background: rgba(255,49,69,.08); color: #ff8190; font-size: 10px; font-weight: 900; }
+.agent-result-step-copy { min-width: 0; display: grid; gap: 4px; }
+.agent-result-step-copy strong { color: #fff0f3; font-size: 11px; }
+.agent-result-step-copy small { color: #b49aa2; font-size: 9px; overflow-wrap: anywhere; }
+.agent-result-step-copy p { margin: 0; color: #cfbfc4; font-size: 10px; line-height: 1.5; overflow-wrap: anywhere; }
+.agent-result-step-state { justify-self: end; align-self: start; max-width: 150px; padding: 4px 6px; border: 1px solid rgba(255,59,79,.2); border-radius: 5px; color: #ffc0c8; background: rgba(255,49,69,.05); font-size: 8px; line-height: 1.3; text-align: center; font-weight: 900; }
+.agent-result-step.state-completed .agent-result-step-state { color: #a2e4c0; border-color: rgba(73,200,137,.25); background: rgba(73,200,137,.06); }
+.agent-result-step.state-failed .agent-result-step-state,
+.agent-result-step.state-error .agent-result-step-state { color: #ff9da9; border-color: rgba(255,59,79,.35); }
+.agent-result-note, .agent-result-next, .agent-result-disclaimer { margin: 0; color: #cbb8be; font-size: 10px; line-height: 1.5; overflow-wrap: anywhere; }
+.agent-result-next { padding: 9px; border-left: 2px solid #ff5369; background: rgba(255,49,69,.05); }
+.agent-result-disclaimer { color: #a9959b; }
+
+/* Readable conversational bubbles and small-screen-safe line wrapping. */
+.command-center-reference .cc-chat-panel .chat-header { align-items: flex-start; }
+.command-center-reference .cc-chat-panel .tool-routing-status {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  padding: 5px 7px;
+  border: 1px solid rgba(255,59,79,.18);
+  background: rgba(255,49,69,.04);
+  color: #ffb5bf;
+  border-radius: 6px;
+  font-size: 8px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+.command-center-reference .cc-chat-panel .messages {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 245px;
+  max-height: 390px;
+  padding: 12px;
+  background: rgba(3,4,8,.78);
+  border: 1px solid rgba(255,59,79,.18);
+  border-radius: 9px;
+}
+.command-center-reference .cc-chat-panel .message {
+  max-width: 94%;
+  width: fit-content;
+  min-width: 0;
+  padding: 9px 11px;
+  border: 1px solid rgba(255,59,79,.16);
+  border-radius: 9px;
+  background: rgba(255,49,69,.045);
+  overflow-wrap: anywhere;
+}
+.command-center-reference .cc-chat-panel .message.user {
+  align-self: flex-end;
+  border-color: rgba(255,97,115,.27);
+  background: rgba(111,20,37,.24);
+}
+.command-center-reference .cc-chat-panel .message.assistant { align-self: flex-start; }
+.command-center-reference .cc-chat-panel .message > span {
+  display: block;
+  margin-bottom: 5px;
+  color: #ff8190;
+  font-size: 9px;
+  letter-spacing: .8px;
+}
+.command-center-reference .cc-chat-panel .message p,
+.command-center-reference .cc-chat-panel .chat-message-paragraph {
+  margin: 0;
+  color: #f1e5e8;
+  font-size: 12px;
+  line-height: 1.65;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.command-center-reference .cc-chat-panel .chat-message-body { display: grid; gap: 5px; min-width: 0; }
+.command-center-reference .cc-chat-panel .chat-message-spacer { height: 3px; }
+.command-center-reference .cc-chat-panel .chat-message-heading { margin-top: 3px; color: #ff9aa7; font-size: 12px; line-height: 1.5; }
+.command-center-reference .cc-chat-panel .chat-message-list-item { display: grid; grid-template-columns: 16px minmax(0,1fr); gap: 5px; color: #f1e5e8; font-size: 12px; line-height: 1.6; }
+.command-center-reference .cc-chat-panel .chat-message-list-item > span { color: #ff8190; font-weight: 800; }
+.command-center-reference .cc-chat-panel .chat-message-body code { padding: 1px 4px; border-radius: 4px; background: rgba(255,255,255,.07); color: #ffd6dc; font-size: 11px; }
+.command-center-reference .cc-chat-panel .chat-message-body strong { color: #fff3f5; }
+.command-center-reference .cc-mission-workbench-panel { border-color: rgba(255,59,79,.2); }
+.command-center-reference .cc-mission-workbench-panel .cc-panel-head { border-bottom-color: rgba(255,59,79,.2); }
+.command-center-reference .cc-mission-workbench-panel .cc-workbench-intro p { color: #b8a6ac; font-size: 11px; }
+.command-center-reference .cc-mission-workbench-panel .cc-mission-form input { border-color: rgba(255,59,79,.25); background: #0b080c; }
+.command-center-reference .cc-mission-workbench-panel .cc-mission-form label { color: #ff9aa7; }
+.command-center-reference .cc-mission-workbench-panel .cc-mission-actions button { border-color: rgba(255,59,79,.23); background: rgba(255,49,69,.07); color: #ffd4da; }
+.command-center-reference .cc-mission-workbench-panel .cc-mission-actions button.primary-button { background: linear-gradient(135deg,#9b1730,#52101f); color: #fff4f6; }
+.command-center-reference .cc-radar-empty { gap: 8px; }
+.command-center-reference .cc-radar-empty strong { color: #ff9aa7; font-size: 10px; }
+.command-center-reference .cc-radar-empty span,
+.command-center-reference .cc-radar-empty small { color: #c4adb3; font-size: 10px; line-height: 1.55; }
+.command-center-reference .cc-radar-empty .cc-inline-button { margin-top: 3px; border-color: rgba(255,59,79,.28); color: #ffd5db; }
+
+@media (min-width: 1200px) {
+  .command-center-reference .cc-agent-fleet-panel .cc-agent-fleet-grid { grid-template-columns: minmax(0,1fr); }
+  .agent-planner-form { grid-template-columns: minmax(0,1fr) auto auto; }
+}
+@media (max-width: 720px) {
+  .command-center-reference .cc-agent-fleet-panel .cc-agent-fleet-summary { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .agent-planner-form { grid-template-columns: minmax(0,1fr); }
+  .agent-result-step { grid-template-columns: 25px minmax(0,1fr); }
+  .agent-result-step-state { grid-column: 2; justify-self: start; }
+  .command-center-reference .cc-chat-panel .messages { min-height: 210px; max-height: 340px; }
+  .command-center-reference .cc-chat-panel .message { max-width: 100%; }
+}
+
