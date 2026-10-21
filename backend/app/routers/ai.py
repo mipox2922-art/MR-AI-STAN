@@ -169,9 +169,13 @@ def get_or_create_conversation(
         db.add(conversation)
         db.flush()
         return conversation
-    except SQLAlchemyError:
+    except SQLAlchemyError as exc:
         db.rollback()
-        logger.exception("Failed to get/create conversation", extra={"user_id": user_id})
+        # Avoid SQLAlchemy exception formatting: it can include bound message text.
+        logger.error(
+            "Failed to get/create conversation: error_type=%s user_id=%s",
+            type(exc).__name__, user_id,
+        )
         raise
 
 def save_messages_and_log(
