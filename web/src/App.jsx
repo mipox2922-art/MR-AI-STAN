@@ -663,7 +663,6 @@ function App() {
         setMode(current => {
           const next = current === "working" ? "normal" : "working";
           localStorage.setItem("mr_ai_mode", next);
-          setCoreState(next === "working" ? "WORKING" : "IDLE");
           return next;
         });
       }
@@ -803,7 +802,6 @@ function App() {
     localStorage.setItem("mr_ai_mode", next);
     setMode(next);
     // Mode itself does not imply a real task is running.
-    setCoreState(next === "sleep" ? "SLEEPING" : "IDLE");
   }
 
   function toggleMode(nextWorking) {
