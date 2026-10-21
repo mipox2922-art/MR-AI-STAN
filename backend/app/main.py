@@ -195,7 +195,7 @@ async def global_exception_handler(request: Request, exc: Exception):
         if scheme.lower() == "bearer" and separator and token.strip():
             claims = decode_access_token(token.strip())
             user_id = int(claims.get("sub"))
-    except (TypeError, ValueError, KeyError):
+    except Exception:
         user_id = None
 
     db = SessionLocal()
