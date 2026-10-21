@@ -28,6 +28,15 @@ import {
   browserScroll,
   browserDrag,
 } from "./api";
+import {
+  getActiveTaskForAgent,
+  getAssignedTaskForAgent,
+  getBackendMode,
+  getTaskSummary,
+  isTaskInProgress,
+  isTaskWaiting,
+  normalizeMode,
+} from "./utils/taskLogic";
 import Chat from "./components/Chat";
 import CommandBoot from "./components/CommandBoot";
 import Core from "./components/Core";
@@ -322,8 +331,8 @@ function AgentsPanel({ agents, tasks = [], onPlan }) {
   const [planResult, setPlanResult] = useState(null);
   const [missionResult, setMissionResult] = useState(null);
   const [busy, setBusy] = useState("");
-  const workingTasks = tasks.filter(task => ["RUNNING", "IN_PROGRESS", "WORKING", "EXECUTING"].includes(String(task.status || "").toUpperCase()));
-  const queuedTasks = tasks.filter(task => ["PENDING", "WAITING", "WAITING_FOR_HAND"].includes(String(task.status || "").toUpperCase()));
+  const workingTasks = tasks.filter(isTaskInProgress);
+  const queuedTasks = tasks.filter(isTaskWaiting);
 
   async function buildMissionPlan() {
     if (!request.trim() || busy) return;
@@ -444,15 +453,9 @@ function AgentsPanel({ agents, tasks = [], onPlan }) {
       <p className="agent-panel-intro">Hawa ni wataalamu waliosajiliwa. Hali ya KAZINI huonekana tu kazi inapoendelea kweli; kuwepo kwenye orodha hakumaanishi wakala anafanya kazi.</p>
       <div className="agent-grid">
         {agents.map(agent => {
-          const assigned = tasks.filter(task => {
-            const owner = String(task.agent || "").toLowerCase().trim();
-            const id = String(agent.id || "").toLowerCase();
-            const name = String(agent.name || "").toLowerCase();
-            return owner === id || owner === name || owner.replaceAll(" ", "_") === id;
-          });
-          const activeTask = assigned.find(task => ["RUNNING", "IN_PROGRESS", "WORKING", "EXECUTING"].includes(String(task.status || "").toUpperCase()));
-          const task = activeTask || assigned.find(item => !["COMPLETED", "FAILED", "CANCELLED"].includes(String(item.status || "").toUpperCase()));
-          const state = task ? agentStatusText(task.status) : "WANASUBIRI KAZI";
+          const activeTask = getActiveTaskForAgent(agent, tasks);
+          const task = activeTask || getAssignedTaskForAgent(agent, tasks);
+          const state = activeTask ? "INAENDELEA" : "WANASUBIRI KAZI";
           return (
             <article className="agent-card" key={agent.id}>
               <div className="agent-icon">{agent.id === "device" ? "⌁" : agent.id === "creative" ? "✦" : agent.id === "research" ? "◎" : agent.id === "security" ? "◈" : agent.id === "orchestrator" ? "MR" : "◆"}</div>
@@ -484,11 +487,9 @@ function AgentsPanel({ agents, tasks = [], onPlan }) {
 function App() {
   const [token, setTokenState] = useState(getToken());
   const [active, setActive] = useState("dashboard");
-  const [mode, setMode] = useState(() => localStorage.getItem("mr_ai_mode") || "normal");
-  const [coreState, setCoreState] = useState(() => {
-    const saved = localStorage.getItem("mr_ai_mode");
-    return saved === "sleep" ? "SLEEPING" : saved === "working" ? "WORKING" : "IDLE";
-  });
+  // One top-level mode state. Backend-reported mode takes precedence when available.
+  const [mode, setMode] = useState("normal");
+  const [coreState, setCoreState] = useState("IDLE");
   const [system, setSystem] = useState(null);
   const [diagnostics, setDiagnostics] = useState(null);
   const [diagnosticsBusy, setDiagnosticsBusy] = useState(false);
@@ -513,8 +514,7 @@ function App() {
   const [clock, setClock] = useState(new Date());
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [bootVisible, setBootVisible] = useState(() => (
-    !window.matchMedia("(prefers-reduced-motion: reduce)").matches &&
-    localStorage.getItem("mr_ai_mode") !== "sleep"
+    !window.matchMedia("(prefers-reduced-motion: reduce)").matches
   ));
   const finishBoot = useCallback(() => setBootVisible(false), []);
   const [connectionState, setConnectionState] = useState("CONNECTING");
@@ -573,6 +573,12 @@ function App() {
       if (statusResult.status === "fulfilled") {
         const status = statusResult.value;
         setSystem(status);
+        const backendMode = getBackendMode(status);
+        if (backendMode) {
+          setMode(backendMode);
+          try { localStorage.setItem("mr_ai_mode", backendMode); } catch {}
+          setCoreState(backendMode === "sleep" ? "SLEEPING" : "IDLE");
+        }
         setConnectionState("ONLINE");
         setTelemetryHistory(history => [
           ...history,
@@ -753,8 +759,11 @@ function App() {
     return <AuthScreen onAuthenticated={authenticate} />;
   }
 
-  const working = mode === "working";
-  const sleeping = mode === "sleep";
+  const normalizedMode = normalizeMode(mode) || "normal";
+  const working = normalizedMode === "working";
+  const sleeping = normalizedMode === "sleep";
+  const taskSummary = getTaskSummary(tasks, agents);
+  const coreStatus = sleeping ? "SLEEPING" : working && taskSummary.inProgress > 0 ? "WORKING" : "IDLE";
 
   function setOperationalMode(nextMode) {
     const next = ["normal", "working", "sleep"].includes(nextMode)
@@ -762,13 +771,8 @@ function App() {
       : "normal";
     localStorage.setItem("mr_ai_mode", next);
     setMode(next);
-    setCoreState(
-      next === "sleep"
-        ? "SLEEPING"
-        : next === "working"
-          ? "WORKING"
-          : "IDLE"
-    );
+    // Mode itself does not imply a real task is running.
+    setCoreState(next === "sleep" ? "SLEEPING" : "IDLE");
   }
 
   function toggleMode(nextWorking) {
@@ -811,7 +815,7 @@ function App() {
         </div>
 
         <div className="operator">
-          <Core state={coreState} modActive={working} />
+          <Core state={coreStatus} modActive={working} />
           <div>
             <strong>BOSS FERISI</strong>
             <span>OWNER // COMMANDER</span>
@@ -900,10 +904,16 @@ function App() {
               <strong>{clock.toLocaleTimeString("sw-TZ", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</strong>
               <span>{clock.toLocaleDateString("sw-TZ", { weekday: "short", day: "2-digit", month: "short", year: "numeric" })}</span>
             </div>
-            <div className="mode-indicator">
+            <button
+              type="button"
+              className="mode-indicator"
+              onClick={() => toggleMode()}
+              aria-label="Toggle NORMAL MODE / WORKING MODE"
+              style={{ background: "transparent", border: 0, padding: 0, color: "inherit", font: "inherit", cursor: "pointer" }}
+            >
               <span className="mode-label">{sleeping ? "SLEEP MODE" : working ? "WORKING MODE" : "NORMAL MODE"}</span>
               <span className="live-dot">{sleeping ? "PAUSED" : "LIVE"}</span>
-            </div>
+            </button>
           </div>
         </header>
 
@@ -922,6 +932,8 @@ function App() {
               memories={memories}
               activities={activities}
               coreState={coreState}
+              coreStatus={coreStatus}
+              mode={normalizedMode}
               working={working}
               onRefresh={refresh}
               onState={setCoreState}
