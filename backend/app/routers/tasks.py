@@ -57,7 +57,7 @@ def task_payload(db: Session, task: Task) -> dict[str, Any]:
     return {
         "id": task.id, "user_id": task.user_id, "title": task.title, "description": task.description,
         "status": status, "priority": task.priority, "deadline": _utc_iso(task.deadline),
-        "agent": task.agent or "Haijathibitishwa", "source": task.source or "boss",
+        "agent": task.agent or "Haijathibitishwa", "source": task.source or "unknown",
         "requested_by": task.requested_by or "Haijathibitishwa", "approved_by": task.approved_by,
         "approved_at": _utc_iso(task.approved_at),
         "progress": 100 if status in {"COMPLETED", "DONE"} and can_mark_done(steps) else progress_of(steps),
