@@ -774,20 +774,26 @@ button:disabled {
   gap: 8px;
 }
 
-.state-grid button {
+.state-grid button,
+.state-grid span {
+  display: block;
   border: 1px solid var(--line);
   background: transparent;
   color: var(--muted);
   padding: 10px;
   font-size: 9px;
   letter-spacing: 1px;
+  text-align: center;
 }
 
 .state-grid button:hover,
-.state-grid button.state-active {
+.state-grid button.state-active,
+.state-grid span.state-active {
   color: var(--accent);
   border-color: var(--accent);
 }
+
+.state-grid span { cursor: default; }
 
 .service-grid {
   display: grid;
