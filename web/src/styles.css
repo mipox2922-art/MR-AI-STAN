@@ -7266,13 +7266,20 @@ button { cursor: pointer; }
 /* Fixed 1536 x 1024 MR AI dashboard canvas.
    These scoped overrides intentionally supersede legacy responsive dashboard grids only.
    Other MR AI pages continue to use the normal application layout. */
-html, body, #root {
+body.dashboard-canvas-active {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: #000 !important;
+}
+body.dashboard-canvas-active #root {
   width: 100%;
   height: 100%;
   min-width: 0;
   min-height: 0;
 }
-body { overflow: hidden; }
 .app-shell.dashboard-canvas-shell {
   position: fixed;
   left: 50%;
@@ -7331,7 +7338,7 @@ body { overflow: hidden; }
 }
 .app-shell.dashboard-canvas-shell .sidebar .brand-sub {
   margin-top: 1px;
-  font-size: 8px;
+  font-size: 10px;
   line-height: 10px;
   letter-spacing: 1.5px;
   white-space: nowrap;
@@ -7364,7 +7371,7 @@ body { overflow: hidden; }
 }
 .app-shell.dashboard-canvas-shell .sidebar .operator span,
 .app-shell.dashboard-canvas-shell .sidebar .operator small {
-  font-size: 8px;
+  font-size: 10px;
   line-height: 1.25;
   letter-spacing: .25px;
   overflow-wrap: break-word;
@@ -7416,15 +7423,15 @@ body { overflow: hidden; }
   min-height: 22px;
   height: 22px;
   padding: 3px 6px;
-  font-size: 9px;
+  font-size: 10px;
   line-height: 1;
   letter-spacing: .6px;
   white-space: nowrap;
 }
 .app-shell.dashboard-canvas-shell .sidebar-voice {
   position: absolute;
-  left: 0;
-  top: 562px;
+  left: -1px;
+  top: 561px;
   z-index: 13;
   display: flex;
   flex-direction: column;
@@ -7538,7 +7545,7 @@ body { overflow: hidden; }
 .app-shell.dashboard-canvas-shell .cc-titlebar .cc-logo {
   display: inline-block;
   color: var(--accent);
-  font: 900 19px/1 Orbitron, sans-serif;
+  font: 900 110px/1 Orbitron, sans-serif;
   letter-spacing: 2px;
 }
 .app-shell.dashboard-canvas-shell .cc-titlebar .cc-title {
@@ -7600,7 +7607,7 @@ body { overflow: hidden; }
   white-space: nowrap;
 }
 .app-shell.dashboard-canvas-shell .cc-titlebar .cc-header-clock strong { color: var(--accent); font: 600 10px/1.15 "Share Tech Mono", monospace; letter-spacing: .2px; }
-.app-shell.dashboard-canvas-shell .cc-titlebar .cc-header-clock span { display: block; margin: 0; color: var(--dim); font: 9px/1.1 "Share Tech Mono", monospace; }
+.app-shell.dashboard-canvas-shell .cc-titlebar .cc-header-clock span { display: block; margin: 0; color: var(--dim); font: 10px/1.1 "Share Tech Mono", monospace; }
 
 .app-shell.dashboard-canvas-shell .command-center-reference > .cc-top-grid {
   position: absolute;
@@ -7669,7 +7676,7 @@ body { overflow: hidden; }
   max-width: 100%;
   padding: 2px 4px;
   color: var(--accent);
-  font: 500 9px/1.1 "Share Tech Mono", monospace;
+  font: 500 10px/1.1 "Share Tech Mono", monospace;
   letter-spacing: 0;
   white-space: nowrap;
 }
@@ -7714,7 +7721,7 @@ body { overflow: hidden; }
 .app-shell.dashboard-canvas-shell .cc-network-summary { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 5px; color: var(--dim); font: 10px/1.1 "Share Tech Mono", monospace; }
 .app-shell.dashboard-canvas-shell .cc-network-spark { height: 17px; margin-top: 3px; }
 .app-shell.dashboard-canvas-shell .cc-telemetry-source,
-.app-shell.dashboard-canvas-shell .cc-system-footer { display: block; min-height: 0; color: var(--dim); font: 9px/1.1 "Share Tech Mono", monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.app-shell.dashboard-canvas-shell .cc-system-footer { display: block; min-height: 0; color: var(--dim); font: 10px/1.1 "Share Tech Mono", monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .app-shell.dashboard-canvas-shell .cc-system-footer { display: flex; justify-content: space-between; align-items: center; gap: 5px; padding-top: 3px; border-top: 1px solid var(--line); }
 .app-shell.dashboard-canvas-shell .cc-system-footer strong { font-weight: 500; }
 .app-shell.dashboard-canvas-shell .cc-system-status > .cc-inline-button { align-self: flex-start; min-height: 20px; padding: 3px 5px; font: 600 10px/1 Orbitron,sans-serif; }
@@ -7766,7 +7773,7 @@ body { overflow: hidden; }
 .app-shell.dashboard-canvas-shell .cc-mission-summary { display: block; margin-top: 4px; color: var(--dim); font-size: 10px; line-height: 1.2; }
 .app-shell.dashboard-canvas-shell .cc-mission-graph { position: relative; width: 100%; height: 88px; min-height: 0; border: 1px solid var(--line); overflow: hidden; }
 .app-shell.dashboard-canvas-shell .cc-mission-graph svg { position: absolute; inset: 4px 5px 18px; width: calc(100% - 10px); height: calc(100% - 22px); }
-.app-shell.dashboard-canvas-shell .cc-chart-axis { position: absolute; left: 4px; right: 4px; bottom: 2px; display: flex; justify-content: space-between; color: var(--dim); font: 9px/1 "Share Tech Mono",monospace; }
+.app-shell.dashboard-canvas-shell .cc-chart-axis { position: absolute; left: 4px; right: 4px; bottom: 2px; display: flex; justify-content: space-between; color: var(--dim); font: 10px/1 "Share Tech Mono",monospace; }
 .app-shell.dashboard-canvas-shell .cc-graph-grid { position: absolute; inset: 0; background: repeating-linear-gradient(to bottom, transparent 0 calc(25% - 1px), var(--line) calc(25% - 1px) 25%); }
 
 .app-shell.dashboard-canvas-shell .command-center-reference > .cc-main-grid {
@@ -7841,7 +7848,7 @@ body { overflow: hidden; }
   border-radius: 0;
   background: rgba(0,0,0,.24);
   color: var(--dim);
-  font: 600 9px/1.05 Orbitron,sans-serif;
+  font: 600 10px/1.05 Orbitron,sans-serif;
   letter-spacing: 0;
   text-align: center;
   white-space: normal;
@@ -7986,7 +7993,7 @@ body { overflow: hidden; }
   min-width: 0;
   min-height: 22px;
   padding: 3px;
-  font: 600 9px/1.05 Orbitron,sans-serif;
+  font: 600 10px/1.05 Orbitron,sans-serif;
   letter-spacing: 0;
   text-align: center;
   text-decoration: none;
@@ -8119,7 +8126,7 @@ body { overflow: hidden; }
   min-height: 26px;
   padding: 2px;
   border-radius: 0;
-  font: 700 9px/1 Orbitron,sans-serif;
+  font: 700 10px/1 Orbitron,sans-serif;
 }
 .app-shell.dashboard-canvas-shell .cc-chat-panel .chat-input .voice-button {
   flex: 0 0 25px;
