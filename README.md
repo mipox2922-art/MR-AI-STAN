@@ -85,16 +85,11 @@ The frontend API client uses `VITE_API_URL` in production. Local development can
 
 ### Unattended scheduled work
 
-The scheduler can process due schedules and queued scheduler tasks while the owner is away. The GitHub Actions workflow `.github/workflows/mr-ai-scheduler.yml` triggers the backend every 15 minutes and can also be run manually.
+The GitHub Actions workflow `.github/workflows/mr-ai-scheduler.yml` triggers the backend every 15 minutes and can also be run manually. It wakes the Render Free backend, confirms the database health check, and then calls the protected scheduler endpoint.
 
-One-time security setup is required before unattended triggers will work:
+The workflow uses GitHub Actions OIDC instead of a shared secret. The backend validates GitHub's signed token against GitHub's public signing keys and checks the exact repository, `main` branch, workflow file, event type, audience, issuer, and token expiry. No `MR_AI_CRON_SECRET` GitHub secret is required. The backend keeps support for the legacy `CLOUDFLARE_CRON_SECRET` header for existing trusted callers.
 
-1. Generate a unique random secret of at least 32 characters.
-2. In Render, add `CLOUDFLARE_CRON_SECRET` to the `MR-AI-STAN` backend environment.
-3. In GitHub, open **Settings → Secrets and variables → Actions → New repository secret** and add `MR_AI_CRON_SECRET` with the exact same value.
-4. Keep `SCHEDULER_ENABLED=false` on the Free web service so the in-process loop does not compete with the scheduled trigger. The GitHub workflow calls the protected scheduler-cycle endpoint directly.
-
-Until both secret settings match, the workflow intentionally fails closed. Never commit the secret into the repository or send it in chat. GitHub scheduled runs can be delayed, so this is periodic execution, not a guaranteed real-time worker.
+Keep `SCHEDULER_ENABLED=false` on the Render Free web service if you want GitHub Actions to be the sole polling trigger. GitHub scheduled runs can be delayed; this is periodic execution, not a real-time or guaranteed-at-the-exact-minute worker. If the backend does not become healthy or identity verification fails, the workflow fails closed and does not process work.
 
 Scheduled commands containing `job research Python developer` can search the public RemoteOK and Remotive feeds and save the verified search result to the task record. No application is submitted automatically.
 

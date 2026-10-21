@@ -7,6 +7,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
 from .config import settings, validate_secret_key
+from .github_oidc import verify_github_actions_token
 from .database import Base, SessionLocal, engine
 from .models import User
 from .realtime import manager
@@ -116,12 +117,20 @@ async def health():
 @app.post("/internal/cloudflare/scheduler-cycle", include_in_schema=False)
 async def cloudflare_scheduler_cycle(
     x_mr_ai_cron_secret: str = Header(default=""),
+    authorization: str = Header(default=""),
 ):
-    expected = settings.cloudflare_cron_secret
-    if len(expected) < 32 or not secrets.compare_digest(
+    # Keep the legacy shared-secret path for existing trusted callers.
+    # GitHub Actions uses a signed OIDC identity token so setup does not depend
+    # on copying the same secret into two separate dashboards.
+    expected = settings.cloudflare_cron_secret.strip()
+    shared_secret_valid = len(expected) >= 32 and secrets.compare_digest(
         x_mr_ai_cron_secret, expected
-    ):
-        raise HTTPException(status_code=403, detail="Forbidden")
+    )
+    if not shared_secret_valid:
+        scheme, separator, bearer_token = authorization.partition(" ")
+        if scheme.lower() != "bearer" or not separator or not bearer_token.strip():
+            raise HTTPException(status_code=403, detail="Forbidden")
+        await verify_github_actions_token(bearer_token.strip())
 
     triggered, processed = await run_scheduler_cycle()
     return {

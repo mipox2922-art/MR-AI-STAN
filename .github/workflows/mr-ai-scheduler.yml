@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: read
+  id-token: write
 
 concurrency:
   group: mr-ai-unattended-scheduler
@@ -15,19 +16,46 @@ concurrency:
 jobs:
   run-due-work:
     runs-on: ubuntu-latest
-    timeout-minutes: 2
+    timeout-minutes: 6
     steps:
-      - name: Trigger durable scheduled work
-        env:
-          MR_AI_CRON_SECRET: ${{ secrets.MR_AI_CRON_SECRET }}
+      - name: Wake backend and verify health
         shell: bash
         run: |
           set -euo pipefail
-          if [[ -z "${MR_AI_CRON_SECRET}" ]]; then
-            echo "::error::Configure the MR_AI_CRON_SECRET repository secret and set the same value as CLOUDFLARE_CRON_SECRET in Render."
+          api_url="https://mr-ai-stan.onrender.com"
+          health_ok=false
+          for attempt in $(seq 1 12); do
+            if curl --fail --silent --show-error --max-time 15 "${api_url}/health" --output /tmp/mr-ai-health.json; then
+              if python -c 'import json,sys; d=json.load(open(sys.argv[1])); sys.exit(0 if d.get("status") == "healthy" and d.get("database") == "reachable" else 1)' /tmp/mr-ai-health.json; then
+                health_ok=true
+                break
+              fi
+            fi
+            echo "Backend health attempt ${attempt}/12 not ready; retrying."
+            sleep 5
+          done
+          if [[ "${health_ok}" != "true" ]]; then
+            echo "::error::MR AI backend did not become healthy; scheduled work was not triggered."
             exit 1
           fi
-          curl --fail-with-body --silent --show-error --max-time 45 \
+
+      - name: Trigger due work using GitHub OIDC
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" || -z "${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-}" ]]; then
+            echo "::error::GitHub OIDC token access is unavailable. Ensure id-token: write is granted to this workflow."
+            exit 1
+          fi
+          token_response="$(curl --fail --silent --show-error --max-time 15 \
+            -H "Authorization: Bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
+            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=mr-ai-stan-scheduler")"
+          oidc_token="$(python -c 'import json,sys; print(json.load(sys.stdin)["value"])' <<< "${token_response}")"
+          if [[ -z "${oidc_token}" ]]; then
+            echo "::error::GitHub did not issue a scheduler identity token."
+            exit 1
+          fi
+          curl --fail-with-body --silent --show-error --max-time 120 \
             -X POST \
-            -H "x-mr-ai-cron-secret: ${MR_AI_CRON_SECRET}" \
+            -H "Authorization: Bearer ${oidc_token}" \
             "https://mr-ai-stan.onrender.com/internal/cloudflare/scheduler-cycle"
