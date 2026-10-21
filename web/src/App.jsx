@@ -506,6 +506,7 @@ function App() {
     devices: { status: "NOT_SCANNED", count: 0 },
   }));
   const [tasks, setTasks] = useState([]);
+  const [taskListAvailable, setTaskListAvailable] = useState(false);
   const [memories, setMemories] = useState([]);
   const [activities, setActivities] = useState([]);
   const [telemetryHistory, setTelemetryHistory] = useState([]);
@@ -592,9 +593,12 @@ function App() {
         const fleet = fleetResult.value;
         setAgents(Array.isArray(fleet) ? fleet : []);
       }
-      if (taskResult.status === "fulfilled") {
-        const taskRows = taskResult.value;
-        setTasks(Array.isArray(taskRows) ? taskRows : []);
+      if (taskResult.status === "fulfilled" && Array.isArray(taskResult.value)) {
+        setTasks(taskResult.value);
+        setTaskListAvailable(true);
+      } else {
+        setTasks([]);
+        setTaskListAvailable(false);
       }
       if (memoryResult.status === "fulfilled") {
         const memoryRows = memoryResult.value;
@@ -929,6 +933,7 @@ function App() {
               radarFindings={radarFindings}
               sensorStatus={radarDiagnostics}
               tasks={tasks}
+              tasksAvailable={taskListAvailable}
               memories={memories}
               activities={activities}
               coreState={coreState}
@@ -947,6 +952,7 @@ function App() {
               onOpenDevice={() => setActive("device")}
               onRadarScan={handleRadarScan}
               clock={clock}
+              tasksAvailable={taskListAvailable}
             />
           )}
 
@@ -964,9 +970,18 @@ function App() {
                     <button className={coreState === state ? "state-active" : ""} key={state} onClick={() => setCoreState(state)}>{state}</button>
                   ))}
                 </div>
-                <div className="core-stage tall"><Core state={coreState} modActive={working} /></div>
+                <div className="core-stage tall"><Core state={coreStatus} modActive={working} /></div>
               </div>
-              <Chat onState={setCoreState} onModToggle={toggleMode} onPowerCommand={handlePowerCommand} />
+              <Chat
+                onState={setCoreState}
+                onModToggle={toggleMode}
+                onPowerCommand={handlePowerCommand}
+                mode={normalizedMode}
+                coreStatus={coreStatus}
+                tasks={tasks}
+                tasksAvailable={taskListAvailable}
+                telemetry={system?.telemetry || null}
+              />
             </section>
           )}
 
