@@ -154,12 +154,13 @@ export async function login(username, password) {
   return data;
 }
 
-export function chat(message, provider = "gemini", toolContext = null) {
+export function chat(message, provider = "gemini", toolContext = null, sessionId = null) {
   return request("/ai/chat", {
     method: "POST",
     body: JSON.stringify({
       message,
       provider,
+      session_id: sessionId,
       tool_context: toolContext
     })
   }, CHAT_API_TIMEOUT_MS);
@@ -193,8 +194,27 @@ export function getStatus() {
   return request("/system/status");
 }
 
-export function getChatHistory() {
-  return request("/ai/history");
+export function getChatHistory(sessionId = null) {
+  const params = new URLSearchParams();
+  if (sessionId) params.set("session_id", sessionId);
+  const suffix = params.toString();
+  return request("/ai/history" + (suffix ? "?" + suffix : ""));
+}
+
+export function getAIState() {
+  return request("/ai/state");
+}
+
+export function setAIState(state) {
+  return request("/ai/state", {
+    method: "POST",
+    body: JSON.stringify({ state }),
+  });
+}
+
+export function getAIHealth(provider = "gemini") {
+  const params = new URLSearchParams({ provider });
+  return request("/ai/health?" + params.toString(), {}, TOOL_API_TIMEOUT_MS);
 }
 
 export function getActivity() {
@@ -203,6 +223,14 @@ export function getActivity() {
 
 export function getTasks() {
   return request("/tasks");
+}
+
+export function approveTask(taskId) {
+  return request(`/tasks/${encodeURIComponent(taskId)}/approve`, { method: "POST" });
+}
+
+export function startApprovedMission(taskId) {
+  return request(`/agents/mission/${encodeURIComponent(taskId)}/start`, { method: "POST", body: JSON.stringify({}) }, TOOL_API_TIMEOUT_MS);
 }
 
 export function createTask(title) {
