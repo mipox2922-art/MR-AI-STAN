@@ -97,11 +97,9 @@ export function getAssignedTaskForAgent(agent, tasks = []) {
 
 export function getTaskSummary(tasks = [], agents = []) {
   const rows = Array.isArray(tasks) ? tasks : [];
-  const registeredAgents = Array.isArray(agents) ? agents : [];
   const inProgressTasks = rows.filter(isTaskInProgress);
-  const agentCount = registeredAgents.length
-    ? registeredAgents.filter(agent => getActiveTaskForAgent(agent, rows)).length
-    : new Set(inProgressTasks.map(task => agentKey(task.agent)).filter(Boolean)).size;
+  // Count unique assigned owners from the same backend task list, not a separate agent-status feed.
+  const agentCount = new Set(inProgressTasks.map(task => agentKey(task.agent)).filter(Boolean)).size;
 
   return {
     total: rows.length,
