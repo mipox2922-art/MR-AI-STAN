@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { dispatchTool, searchToolWeb, planAgentWork, executeMission, chat, getExecutiveBriefing, browserNavigate, browserClick, browserType, browserScroll, browserDrag, getCurrentPage, reportMissionHandoff } from "../api";
 import HudOrb from "./HudOrb";
 import Chat from "./Chat";
+import { sanitizeAssistantMessage } from "../utils/chatSafety";
 import LiveMap from "./LiveMap";
 
 function finiteNumber(value) {
@@ -560,7 +561,7 @@ function QuickCommands({ system = null, working = false }) {
       setState(command.label + " · " + status);
 
       if (result?.response) {
-        setResultText(result.response);
+        setResultText(sanitizeAssistantMessage(result.response));
       } else if (result?.result?.telemetry) {
         const t = result.result.telemetry;
         setResultText([
@@ -577,11 +578,11 @@ function QuickCommands({ system = null, working = false }) {
           ? result.results.slice(0, 4).map((item, index) => (index + 1) + ". " + (item.title || item.url || "Untitled source") + "\n" + (item.url || "")).join("\n\n")
           : result.message || "No verified web results were returned.");
       } else if (result?.message) {
-        setResultText(result.message);
+        setResultText(sanitizeAssistantMessage(result.message));
       } else if (result?.route?.tool) {
         setResultText("Tool selected: " + result.route.tool + ". Status: " + status + ". " + (result.message || "Review the connected hand status before assuming the action ran."));
       } else {
-        setResultText(JSON.stringify(result, null, 2).slice(0, 1800));
+        setResultText(sanitizeAssistantMessage(JSON.stringify(result, null, 2).slice(0, 1800)));
       }
     } catch (error) {
       setState(command.label + " · ERROR");
@@ -1294,6 +1295,7 @@ export default function DashboardHome({
   radarFindings = [],
   sensorStatus = {},
   tasks = [],
+  tasksAvailable = false,
   memories = [],
   activities = [],
   gmailStatus = null,
@@ -1420,6 +1422,7 @@ export default function DashboardHome({
             mode={mode}
             coreStatus={coreStatus}
             tasks={tasks}
+            tasksAvailable={tasksAvailable}
             telemetry={telemetry}
           />
         </Panel>
