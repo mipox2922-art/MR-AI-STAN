@@ -383,37 +383,44 @@ export async function getBrowserHandsStatus() {
   };
 }
 
-export function browserAction(action, payload = {}) {
+export async function browserAction(action, payload = {}) {
   const extensionId = getBrowserExtensionId();
-
   if (!extensionId) {
-    return Promise.reject(
-      new Error(
-        "MR AI Browser Hands extension not detected. Reload the MR AI page after installing/reloading the extension."
-      )
-    );
+    throw new Error("MR AI Browser Hands extension not detected. Reload the MR AI page after installing/reloading the extension.");
   }
 
-  const requestId = `mr-ai-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-
-  return Promise.race([
-    globalThis.chrome.runtime.sendMessage(extensionId, {
-      type: "MR_AI_BROWSER_ACTION",
-      requestId,
-      action,
-      ...payload
-    }),
-    new Promise((_, reject) => {
-      window.setTimeout(() => {
-        reject(new Error("MR AI Browser Hands did not respond within 15 seconds."));
-      }, 15000);
-    })
-  ]).then(message => {
-    if (!message?.ok) {
-      throw new Error(message?.error || "Browser action failed");
-    }
+  async function sendBrowserRequest(extra = {}) {
+    const requestId = \`mr-ai-\${Date.now()}-\${Math.random().toString(36).slice(2)}\`;
+    const message = await Promise.race([
+      globalThis.chrome.runtime.sendMessage(extensionId, {
+        type: "MR_AI_BROWSER_ACTION",
+        requestId,
+        action,
+        ...payload,
+        ...extra
+      }),
+      new Promise((_, reject) => {
+        window.setTimeout(() => reject(new Error("MR AI Browser Hands did not respond within 15 seconds.")), 15000);
+      })
+    ]);
+    if (!message?.ok) throw new Error(message?.error || "Browser action failed");
     return message.result;
-  });
+  }
+
+  const result = await sendBrowserRequest();
+  if (!result?.approvalRequired) return result;
+
+  const host = result.host || "domain isiyojulikana";
+  const risk = result.risk || "HIGH_RISK_ACTION";
+  const reason = result.reason || "Kitendo hiki kina athari nje ya dashboard.";
+  const approved = typeof window !== "undefined" && typeof window.confirm === "function"
+    && window.confirm(\`BOSS FERISI: Idhini inahitajika.\\n\\nKitendo: \${action}\\nHatari: \${risk}\\nDomain: \${host}\\n\\n\${reason}\\n\\nKuendelea mara hii tu?\`);
+  if (!approved) {
+    return { ...result, deniedByBoss: true, dispatched: false, note: "Boss hakuidhinisha; hakuna kitendo kilichotekelezwa." };
+  }
+  // Approval is a one-action override. Domain allowlist is still enforced by both
+  // extension worker and content script, and secrets/password fields remain blocked.
+  return sendBrowserRequest({ boss_approved: true });
 }
 
 export function getCurrentPage() {
