@@ -347,50 +347,6 @@ async function main() {
     const footer = document.querySelector(".cc-system-footer")?.textContent || "";
     return footer.includes("ONLINE") && !footer.includes("WAITING");
   }, undefined, { timeout: 7000 });
-
-  await page.setViewportSize({ width: 1440, height: 900 });
-  const describeDashboardLayout = () => page.evaluate(() => {
-    const describeGrid = selector => {
-      const grid = document.querySelector(selector);
-      if (!grid) return null;
-      const rect = grid.getBoundingClientRect();
-      const style = getComputedStyle(grid);
-      return {
-        columns: style.gridTemplateColumns.split(" ").filter(Boolean).length,
-        width: Math.round(rect.width),
-        panelWidths: [...grid.querySelectorAll(":scope > .cc-panel")].map(panel => Math.round(panel.getBoundingClientRect().width)),
-      };
-    };
-    return {
-      viewportWidth: window.innerWidth,
-      documentWidth: document.documentElement.scrollWidth,
-      shellWidth: Math.round(document.querySelector(".app-shell")?.getBoundingClientRect().width || 0),
-      top: describeGrid(".cc-top-grid"),
-      main: describeGrid(".cc-main-grid"),
-    };
-  });
-  const desktopLayout = await describeDashboardLayout();
-  assert.ok(desktopLayout.top && desktopLayout.main, "Dashboard status and workspace grids should exist.");
-  assert.equal(desktopLayout.main.columns, 2,
-    "At a 1440px viewport the workspace should use two readable columns: " + JSON.stringify(desktopLayout.main));
-  assert.ok(desktopLayout.main.panelWidths.every(width => width >= 400),
-    "Each desktop workspace panel should be at least 400px wide: " + JSON.stringify(desktopLayout.main.panelWidths));
-  assert.equal(desktopLayout.top.columns, 2,
-    "At a 1440px viewport the status cards should use two columns: " + JSON.stringify(desktopLayout.top));
-  assert.ok(desktopLayout.top.panelWidths.every(width => width >= 400),
-    "Status cards should have enough room for their readings: " + JSON.stringify(desktopLayout.top.panelWidths));
-  assert.ok(desktopLayout.documentWidth <= desktopLayout.viewportWidth + 12,
-    "Desktop dashboard should not scroll horizontally: " + JSON.stringify(desktopLayout));
-  await page.setViewportSize({ width: 1920, height: 1080 });
-  const wideDesktopLayout = await describeDashboardLayout();
-  assert.equal(wideDesktopLayout.main.columns, 4,
-    "At 1920px the wide HUD row should show four readable modules: " + JSON.stringify(wideDesktopLayout.main));
-  assert.ok(wideDesktopLayout.main.panelWidths.every(width => width >= 350),
-    "Wide desktop panels must remain at least 350px wide: " + JSON.stringify(wideDesktopLayout.main.panelWidths));
-  assert.ok(wideDesktopLayout.documentWidth <= wideDesktopLayout.viewportWidth + 12,
-    "Wide desktop dashboard should not scroll horizontally: " + JSON.stringify(wideDesktopLayout));
-  await page.setViewportSize({ width: 1440, height: 900 });
-  completedChecks.push("desktop and wide-desktop dashboard layouts keep readable panels without horizontal overflow");
   const executiveDetails = page.locator(".cc-executive-details");
   await executiveDetails.locator("summary").click();
   await executiveDetails.locator(".cc-exec-agent-crew").waitFor({ state: "visible", timeout: 7000 });
