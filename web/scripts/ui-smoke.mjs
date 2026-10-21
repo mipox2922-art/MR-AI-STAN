@@ -524,24 +524,29 @@ async function main() {
   await deviceLab.locator('input[type="password"]').fill("ui-smoke-bridge-token");
   await deviceLab.getByRole("button", { name: "SAVE", exact: true }).click();
   for (const label of ["BRIDGE", "ADB DEVICES", "FASTBOOT", "WI-FI SCAN", "BLE SCAN", "RADIO / RF", "RADAR SCAN"]) {
+    page.once("dialog", dialog => dialog.accept());
     await deviceLab.getByRole("button", { name: label, exact: true }).click();
     await deviceLab.locator(".device-result > strong").waitFor({ state: "visible", timeout: 5000 });
-    await page.waitForFunction(expected => document.querySelector(".device-result > strong")?.textContent?.includes(expected), "COMPLETED", { timeout: 5000 });
+    const expectedOutcome = label === "RADIO / RF" ? "UNVERIFIED" : "COMPLETED";
+    await page.waitForFunction(expected => document.querySelector(".device-result > strong")?.textContent?.includes(expected), expectedOutcome, { timeout: 5000 });
   }
-  await deviceLab.getByRole("button", { name: "DEVICE INFO", exact: true }).click();
-  await page.waitForFunction(() => document.querySelector(".device-result > strong")?.textContent?.includes("COMPLETED"));
-  await deviceLab.getByRole("button", { name: "DIAGNOSTICS", exact: true }).click();
-  await page.waitForFunction(() => document.querySelector(".device-result > strong")?.textContent?.includes("COMPLETED"));
-  await deviceLab.getByRole("button", { name: "BOOT STATE", exact: true }).click();
-  await page.waitForFunction(() => document.querySelector(".device-result > strong")?.textContent?.includes("COMPLETED"));
+  for (const label of ["DEVICE INFO", "DIAGNOSTICS", "BOOT STATE"]) {
+    page.once("dialog", dialog => dialog.accept());
+    await deviceLab.getByRole("button", { name: label, exact: true }).click();
+    await page.waitForFunction(() => document.querySelector(".device-result > strong")?.textContent?.includes("COMPLETED"));
+  }
   const rebootCountBefore = rebootRequests;
   page.once("dialog", dialog => dialog.dismiss());
   await deviceLab.getByRole("button", { name: "REBOOT SYSTEM", exact: true }).click();
   assert.equal(rebootRequests, rebootCountBefore, "Dismissing reboot confirmation must not call the bridge.");
-  page.once("dialog", dialog => dialog.accept());
+  const rebootDialogs = [];
+  const approveRebootDialogs = async dialog => { rebootDialogs.push(dialog.message()); await dialog.accept(); };
+  page.on("dialog", approveRebootDialogs);
   await deviceLab.getByRole("button", { name: "REBOOT SYSTEM", exact: true }).click();
-  await page.waitForFunction(() => document.querySelector(".device-result > strong")?.textContent?.includes("REBOOT: COMPLETED"));
-  assert.equal(rebootRequests, rebootCountBefore + 1, "Accepting reboot confirmation should call the bridge.");
+  page.off("dialog", approveRebootDialogs);
+  await page.waitForFunction(() => document.querySelector(".device-result > strong")?.textContent?.includes("REBOOT: UNVERIFIED"));
+  assert.equal(rebootDialogs.length, 2, "Reboot action and Device Lab each request explicit confirmation.");
+  assert.equal(rebootRequests, rebootCountBefore + 1, "Accepting both Boss confirmations should call the bridge.");
   completedChecks.push("Device Lab save, sensors, device info, diagnostics, boot state and guarded reboot (mock bridge)");
 
   await goTo("Creative Studio");
