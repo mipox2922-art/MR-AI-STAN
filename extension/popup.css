@@ -64,3 +64,58 @@ button {
   white-space: pre-wrap;
   line-height: 1.5;
 }
+
+
+.allowlist-panel {
+  margin-top: 16px;
+  padding: 12px;
+  border: 1px solid rgba(0,243,255,.24);
+  background: #04090d;
+}
+.allowlist-panel > strong {
+  color: #00f3ff;
+  font-size: 10px;
+  letter-spacing: 1.5px;
+}
+.allowlist-panel p,
+.allowlist-panel small {
+  display: block;
+  color: #8ca9ae;
+  font-size: 11px;
+  line-height: 1.5;
+}
+.allowlist-panel code { color: #dffcff; }
+.allowlist-add-row {
+  display: flex;
+  gap: 6px;
+  margin: 8px 0;
+}
+.allowlist-add-row input {
+  min-width: 0;
+  flex: 1;
+  padding: 8px;
+  color: #dffcff;
+  background: #050b0f;
+  border: 1px solid rgba(0,243,255,.2);
+}
+.allowlist-add-row button {
+  padding: 8px;
+  font-size: 10px;
+}
+.allow-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 0;
+  color: #dffcff;
+  font-size: 12px;
+  border-top: 1px solid rgba(0,243,255,.1);
+  overflow-wrap: anywhere;
+}
+.allow-item button {
+  padding: 5px 7px;
+  color: #ffb7b7;
+  background: #291015;
+  font-size: 10px;
+}
