@@ -116,30 +116,38 @@ def resolve_approval(
     approval.resolved_at = _now_utc()
 
     follow_up = None
-    if decision == "APPROVE":
-        try:
-            details = json.loads(approval.payload)
-        except (TypeError, ValueError, json.JSONDecodeError):
-            details = {}
-
-        task_id = details.get("task_id")
-        if isinstance(task_id, int):
-            task = (
-                db.query(Task)
-                .filter(Task.id == task_id, Task.user_id == current_user.id)
-                .first()
-            )
-            if task and task.status == "WAITING_APPROVAL":
+    try:
+        details = json.loads(approval.payload or "{}")
+    except (TypeError, ValueError, json.JSONDecodeError):
+        details = {}
+    task_id = details.get("task_id")
+    if isinstance(task_id, int):
+        task = (
+            db.query(Task)
+            .filter(Task.id == task_id, Task.user_id == current_user.id)
+            .first()
+        )
+        if task and task.status == "WAITING_APPROVAL":
+            if decision == "REJECT":
+                task.status = "FAILED"
+                task.progress = 0
+                task.error = "Pendekezo limekataliwa na Boss Ferisi; hakuna kitendo kilichotekelezwa."
+                task.result = json.dumps({"approval_id": approval.id, "approved": False}, ensure_ascii=False)
+            elif approval.action == "MISSION_EXECUTION":
+                # A mission remains queued after approval. Execution needs a separate explicit Start action.
+                task.status = "PENDING"
+                task.approved_by = current_user.id
+                task.approved_at = _now_utc().replace(tzinfo=None)
+                task.error = None
+                task.result = json.dumps({"approval_id": approval.id, "approved": True, "started": False}, ensure_ascii=False)
+            else:
+                # Approval is logged, but high-impact external work does not run until a real hand is connected.
                 task.status = "WAITING_FOR_HAND"
-                task.error = "Approval granted. The connected external execution hand must perform this action."
-                task.result = json.dumps(
-                    {"approval_id": approval.id, "approved": True},
-                    ensure_ascii=False,
-                )
-                follow_up = {
-                    "task_id": task.id,
-                    "status": task.status,
-                }
+                task.approved_by = current_user.id
+                task.approved_at = _now_utc().replace(tzinfo=None)
+                task.error = "Idhini imerekodiwa. Bado inahitaji execution hand iliyoidhinishwa."
+                task.result = json.dumps({"approval_id": approval.id, "approved": True, "started": False}, ensure_ascii=False)
+            follow_up = {"task_id": task.id, "status": task.status, "approved_by": task.approved_by}
 
     db.commit()
 
