@@ -5,6 +5,7 @@ import time
 from sqlalchemy.orm import Session
 
 from ..models import Execution, ActivityLog
+from ..audit import record_safe_error
 from .intent import classify
 from .permissions import check_permission, create_approval
 from .gateway import execute
@@ -58,9 +59,10 @@ async def run(user_id: int, text: str, db: Session) -> dict:
     except Exception as exc:
         db.rollback()
         execution.status = "FAILED"
-        execution.error = f"{type(exc).__name__}: {exc}"
+        execution.error = f"{type(exc).__name__}: orchestration failed; see safe error log."
         db.add(execution)
         db.commit()
+        record_safe_error(db, user_id, "orchestrator", type(exc).__name__, "Orchestrator step failed; request content omitted from logs.")
         return {
             "status": "FAILED",
             "execution_id": execution.id,
