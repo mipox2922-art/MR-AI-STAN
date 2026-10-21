@@ -2,7 +2,8 @@
 -- The app runs idempotent upgrades in backend/app/migrations.py on startup.
 -- Run this manual SQL only when applying a one-time migration to an older DB.
 ALTER TABLE conversations ADD COLUMN session_id VARCHAR(100);
-ALTER TABLE tasks ADD COLUMN source VARCHAR(20) NOT NULL DEFAULT 'boss';
+-- Existing tasks lack reliable authorship. Preserve that uncertainty rather than inventing Boss as the source.
+ALTER TABLE tasks ADD COLUMN source VARCHAR(20) NOT NULL DEFAULT 'unknown';
 ALTER TABLE tasks ADD COLUMN requested_by VARCHAR(100);
 ALTER TABLE tasks ADD COLUMN approved_by INTEGER;
 ALTER TABLE tasks ADD COLUMN approved_at TIMESTAMP;
