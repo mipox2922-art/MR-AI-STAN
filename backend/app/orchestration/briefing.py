@@ -28,7 +28,7 @@ def _safe_task(db: Session, task: Task) -> dict[str, Any]:
     if status in {"COMPLETED", "DONE"} and (not steps or verified != len(steps)): status = "WAITING_FOR_VERIFICATION"
     return {
         "id": task.id, "title": task.title, "description": task.description,
-        "source": task.source or "boss", "requested_by": task.requested_by or "Haijathibitishwa",
+        "source": task.source or "unknown", "requested_by": task.requested_by or "Haijathibitishwa",
         "agent": task.agent or "Haijathibitishwa", "status": status, "priority": task.priority,
         "progress": 100 if status in {"COMPLETED", "DONE"} and steps and verified == len(steps) else progress,
         "verified_steps": verified, "step_count": len(steps),
