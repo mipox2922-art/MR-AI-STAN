@@ -147,7 +147,7 @@ async def dispatch_tool(
         db.add(ActivityLog(
             user_id=current_user.id,
             action="TOOL_DISPATCH",
-            details=f"searxng: {command[:180]}",
+            details=f"searxng: query_length={len(command)}",
         ))
         db.commit()
         return {"status": result["status"], "route": route, "result": result}
