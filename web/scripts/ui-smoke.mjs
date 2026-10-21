@@ -523,8 +523,16 @@ async function main() {
   const deviceLab = page.locator(".tool-panel");
   await deviceLab.locator('input[type="password"]').fill("ui-smoke-bridge-token");
   await deviceLab.getByRole("button", { name: "SAVE", exact: true }).click();
+  await page.evaluate(() => {
+    window.__mraiConfirmationMessages = [];
+    window.__mraiConfirmationResult = true;
+    window.confirm = message => {
+      window.__mraiConfirmationMessages.push(String(message || ""));
+      return window.__mraiConfirmationResult;
+    };
+  });
   for (const label of ["BRIDGE", "ADB DEVICES", "FASTBOOT", "WI-FI SCAN", "BLE SCAN", "RADIO / RF", "RADAR SCAN"]) {
-    page.once("dialog", dialog => dialog.accept().catch(() => {}));
+    const promptsBefore = await page.evaluate(() => window.__mraiConfirmationMessages.length);
     await deviceLab.getByRole("button", { name: label, exact: true }).click();
     await deviceLab.locator(".device-result > strong").waitFor({ state: "visible", timeout: 5000 });
     const expectedOutcome = label === "RADIO / RF" ? "UNVERIFIED" : "COMPLETED";
@@ -534,23 +542,27 @@ async function main() {
       const actual = await deviceLab.locator(".device-result > strong").textContent().catch(() => "(missing result)");
       throw new Error(`Device Lab action "${label}" expected "${expectedOutcome}" but rendered "${actual}". ${error.message}`);
     }
+    const promptsAfter = await page.evaluate(() => window.__mraiConfirmationMessages.length);
+    assert.equal(promptsAfter, promptsBefore + 1, `Device Lab action ${label} must ask Boss for one explicit confirmation.`);
   }
   for (const label of ["DEVICE INFO", "DIAGNOSTICS", "BOOT STATE"]) {
-    page.once("dialog", dialog => dialog.accept().catch(() => {}));
+    const promptsBefore = await page.evaluate(() => window.__mraiConfirmationMessages.length);
     await deviceLab.getByRole("button", { name: label, exact: true }).click();
     await page.waitForFunction(() => document.querySelector(".device-result > strong")?.textContent?.includes("COMPLETED"));
+    assert.equal(await page.evaluate(() => window.__mraiConfirmationMessages.length), promptsBefore + 1,
+      `Device Lab action ${label} must ask Boss for one explicit confirmation.`);
   }
   const rebootCountBefore = rebootRequests;
-  page.once("dialog", dialog => dialog.dismiss());
+  await page.evaluate(() => { window.__mraiConfirmationMessages = []; window.__mraiConfirmationResult = false; });
   await deviceLab.getByRole("button", { name: "REBOOT SYSTEM", exact: true }).click();
   assert.equal(rebootRequests, rebootCountBefore, "Dismissing reboot confirmation must not call the bridge.");
-  const rebootDialogs = [];
-  const approveRebootDialogs = async dialog => { rebootDialogs.push(dialog.message()); await dialog.accept().catch(() => {}); };
-  page.on("dialog", approveRebootDialogs);
+  assert.equal(await page.evaluate(() => window.__mraiConfirmationMessages.length), 1,
+    "A rejected reboot must ask for explicit owner confirmation.");
+  await page.evaluate(() => { window.__mraiConfirmationMessages = []; window.__mraiConfirmationResult = true; });
   await deviceLab.getByRole("button", { name: "REBOOT SYSTEM", exact: true }).click();
-  page.off("dialog", approveRebootDialogs);
   await page.waitForFunction(() => document.querySelector(".device-result > strong")?.textContent?.includes("REBOOT: UNVERIFIED"));
-  assert.equal(rebootDialogs.length, 2, "Reboot action and Device Lab each request explicit confirmation.");
+  assert.equal(await page.evaluate(() => window.__mraiConfirmationMessages.length), 2,
+    "Reboot action and Device Lab each request explicit confirmation.");
   assert.equal(rebootRequests, rebootCountBefore + 1, "Accepting both Boss confirmations should call the bridge.");
   completedChecks.push("Device Lab save, sensors, device info, diagnostics, boot state and guarded reboot (mock bridge)");
 
