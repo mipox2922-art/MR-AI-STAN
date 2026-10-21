@@ -7261,3 +7261,1124 @@ button { cursor: pointer; }
   .command-center-reference .cc-exec-agent-grid { grid-template-columns: minmax(0,1fr); }
   .command-center-reference .cc-exec-agent-card { min-height: 0; }
 }
+
+
+/* Fixed 1536 x 1024 MR AI dashboard canvas.
+   These scoped overrides intentionally supersede legacy responsive dashboard grids only.
+   Other MR AI pages continue to use the normal application layout. */
+html, body, #root {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+}
+body { overflow: hidden; }
+.app-shell.dashboard-canvas-shell {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  width: 1536px;
+  height: 1024px;
+  min-height: 1024px;
+  display: block;
+  padding: 0;
+  margin: 0;
+  overflow: hidden;
+  transform: translate(-50%, -50%) scale(var(--dashboard-canvas-scale, 1));
+  transform-origin: center center;
+  background:
+    radial-gradient(circle at 55% 28%, rgba(0,243,255,.075), transparent 42%),
+    linear-gradient(rgba(0,243,255,.018) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,243,255,.018) 1px, transparent 1px),
+    #020508;
+  background-size: auto, 36px 36px, 36px 36px, auto;
+}
+.app-shell.dashboard-canvas-shell.mode-working {
+  background:
+    radial-gradient(circle at 55% 28%, rgba(255,85,85,.09), transparent 42%),
+    linear-gradient(rgba(255,85,85,.018) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,85,85,.018) 1px, transparent 1px),
+    #020508;
+  background-size: auto, 36px 36px, 36px 36px, auto;
+}
+.app-shell.dashboard-canvas-shell .mrai-ambient,
+.app-shell.dashboard-canvas-shell .mrai-hud-frame,
+.app-shell.dashboard-canvas-shell .mrai-scanlines { pointer-events: none; }
+.app-shell.dashboard-canvas-shell .sidebar {
+  position: absolute;
+  left: 14px;
+  top: 8px;
+  width: 210px;
+  height: 550px;
+  max-height: 550px;
+  padding: 7px 9px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 5px;
+  overflow: visible;
+  border: 1px solid var(--line);
+  border-right: 1px solid var(--line);
+  background: rgba(2,7,10,.94);
+  z-index: 12;
+}
+.app-shell.dashboard-canvas-shell .sidebar .brand { flex: 0 0 34px; min-width: 0; }
+.app-shell.dashboard-canvas-shell .sidebar .brand-mark {
+  font-size: 22px;
+  line-height: 24px;
+  letter-spacing: 3px;
+  white-space: nowrap;
+}
+.app-shell.dashboard-canvas-shell .sidebar .brand-sub {
+  margin-top: 1px;
+  font-size: 8px;
+  line-height: 10px;
+  letter-spacing: 1.5px;
+  white-space: nowrap;
+}
+.app-shell.dashboard-canvas-shell .sidebar .operator {
+  flex: 0 0 56px;
+  min-height: 56px;
+  height: 56px;
+  padding: 3px 5px;
+  gap: 5px;
+  overflow: hidden;
+}
+.app-shell.dashboard-canvas-shell .sidebar .operator .ai-core {
+  flex: 0 0 48px;
+  width: 48px;
+  height: 48px;
+  margin-right: -5px;
+  transform: scale(.78);
+  transform-origin: center;
+}
+.app-shell.dashboard-canvas-shell .sidebar .operator > div:last-child {
+  min-width: 0;
+  overflow: hidden;
+}
+.app-shell.dashboard-canvas-shell .sidebar .operator strong {
+  font-size: 10px;
+  line-height: 1.25;
+  letter-spacing: .5px;
+  white-space: nowrap;
+}
+.app-shell.dashboard-canvas-shell .sidebar .operator span,
+.app-shell.dashboard-canvas-shell .sidebar .operator small {
+  font-size: 8px;
+  line-height: 1.25;
+  letter-spacing: .25px;
+  overflow-wrap: break-word;
+  word-break: normal;
+}
+.app-shell.dashboard-canvas-shell .sidebar nav {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 1px;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+.app-shell.dashboard-canvas-shell .sidebar nav button {
+  flex: 0 0 20px;
+  width: 100%;
+  min-width: 0;
+  min-height: 20px;
+  height: 20px;
+  padding: 2px 5px;
+  gap: 7px;
+  font-size: 10px;
+  line-height: 1.1;
+  letter-spacing: .35px;
+  white-space: nowrap;
+  word-break: normal;
+  overflow-wrap: normal;
+  overflow: hidden;
+}
+.app-shell.dashboard-canvas-shell .sidebar nav button span {
+  flex: 0 0 13px;
+  width: 13px;
+  font-size: 12px;
+}
+.app-shell.dashboard-canvas-shell .sidebar-footer {
+  flex: 0 0 auto;
+  display: grid;
+  gap: 3px;
+  margin-top: auto;
+  min-width: 0;
+}
+.app-shell.dashboard-canvas-shell .sidebar-footer button {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+  min-height: 22px;
+  height: 22px;
+  padding: 3px 6px;
+  font-size: 9px;
+  line-height: 1;
+  letter-spacing: .6px;
+  white-space: nowrap;
+}
+.app-shell.dashboard-canvas-shell .sidebar-voice {
+  position: absolute;
+  left: 0;
+  top: 562px;
+  z-index: 13;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 210px;
+  height: 185px;
+  padding: 12px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 0;
+  background: rgba(2,7,10,.94);
+  box-shadow: inset 0 0 20px var(--gl), 0 0 16px var(--gl);
+}
+.app-shell.dashboard-canvas-shell .sidebar-voice-head { display: flex; justify-content: space-between; align-items: center; }
+.app-shell.dashboard-canvas-shell .sidebar-voice .eyebrow { font-size: 10px; line-height: 1.2; }
+.app-shell.dashboard-canvas-shell .sidebar-wave { display: flex; align-items: center; justify-content: center; height: 42px; gap: 5px; }
+.app-shell.dashboard-canvas-shell .sidebar-wave span { width: 3px; max-width: 3px; background: var(--accent); box-shadow: 0 0 8px var(--gl); }
+.app-shell.dashboard-canvas-shell .sidebar-voice-quote { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.app-shell.dashboard-canvas-shell .sidebar-voice-quote strong { color: var(--accent); font: 700 14px/1.25 Orbitron, sans-serif; overflow-wrap: break-word; word-break: normal; }
+.app-shell.dashboard-canvas-shell .sidebar-voice-quote span { font-size: 10px; line-height: 1.3; }
+.app-shell.dashboard-canvas-shell .sidebar-voice .voice-button { align-self: flex-start; min-height: 30px; font-size: 10px; }
+
+.app-shell.dashboard-canvas-shell .main-area,
+.app-shell.dashboard-canvas-shell .dashboard-main {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1536px;
+  height: 1024px;
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background: transparent;
+}
+.app-shell.dashboard-canvas-shell .dashboard-main > .topbar { display: none !important; }
+.app-shell.dashboard-canvas-shell .dashboard-main .content {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 1536px;
+  height: 1024px;
+  max-width: none;
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background: transparent;
+}
+.app-shell.dashboard-canvas-shell .command-center-reference {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: block;
+  width: 1536px;
+  height: 1024px;
+  min-width: 0;
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  isolation: isolate;
+  color: var(--tx);
+  font: 500 12px/1.35 Rajdhani, "Segoe UI", sans-serif;
+  word-break: normal;
+  overflow-wrap: break-word;
+}
+.app-shell.dashboard-canvas-shell .command-center-reference *,
+.app-shell.dashboard-canvas-shell .sidebar-voice * {
+  min-width: 0;
+  word-break: normal;
+  overflow-wrap: break-word;
+}
+.app-shell.dashboard-canvas-shell .command-center-reference button,
+.app-shell.dashboard-canvas-shell .command-center-reference input,
+.app-shell.dashboard-canvas-shell .command-center-reference select {
+  font-size: 10px;
+}
+.app-shell.dashboard-canvas-shell .command-center-reference .cc-titlebar {
+  position: absolute;
+  left: 238px;
+  top: 8px;
+  width: 1282px;
+  height: 34px;
+  min-height: 34px;
+  margin: 0;
+  padding: 0 10px;
+  display: block !important;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 0;
+  clip-path: none;
+  background: rgba(3,13,19,.86);
+  box-shadow: inset 0 0 15px var(--gl), 0 0 14px var(--gl);
+}
+.app-shell.dashboard-canvas-shell .cc-brand-lockup {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 8px;
+  width: max-content;
+  max-width: 58%;
+  transform: translate(-50%,-50%);
+  white-space: nowrap;
+}
+.app-shell.dashboard-canvas-shell .cc-titlebar .cc-logo {
+  display: inline-block;
+  color: var(--accent);
+  font: 900 19px/1 Orbitron, sans-serif;
+  letter-spacing: 2px;
+}
+.app-shell.dashboard-canvas-shell .cc-titlebar .cc-title {
+  color: var(--hd);
+  font: 800 16px/1 Orbitron, sans-serif;
+  letter-spacing: 1.2px;
+  text-align: left;
+}
+.app-shell.dashboard-canvas-shell .cc-titlebar .cc-mode-chip {
+  position: absolute;
+  right: 7px;
+  top: 5px;
+  height: 22px;
+  min-width: 140px;
+  padding: 3px 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px solid var(--accent);
+  border-radius: 0;
+  clip-path: none;
+  background: var(--gl);
+  color: var(--accent);
+  font: 700 10px/1 Orbitron, sans-serif;
+  letter-spacing: .5px;
+}
+.app-shell.dashboard-canvas-shell .cc-titlebar .cc-mode-dot {
+  flex: 0 0 7px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 10px var(--accent);
+  animation: blink 1s steps(2,end) infinite;
+}
+.app-shell.dashboard-canvas-shell .cc-titlebar .cc-header-right {
+  position: absolute;
+  top: 0;
+  right: 155px;
+  width: 145px;
+  height: 32px;
+  display: flex !important;
+  align-items: center;
+  justify-content: flex-end;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  pointer-events: none;
+}
+.app-shell.dashboard-canvas-shell .cc-titlebar .cc-header-tools,
+.app-shell.dashboard-canvas-shell .cc-titlebar .cc-header-operator { display: none !important; }
+.app-shell.dashboard-canvas-shell .cc-titlebar .cc-header-clock {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1px;
+  text-align: right;
+  white-space: nowrap;
+}
+.app-shell.dashboard-canvas-shell .cc-titlebar .cc-header-clock strong { color: var(--accent); font: 600 10px/1.15 "Share Tech Mono", monospace; letter-spacing: .2px; }
+.app-shell.dashboard-canvas-shell .cc-titlebar .cc-header-clock span { display: block; margin: 0; color: var(--dim); font: 9px/1.1 "Share Tech Mono", monospace; }
+
+.app-shell.dashboard-canvas-shell .command-center-reference > .cc-top-grid {
+  position: absolute;
+  left: 238px;
+  top: 40px;
+  width: 1282px;
+  height: 146px;
+  display: block;
+  margin: 0;
+  padding: 0;
+  overflow: visible;
+}
+.app-shell.dashboard-canvas-shell .cc-top-grid > .cc-panel,
+.app-shell.dashboard-canvas-shell .cc-top-grid > .cc-panel:last-child {
+  position: absolute;
+  top: 0;
+  height: 146px;
+  min-height: 0;
+  max-height: 146px;
+  margin: 0;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 0;
+  clip-path: none;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  box-shadow: inset 0 0 16px var(--gl), 0 0 12px var(--gl);
+}
+.app-shell.dashboard-canvas-shell .cc-top-grid > .cc-panel:nth-child(1) { left: 0; width: 298px; }
+.app-shell.dashboard-canvas-shell .cc-top-grid > .cc-panel:nth-child(2) { left: 310px; width: 412px; }
+.app-shell.dashboard-canvas-shell .cc-top-grid > .cc-panel:nth-child(3) { left: 734px; width: 548px; }
+.app-shell.dashboard-canvas-shell .cc-panel-head {
+  flex: 0 0 28px;
+  min-height: 28px;
+  max-height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  margin: 0 0 5px;
+  padding: 0 0 4px;
+  overflow: hidden;
+  border-bottom: 1px solid var(--line);
+}
+.app-shell.dashboard-canvas-shell .cc-panel-head > div:first-child { min-width: 0; }
+.app-shell.dashboard-canvas-shell .cc-panel .cc-eyebrow {
+  display: block;
+  font: 500 10px/1.15 "Share Tech Mono", monospace;
+  letter-spacing: .6px;
+  white-space: nowrap;
+}
+.app-shell.dashboard-canvas-shell .cc-panel h2 {
+  margin: 2px 0 0;
+  color: var(--hd);
+  font: 700 11px/1.15 Orbitron, sans-serif;
+  letter-spacing: .4px;
+  text-transform: uppercase;
+  white-space: nowrap;
+  word-break: normal;
+  overflow-wrap: normal;
+}
+.app-shell.dashboard-canvas-shell .cc-panel-actions { flex: 0 1 auto; gap: 3px; min-width: 0; }
+.app-shell.dashboard-canvas-shell .cc-badge {
+  max-width: 100%;
+  padding: 2px 4px;
+  color: var(--accent);
+  font: 500 9px/1.1 "Share Tech Mono", monospace;
+  letter-spacing: 0;
+  white-space: nowrap;
+}
+.app-shell.dashboard-canvas-shell .cc-panel {
+  min-width: 0;
+  border-radius: 0;
+  clip-path: none;
+}
+.app-shell.dashboard-canvas-shell .cc-system-status {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 3px;
+  min-height: 0;
+  overflow: hidden;
+}
+.app-shell.dashboard-canvas-shell .cc-system-layout {
+  display: grid;
+  grid-template-columns: minmax(0,1.08fr) minmax(0,.92fr);
+  align-items: start;
+  gap: 7px;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+.app-shell.dashboard-canvas-shell .cc-system-metrics {
+  display: grid;
+  grid-template-columns: repeat(2,minmax(0,1fr));
+  align-content: start;
+  gap: 1px 7px;
+  min-width: 0;
+}
+.app-shell.dashboard-canvas-shell .cc-system-metrics .cc-metric { min-width: 0; margin: 0; padding: 2px 0; }
+.app-shell.dashboard-canvas-shell .cc-metric-top { display: flex; align-items: baseline; justify-content: space-between; gap: 3px; }
+.app-shell.dashboard-canvas-shell .cc-metric-top span { color: var(--dim); font: 500 10px/1.1 "Share Tech Mono", monospace; white-space: normal; }
+.app-shell.dashboard-canvas-shell .cc-metric-top strong { color: var(--hd); font: 600 10px/1.1 "Share Tech Mono", monospace; }
+.app-shell.dashboard-canvas-shell .cc-meter { height: 3px; margin-top: 3px; }
+.app-shell.dashboard-canvas-shell .cc-system-network { min-width: 0; overflow: hidden; }
+.app-shell.dashboard-canvas-shell .cc-system-network-title { display: block; color: var(--dim); font: 500 10px/1.1 "Share Tech Mono", monospace; }
+.app-shell.dashboard-canvas-shell .cc-network-metric { margin: 0; padding: 2px 0; }
+.app-shell.dashboard-canvas-shell .cc-network-rates,
+.app-shell.dashboard-canvas-shell .cc-network-summary { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 5px; color: var(--dim); font: 10px/1.1 "Share Tech Mono", monospace; }
+.app-shell.dashboard-canvas-shell .cc-network-spark { height: 17px; margin-top: 3px; }
+.app-shell.dashboard-canvas-shell .cc-telemetry-source,
+.app-shell.dashboard-canvas-shell .cc-system-footer { display: block; min-height: 0; color: var(--dim); font: 9px/1.1 "Share Tech Mono", monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.app-shell.dashboard-canvas-shell .cc-system-footer { display: flex; justify-content: space-between; align-items: center; gap: 5px; padding-top: 3px; border-top: 1px solid var(--line); }
+.app-shell.dashboard-canvas-shell .cc-system-footer strong { font-weight: 500; }
+.app-shell.dashboard-canvas-shell .cc-system-status > .cc-inline-button { align-self: flex-start; min-height: 20px; padding: 3px 5px; font: 600 10px/1 Orbitron,sans-serif; }
+
+.app-shell.dashboard-canvas-shell .cc-core-status {
+  display: grid;
+  grid-template-columns: minmax(0,1fr) 96px;
+  align-items: center;
+  gap: 7px;
+  flex: 1 1 auto;
+  min-height: 0;
+  height: calc(100% - 30px);
+  overflow: hidden;
+}
+.app-shell.dashboard-canvas-shell .cc-core-readout {
+  display: grid;
+  align-content: center;
+  gap: 0;
+  min-width: 0;
+}
+.app-shell.dashboard-canvas-shell .cc-core-readout > div {
+  display: grid;
+  grid-template-columns: minmax(86px,.8fr) minmax(0,1fr);
+  gap: 4px;
+  align-items: center;
+  min-height: 15px;
+  padding: 1px 0;
+  border-bottom: 1px solid rgba(77,243,255,.08);
+}
+.app-shell.dashboard-canvas-shell .cc-core-readout span { color: var(--dim); font: 500 10px/1.1 "Share Tech Mono", monospace; white-space: nowrap; }
+.app-shell.dashboard-canvas-shell .cc-core-readout strong { min-width: 0; color: var(--hd); font: 600 10px/1.1 Rajdhani,sans-serif; overflow-wrap: break-word; word-break: normal; }
+.app-shell.dashboard-canvas-shell .ai-core-hologram { width: 96px; height: 96px; max-width: 96px; justify-self: center; }
+.app-shell.dashboard-canvas-shell .ai-core-hologram .core-hologram-label { font-size: 10px; }
+
+.app-shell.dashboard-canvas-shell .cc-top-grid > .cc-panel:nth-child(3) .cc-mission {
+  display: grid;
+  grid-template-columns: minmax(0,.92fr) minmax(0,1.08fr);
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  height: calc(100% - 29px);
+  min-height: 0;
+  overflow: hidden;
+}
+.app-shell.dashboard-canvas-shell .cc-mission-copy { min-width: 0; overflow: hidden; }
+.app-shell.dashboard-canvas-shell .cc-mission-copy p { margin: 0 0 4px; color: var(--dim); font-size: 10px; line-height: 1.3; }
+.app-shell.dashboard-canvas-shell .cc-mission-copy span { display: block; color: var(--accent); font: 500 10px/1.2 "Share Tech Mono",monospace; }
+.app-shell.dashboard-canvas-shell .cc-mission-copy strong { display: block; margin-top: 4px; color: var(--hd); font-size: 11px; line-height: 1.2; overflow-wrap: break-word; }
+.app-shell.dashboard-canvas-shell .cc-mission-summary { display: block; margin-top: 4px; color: var(--dim); font-size: 10px; line-height: 1.2; }
+.app-shell.dashboard-canvas-shell .cc-mission-graph { position: relative; width: 100%; height: 88px; min-height: 0; border: 1px solid var(--line); overflow: hidden; }
+.app-shell.dashboard-canvas-shell .cc-mission-graph svg { position: absolute; inset: 4px 5px 18px; width: calc(100% - 10px); height: calc(100% - 22px); }
+.app-shell.dashboard-canvas-shell .cc-chart-axis { position: absolute; left: 4px; right: 4px; bottom: 2px; display: flex; justify-content: space-between; color: var(--dim); font: 9px/1 "Share Tech Mono",monospace; }
+.app-shell.dashboard-canvas-shell .cc-graph-grid { position: absolute; inset: 0; background: repeating-linear-gradient(to bottom, transparent 0 calc(25% - 1px), var(--line) calc(25% - 1px) 25%); }
+
+.app-shell.dashboard-canvas-shell .command-center-reference > .cc-main-grid {
+  position: absolute;
+  left: 238px;
+  top: 196px;
+  width: 1282px;
+  height: 236px;
+  display: block;
+  margin: 0;
+  padding: 0;
+  overflow: visible;
+}
+.app-shell.dashboard-canvas-shell .cc-main-grid > .cc-panel {
+  position: absolute;
+  margin: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  max-height: none;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 0;
+  clip-path: none;
+  background: var(--panel);
+  box-shadow: inset 0 0 16px var(--gl), 0 0 12px var(--gl);
+  overflow: hidden;
+}
+.app-shell.dashboard-canvas-shell .cc-main-grid > .cc-radar-panel { left: 0; top: 0; width: 298px; height: 236px; }
+.app-shell.dashboard-canvas-shell .cc-main-grid > .cc-map-panel {
+  left: 397px;
+  top: -6px;
+  width: 240px;
+  height: 240px;
+  padding: 0;
+  overflow: visible;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.app-shell.dashboard-canvas-shell .cc-map-panel::after { display: none; }
+.app-shell.dashboard-canvas-shell .cc-map-panel > .cc-panel-head { display: none; }
+.app-shell.dashboard-canvas-shell .cc-main-grid > .cc-chat-panel { left: 730px; top: 4px; width: 272px; height: 232px; }
+.app-shell.dashboard-canvas-shell .cc-main-grid > .cc-research-panel { left: 1014px; top: 4px; width: 268px; height: 232px; }
+
+.app-shell.dashboard-canvas-shell .cc-radar-panel > .cc-panel-head { flex: 0 0 27px; min-height: 27px; max-height: 27px; }
+.app-shell.dashboard-canvas-shell .cc-radar-wrap {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0,1fr);
+  grid-template-rows: auto auto auto auto;
+  align-content: start;
+  gap: 3px;
+  flex: 1 1 auto;
+  height: calc(100% - 32px);
+  min-height: 0;
+  overflow: hidden;
+}
+.app-shell.dashboard-canvas-shell .cc-radar-controls {
+  display: grid;
+  grid-template-columns: repeat(4,minmax(0,1fr));
+  gap: 3px;
+  min-width: 0;
+}
+.app-shell.dashboard-canvas-shell .cc-radar-controls button {
+  min-width: 0;
+  min-height: 22px;
+  height: 22px;
+  padding: 2px;
+  border: 1px solid var(--line);
+  border-radius: 0;
+  background: rgba(0,0,0,.24);
+  color: var(--dim);
+  font: 600 9px/1.05 Orbitron,sans-serif;
+  letter-spacing: 0;
+  text-align: center;
+  white-space: normal;
+  word-break: normal;
+  overflow-wrap: break-word;
+}
+.app-shell.dashboard-canvas-shell .cc-radar-overview {
+  display: grid;
+  grid-template-columns: 76px minmax(0,1fr);
+  align-items: center;
+  gap: 6px;
+  min-height: 74px;
+  overflow: hidden;
+}
+.app-shell.dashboard-canvas-shell .cc-radar-shell {
+  width: 74px;
+  min-width: 74px;
+  aspect-ratio: 1;
+  margin: 0;
+}
+.app-shell.dashboard-canvas-shell .cc-radar-info {
+  display: grid;
+  grid-template-columns: minmax(0,1fr);
+  align-content: center;
+  gap: 3px;
+  min-width: 0;
+}
+.app-shell.dashboard-canvas-shell .cc-radar-contact-count { padding: 3px; }
+.app-shell.dashboard-canvas-shell .cc-radar-contact-count span,
+.app-shell.dashboard-canvas-shell .cc-radar-contact-count small,
+.app-shell.dashboard-canvas-shell .cc-radar-source span { font: 10px/1.1 "Share Tech Mono",monospace; }
+.app-shell.dashboard-canvas-shell .cc-radar-contact-count strong { font: 700 17px/1 Orbitron,sans-serif; }
+.app-shell.dashboard-canvas-shell .cc-radar-source {
+  display: grid;
+  grid-template-columns: repeat(2,minmax(0,1fr));
+  gap: 2px;
+}
+.app-shell.dashboard-canvas-shell .cc-radar-source div { display: flex; justify-content: space-between; gap: 2px; min-width: 0; padding: 2px; }
+.app-shell.dashboard-canvas-shell .cc-radar-source strong { font: 600 10px/1 "Share Tech Mono",monospace; }
+.app-shell.dashboard-canvas-shell .cc-radar-bridge-note {
+  color: var(--dim);
+  font: 10px/1.15 "Share Tech Mono",monospace;
+  letter-spacing: 0;
+  overflow-wrap: break-word;
+}
+.app-shell.dashboard-canvas-shell .cc-radar-status {
+  display: flex;
+  justify-content: space-between;
+  gap: 5px;
+  min-width: 0;
+  font: 10px/1.1 "Share Tech Mono",monospace;
+  color: var(--dim);
+}
+.app-shell.dashboard-canvas-shell .cc-radar-status strong { color: var(--accent); font-weight: 600; }
+.app-shell.dashboard-canvas-shell .cc-radar-details { min-width: 0; padding: 0; border: 0; }
+.app-shell.dashboard-canvas-shell .cc-radar-details > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 5px;
+  min-height: 15px;
+  color: var(--accent);
+  font: 600 10px/1.1 "Share Tech Mono",monospace;
+  cursor: pointer;
+}
+.app-shell.dashboard-canvas-shell .cc-radar-details[open] {
+  position: absolute;
+  z-index: 10;
+  inset: 31px 0 0;
+  padding: 6px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  background: rgba(2,7,10,.98);
+}
+.app-shell.dashboard-canvas-shell .cc-radar-details[open] > summary { margin-bottom: 4px; }
+.app-shell.dashboard-canvas-shell .cc-radar-channels { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 4px; }
+.app-shell.dashboard-canvas-shell .cc-radar-channel { min-width: 0; padding: 4px; }
+.app-shell.dashboard-canvas-shell .cc-radar-channel-head { font-size: 10px; }
+.app-shell.dashboard-canvas-shell .cc-radar-empty { display: none; }
+.app-shell.dashboard-canvas-shell .cc-radar-contact-list { display: none; }
+.app-shell.dashboard-canvas-shell .cc-radar-note { display: none; }
+
+.app-shell.dashboard-canvas-shell .cc-map-panel .cc-live-map {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 240px;
+  height: 240px;
+  min-height: 0;
+  gap: 0;
+  overflow: visible;
+}
+.app-shell.dashboard-canvas-shell .cc-map-frame-grid {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 240px;
+  height: 240px;
+  min-height: 0;
+  overflow: visible;
+}
+.app-shell.dashboard-canvas-shell .cc-real-map {
+  position: absolute;
+  inset: 0;
+  width: 240px;
+  height: 240px;
+  min-height: 240px;
+  padding: 0;
+  overflow: hidden;
+  border: 2px solid var(--accent);
+  border-radius: 50%;
+  background: #02090d;
+  box-shadow: inset 0 0 18px var(--gl), 0 0 10px var(--gl), 0 0 24px var(--gl);
+}
+.app-shell.dashboard-canvas-shell .cc-real-map iframe {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  filter: invert(1) grayscale(1) sepia(1) hue-rotate(165deg) saturate(3.2) brightness(.9);
+  opacity: .9;
+}
+.app-shell.dashboard-canvas-shell.mode-working .cc-real-map iframe { filter: hue-rotate(-40deg) saturate(4); }
+.app-shell.dashboard-canvas-shell .cc-map-frame-label { display: none; }
+.app-shell.dashboard-canvas-shell .cc-map-toolbar {
+  position: absolute;
+  z-index: 5;
+  top: 8px;
+  left: 7px;
+  right: 7px;
+  display: grid;
+  grid-template-columns: repeat(2,minmax(0,1fr));
+  align-content: start;
+  gap: 3px;
+  min-width: 0;
+  padding: 3px;
+  background: rgba(0,0,0,.72);
+  border: 1px solid var(--line);
+  box-shadow: 0 0 10px rgba(0,0,0,.25);
+}
+.app-shell.dashboard-canvas-shell .cc-map-toolbar .cc-inline-button {
+  min-width: 0;
+  min-height: 22px;
+  padding: 3px;
+  font: 600 9px/1.05 Orbitron,sans-serif;
+  letter-spacing: 0;
+  text-align: center;
+  text-decoration: none;
+  white-space: normal;
+  overflow-wrap: break-word;
+}
+.app-shell.dashboard-canvas-shell .cc-map-toolbar .cc-map-state {
+  grid-column: 1/-1;
+  font: 10px/1.1 "Share Tech Mono",monospace;
+  color: var(--hd);
+}
+.app-shell.dashboard-canvas-shell .cc-map-toolbar .cc-inline-button:not(button) { color: var(--accent); }
+.app-shell.dashboard-canvas-shell .cc-map-toolbar button[disabled] { opacity: .45; }
+.app-shell.dashboard-canvas-shell .cc-map-toolbar button[aria-disabled="true"] { opacity: .65; }
+.app-shell.dashboard-canvas-shell .cc-map-toolbar button[onclick],
+.app-shell.dashboard-canvas-shell .cc-map-toolbar .cc-inline-button { max-width: 100%; }
+.app-shell.dashboard-canvas-shell .cc-map-toolbar .cc-inline-button:last-of-type { }
+.app-shell.dashboard-canvas-shell .cc-map-toolbar button.cc-map-module-button { display: none; }
+.app-shell.dashboard-canvas-shell .cc-street-view { display: none !important; }
+.app-shell.dashboard-canvas-shell .cc-map-attribution {
+  position: absolute;
+  z-index: 8;
+  right: 11px;
+  bottom: 5px;
+  padding: 2px 4px;
+  color: #d9faff;
+  background: rgba(0,0,0,.78);
+  border: 1px solid var(--line);
+  font: 10px/1.1 "Share Tech Mono",monospace;
+  text-decoration: underline;
+  white-space: nowrap;
+}
+.app-shell.dashboard-canvas-shell .cc-map-live-indicator { display: none; }
+
+.app-shell.dashboard-canvas-shell .cc-main-grid > .cc-chat-panel .chat-panel {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  height: calc(100% - 32px);
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.app-shell.dashboard-canvas-shell .cc-chat-panel .chat-header {
+  display: grid;
+  grid-template-columns: minmax(0,1fr) minmax(0,1.05fr);
+  align-items: center;
+  gap: 5px;
+  flex: 0 0 25px;
+  min-height: 25px;
+  margin: 0;
+  padding: 0 0 3px;
+  border-bottom: 1px solid var(--line);
+}
+.app-shell.dashboard-canvas-shell .cc-chat-panel .chat-header > div:first-child { display: none; }
+.app-shell.dashboard-canvas-shell .cc-chat-panel .chat-header .tool-routing-status {
+  display: block !important;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--dim);
+  font: 10px/1.1 "Share Tech Mono",monospace;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.app-shell.dashboard-canvas-shell .cc-chat-panel .chat-header select {
+  width: 100%;
+  min-width: 0;
+  min-height: 22px;
+  height: 22px;
+  padding: 2px 4px;
+  border: 1px solid var(--line);
+  border-radius: 0;
+  color: var(--accent);
+  background: rgba(0,0,0,.5);
+  font: 10px/1.1 "Share Tech Mono",monospace;
+}
+.app-shell.dashboard-canvas-shell .cc-chat-panel .messages {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 5px;
+  min-height: 0;
+  max-height: none;
+  overflow: auto;
+  margin: 0;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 0;
+}
+.app-shell.dashboard-canvas-shell .cc-chat-panel .message { flex: 0 0 auto; min-width: 0; padding: 4px; margin: 0; border-bottom: 1px solid var(--line); }
+.app-shell.dashboard-canvas-shell .cc-chat-panel .message > span { display: block; margin-bottom: 2px; color: var(--accent); font: 700 10px/1.1 Orbitron,sans-serif; }
+.app-shell.dashboard-canvas-shell .cc-chat-panel .chat-message-body,
+.app-shell.dashboard-canvas-shell .cc-chat-panel .chat-message-paragraph,
+.app-shell.dashboard-canvas-shell .cc-chat-panel .message p { min-width: 0; margin: 0; color: var(--tx); font-size: 10px; line-height: 1.25; overflow-wrap: break-word; word-break: normal; }
+.app-shell.dashboard-canvas-shell .cc-chat-panel .chat-message-list-item { display: grid; grid-template-columns: 12px minmax(0,1fr); gap: 4px; font-size: 10px; line-height: 1.25; }
+.app-shell.dashboard-canvas-shell .cc-chat-panel .chat-input {
+  display: flex;
+  flex: 0 0 30px;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  min-height: 30px;
+  margin: 0;
+  padding: 3px 0 0;
+  overflow: hidden;
+}
+.app-shell.dashboard-canvas-shell .cc-chat-panel .chat-input input {
+  flex: 1 1 auto;
+  width: 1px;
+  min-width: 0;
+  height: 26px;
+  min-height: 26px;
+  padding: 3px 5px;
+  border: 1px solid var(--line);
+  border-radius: 0;
+  font: 10px/1.1 "Share Tech Mono",monospace;
+}
+.app-shell.dashboard-canvas-shell .cc-chat-panel .chat-input button {
+  flex: 0 0 42px;
+  min-width: 42px;
+  width: 42px;
+  height: 26px;
+  min-height: 26px;
+  padding: 2px;
+  border-radius: 0;
+  font: 700 9px/1 Orbitron,sans-serif;
+}
+.app-shell.dashboard-canvas-shell .cc-chat-panel .chat-input .voice-button {
+  flex: 0 0 25px;
+  width: 25px;
+  min-width: 25px;
+  padding: 2px;
+  gap: 0;
+}
+
+.app-shell.dashboard-canvas-shell .cc-main-grid > .cc-research-panel .cc-research {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 5px;
+  min-height: 0;
+  height: calc(100% - 32px);
+  overflow: hidden;
+}
+.app-shell.dashboard-canvas-shell .cc-research-search {
+  display: flex;
+  flex: 0 0 28px;
+  align-items: stretch;
+  gap: 4px;
+  min-width: 0;
+  height: 28px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+}
+.app-shell.dashboard-canvas-shell .cc-research-search input {
+  flex: 1 1 auto;
+  width: 1px;
+  min-width: 0;
+  height: 28px;
+  padding: 4px 6px;
+  border: 1px solid var(--line);
+  border-radius: 0;
+  font: 10px/1.1 "Share Tech Mono",monospace;
+}
+.app-shell.dashboard-canvas-shell .cc-research-search button {
+  flex: 0 0 28px;
+  width: 28px;
+  min-height: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 0;
+  background: var(--gl);
+  color: var(--accent);
+}
+.app-shell.dashboard-canvas-shell .cc-research-status {
+  flex: 0 0 auto;
+  color: var(--accent);
+  font: 10px/1.1 "Share Tech Mono",monospace;
+  white-space: normal;
+}
+.app-shell.dashboard-canvas-shell .cc-research-empty {
+  flex: 1 1 auto;
+  min-height: 0;
+  margin: 0;
+  padding: 5px 2px;
+  overflow: auto;
+  color: var(--dim);
+  font: 10px/1.25 "Share Tech Mono",monospace;
+  word-break: normal;
+  overflow-wrap: break-word;
+}
+.app-shell.dashboard-canvas-shell .cc-research-item {
+  display: grid;
+  grid-template-columns: 22px minmax(0,1fr);
+  align-items: start;
+  gap: 5px;
+  min-width: 0;
+  padding: 5px 2px;
+  border-bottom: 1px solid var(--line);
+}
+.app-shell.dashboard-canvas-shell .cc-research-icon { width: 20px; height: 20px; font-size: 10px; }
+.app-shell.dashboard-canvas-shell .cc-research-item a,
+.app-shell.dashboard-canvas-shell .cc-research-item strong { color: var(--accent); font-size: 10px; line-height: 1.2; overflow-wrap: break-word; word-break: normal; }
+.app-shell.dashboard-canvas-shell .cc-research-item small { display: block; color: var(--dim); font-size: 10px; line-height: 1.2; overflow-wrap: break-word; word-break: normal; }
+
+.app-shell.dashboard-canvas-shell .command-center-reference > .cc-quick {
+  position: absolute;
+  left: 238px;
+  top: 446px;
+  width: 1282px;
+  height: 76px;
+  min-height: 76px;
+  margin: 0;
+  padding: 7px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  overflow: visible;
+  border: 1px solid var(--line);
+  border-radius: 0;
+  clip-path: none;
+  background: var(--panel);
+  box-shadow: inset 0 0 16px var(--gl), 0 0 12px var(--gl);
+  z-index: 6;
+}
+.app-shell.dashboard-canvas-shell .cc-quick-head {
+  display: flex;
+  flex: 0 0 13px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 13px;
+  margin: 0;
+  padding: 0;
+}
+.app-shell.dashboard-canvas-shell .cc-quick-head .cc-eyebrow { color: var(--accent); font: 700 10px/1 Orbitron,sans-serif; letter-spacing: 1px; }
+.app-shell.dashboard-canvas-shell .cc-quick-head strong { min-width: 0; color: var(--dim); font: 10px/1 "Share Tech Mono",monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.app-shell.dashboard-canvas-shell .cc-quick-grid {
+  display: grid;
+  flex: 1 1 auto;
+  grid-template-columns: repeat(6,minmax(0,1fr));
+  align-items: stretch;
+  gap: 7px;
+  min-height: 0;
+}
+.app-shell.dashboard-canvas-shell .cc-quick-grid button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  height: 42px;
+  padding: 4px 6px;
+  border: 1px solid var(--accent);
+  border-radius: 0;
+  background: rgba(0,0,0,.16);
+  color: var(--accent);
+  font: 700 10px/1.05 Orbitron,sans-serif;
+  letter-spacing: .15px;
+  text-align: center;
+  white-space: normal;
+  word-break: normal;
+  overflow-wrap: break-word;
+}
+.app-shell.dashboard-canvas-shell .cc-quick-grid button span { flex: 0 0 auto; color: var(--accent); font-size: 11px; }
+.app-shell.dashboard-canvas-shell .cc-quick-grid button strong { min-width: 0; color: inherit; font: 700 10px/1.05 Orbitron,sans-serif; }
+.app-shell.dashboard-canvas-shell .cc-quick-result {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 4px);
+  left: 0;
+  width: 520px;
+  max-width: 100%;
+  max-height: 190px;
+  padding: 8px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  background: rgba(2,7,10,.98);
+  color: var(--tx);
+  box-shadow: 0 0 12px var(--gl);
+}
+.app-shell.dashboard-canvas-shell .cc-quick-result strong { display: block; margin-bottom: 4px; color: var(--accent); font-size: 10px; }
+.app-shell.dashboard-canvas-shell .cc-quick-result pre { margin: 0; color: var(--tx); font: 10px/1.3 "Share Tech Mono",monospace; white-space: pre-wrap; overflow-wrap: break-word; }
+
+.app-shell.dashboard-canvas-shell .command-center-reference > .cc-bottom-content {
+  position: absolute;
+  left: 238px;
+  top: 536px;
+  width: 1282px;
+  height: 472px;
+  min-width: 0;
+  margin: 0;
+  padding: 0 2px 0 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--accent) rgba(0,0,0,.2);
+}
+.app-shell.dashboard-canvas-shell .cc-bottom-content > .cc-executive-brief {
+  flex: 0 0 auto;
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  overflow: visible;
+}
+.app-shell.dashboard-canvas-shell .cc-bottom-content .cc-executive-hero {
+  grid-template-columns: minmax(0,1fr) 68px;
+  min-height: 86px;
+  padding: 10px 12px;
+}
+.app-shell.dashboard-canvas-shell .cc-bottom-content .cc-executive-metrics { grid-template-columns: repeat(4,minmax(0,1fr)); gap: 7px; }
+.app-shell.dashboard-canvas-shell .cc-bottom-content .cc-exec-metric { min-width: 0; min-height: 48px; padding: 6px 8px; }
+.app-shell.dashboard-canvas-shell .cc-bottom-content .cc-exec-metric > strong { font-size: 12px; }
+.app-shell.dashboard-canvas-shell .cc-bottom-content > .cc-dashboard-drawer {
+  position: relative;
+  flex: 0 0 auto;
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+}
+.app-shell.dashboard-canvas-shell .cc-bottom-content .cc-mission-workbench-panel { min-height: 0; }
+.app-shell.dashboard-canvas-shell .cc-bottom-content .cc-dashboard-drawer > summary { min-height: 40px; }
+.app-shell.dashboard-canvas-shell .cc-bottom-content .cc-dashboard-drawer[open] > .cc-panel { margin-top: 8px; }
+
+.app-shell.dashboard-canvas-shell .cc-panel,
+.app-shell.dashboard-canvas-shell .cc-quick {
+  color: var(--tx);
+  word-break: normal;
+  overflow-wrap: break-word;
+}
+.app-shell.dashboard-canvas-shell .cc-panel :is(p, span, strong, small, label, a, button, input, select, time),
+.app-shell.dashboard-canvas-shell .cc-quick :is(span, strong, button) {
+  word-break: normal;
+  overflow-wrap: break-word;
+}
+.app-shell.dashboard-canvas-shell .cc-panel button,
+.app-shell.dashboard-canvas-shell .cc-quick button {
+  line-height: 1.15;
+}
+.app-shell.dashboard-canvas-shell .cc-mode-chip,
+.app-shell.dashboard-canvas-shell .cc-mode-chip * { cursor: default; }
+
+/* The whole dashboard remains the same canvas at desktop sizes, including 1366 x 768.
+   Under 700px it still scales down rather than switching to a different grid. */
+@media (max-width: 700px) {
+  .app-shell.dashboard-canvas-shell {
+    position: fixed;
+    left: 50%;
+    top: 50%;
+    width: 1536px;
+    height: 1024px;
+    min-height: 1024px;
+    padding: 0;
+    display: block;
+    transform: translate(-50%, -50%) scale(var(--dashboard-canvas-scale, 1));
+  }
+  .app-shell.dashboard-canvas-shell .sidebar {
+    position: absolute;
+    left: 14px;
+    top: 8px;
+    width: 210px;
+    height: 550px;
+    max-height: 550px;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    overflow: visible;
+  }
+  .app-shell.dashboard-canvas-shell .main-area,
+  .app-shell.dashboard-canvas-shell .dashboard-main,
+  .app-shell.dashboard-canvas-shell .dashboard-main .content {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 1536px;
+    height: 1024px;
+    padding: 0;
+    overflow: hidden;
+  }
+}
