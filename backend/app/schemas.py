@@ -26,6 +26,7 @@ class AuthStatusResponse(BaseModel):
 class ChatRequest(BaseModel):
     message: str
     provider: str = "gemini"
+    session_id: str | None = Field(default=None, min_length=1, max_length=100)
     tool_context: dict | None = None
 
 
@@ -68,7 +69,6 @@ class TaskUpdate(BaseModel):
         "WAITING_APPROVAL",
     ] | None = None
     priority: Literal["LOW", "NORMAL", "HIGH", "CRITICAL"] | None = None
-    progress: int | None = Field(default=None, ge=0, le=99)
 
 
 class ScheduleCreate(BaseModel):

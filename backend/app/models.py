@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Column, Integer, String, Text, DateTime, Boolean
+from sqlalchemy import Column, Integer, String, Text, DateTime, Boolean, ForeignKey
 
 from .database import Base
 
@@ -20,6 +20,7 @@ class Conversation(Base):
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, nullable=False)
     title = Column(String(255), default="New Conversation")
+    session_id = Column(String(100), nullable=True, index=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
@@ -62,6 +63,10 @@ class Task(Base):
 
     deadline = Column(DateTime, nullable=True)
     agent = Column(String(100), nullable=True)
+    source = Column(String(20), nullable=False, default="boss")
+    requested_by = Column(String(100), nullable=True)
+    approved_by = Column(Integer, nullable=True)
+    approved_at = Column(DateTime, nullable=True)
 
     progress = Column(Integer, default=0)
     result = Column(Text, nullable=True)
@@ -73,6 +78,42 @@ class Task(Base):
         default=datetime.utcnow,
         onupdate=datetime.utcnow,
     )
+
+
+class TaskStep(Base):
+    __tablename__ = "task_steps"
+
+    id = Column(Integer, primary_key=True)
+    task_id = Column(Integer, ForeignKey("tasks.id", ondelete="CASCADE"), nullable=False, index=True)
+    position = Column(Integer, nullable=False, default=1)
+    title = Column(String(255), nullable=False)
+    state = Column(String(20), nullable=False, default="pending")
+    evidence = Column(Text, nullable=True)
+    verified_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class AIStateSnapshot(Base):
+    __tablename__ = "ai_state_snapshots"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, nullable=False, unique=True, index=True)
+    state = Column(String(20), nullable=False, default="IDLE")
+    reason_safe = Column(String(500), nullable=True)
+    request_id = Column(String(100), nullable=True)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class SystemErrorLog(Base):
+    __tablename__ = "system_error_logs"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, nullable=True, index=True)
+    component = Column(String(100), nullable=False)
+    code = Column(String(100), nullable=False)
+    message_safe = Column(String(500), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
 
 
 class ActivityLog(Base):

@@ -9,6 +9,7 @@ from sqlalchemy import text
 from .config import settings, validate_secret_key
 from .github_oidc import verify_github_actions_token
 from .database import Base, SessionLocal, engine
+from .migrations import run_schema_migrations
 from .models import User
 from .realtime import manager
 from .scheduler import run_scheduler_cycle, start_scheduler, stop_scheduler
@@ -38,6 +39,7 @@ validate_secret_key(settings.secret_key)
 # Apply schema changes in a controlled migration/setup step instead.
 if not settings.serverless_mode:
     Base.metadata.create_all(bind=engine)
+    run_schema_migrations(engine)
 
 app = FastAPI(
     title="MR AI — Digital Chief of Staff",
