@@ -1,21 +1,16 @@
-export function sanitizeAssistantMessage(value) {
-  const lines = String(value || "").replace(/\r\n/g, "\n").split("\n");
-  const safeLines = lines.filter(line => {
-    const trimmed = line.trim();
-    if (!trimmed) return true;
-    if (/user\s*safety\s*:|\bNO_TOOL_MATCH\b|\btool_call\b|\bsystem_telemetry\b/i.test(trimmed)) {
-      return false;
-    }
+const SECRET_PATTERNS = [
+  [/\bBearer\s+[A-Za-z0-9._~+/\-=]+/gi, "Bearer [REDACTED]"],
+  [/\bsk-or-v1-[A-Za-z0-9_-]{20,}\b/g, "[REDACTED_API_KEY]"],
+  [/\bsk-(?:proj-)?[A-Za-z0-9_-]{20,}\b/g, "[REDACTED_API_KEY]"],
+  [/\bAIza[0-9A-Za-z_-]{30,}\b/g, "[REDACTED_API_KEY]"],
+  [/\bgh[pousr]_[A-Za-z0-9_]{25,}\b/g, "[REDACTED_TOKEN]"],
+  [/\bxai-[A-Za-z0-9_-]{20,}\b/g, "[REDACTED_API_KEY]"],
+  [/\b(api[_-]?key|access[_-]?token|client[_-]?secret|password)\s*[:=]\s*[^\s,;]+/gi, "$1=[REDACTED]"],
+];
 
-    // Hide uppercase debug/data labels that have no normal sentence after the colon.
-    if (
-      !/[.!?]\s*$/.test(trimmed) &&
-      /^[A-Z][A-Z0-9_]*(?:\s+[A-Z][A-Z0-9_]*)?:\s*\S/.test(trimmed)
-    ) {
-      return false;
-    }
-    return true;
-  });
-  const safeText = safeLines.join("\n").trim();
-  return safeText || "Jibu lilichujwa kwa sababu lilikuwa na metadata ya ndani pekee.";
+export function sanitizeAssistantMessage(value) {
+  let safe = String(value ?? "");
+  for (const [pattern, replacement] of SECRET_PATTERNS) safe = safe.replace(pattern, replacement);
+  // Do not block normal prose, uppercase headings, status labels, or short replies.
+  return safe.trim() || "Jibu halina maandishi yanayoonekana. Jaribu tena.";
 }
