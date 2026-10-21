@@ -256,7 +256,15 @@
 
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message?.type === "GET_PAGE_DATA") {
-      sendResponse(pageData());
+      allowedHost(window.location.hostname)
+        .then(allowed => {
+          if (!allowed) {
+            sendResponse({ ok: false, error: "BLOCKED_BY_ALLOWLIST: Boss Ferisi lazima aidhinishe domain hii kwanza." });
+            return;
+          }
+          sendResponse({ ok: true, ...pageData() });
+        })
+        .catch(() => sendResponse({ ok: false, error: "Could not check the Browser Hands allowlist." }));
       return true;
     }
 
