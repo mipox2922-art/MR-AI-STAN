@@ -575,7 +575,13 @@ async function main() {
     "A rejected reboot must ask for explicit owner confirmation.");
   await page.evaluate(() => { window.__mraiConfirmationMessages = []; window.__mraiConfirmationResult = true; });
   await deviceLab.getByRole("button", { name: "REBOOT SYSTEM", exact: true }).click();
-  await page.waitForFunction(() => document.querySelector(".device-result > strong")?.textContent?.includes("REBOOT: UNVERIFIED"));
+  try {
+    await page.waitForFunction(() => document.querySelector(".device-result > strong")?.textContent?.startsWith("REBOOT: UNVERIFIED"), undefined, { timeout: 8000 });
+  } catch (error) {
+    const actual = await deviceLab.locator(".device-result").innerText().catch(() => "(missing result)");
+    const confirmations = await page.evaluate(() => window.__mraiConfirmationMessages);
+    throw new Error(`Approved reboot did not reach UNVERIFIED result. rendered=${JSON.stringify(actual)} confirmations=${JSON.stringify(confirmations)} bridgeRequests=${rebootRequests}. ${error.message}`);
+  }
   assert.equal(await page.evaluate(() => window.__mraiConfirmationMessages.length), 2,
     "Reboot action and Device Lab each request explicit confirmation.");
   assert.equal(rebootRequests, rebootCountBefore + 1, "Accepting both Boss confirmations should call the bridge.");
