@@ -523,12 +523,23 @@ function App() {
   const refreshInFlight = useRef(false);
 
   const authenticated = Boolean(token);
+  const [isMobileViewport, setIsMobileViewport] = useState(() =>
+    window.matchMedia("(max-width: 760px)").matches
+  );
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia("(max-width: 760px)");
+    const syncMobileViewport = () => setIsMobileViewport(mediaQuery.matches);
+    syncMobileViewport();
+    mediaQuery.addEventListener("change", syncMobileViewport);
+    return () => mediaQuery.removeEventListener("change", syncMobileViewport);
+  }, []);
 
   const dashboardRootRef = useRef(null);
 
   useEffect(() => {
     const root = dashboardRootRef.current;
-    if (!root || active !== "dashboard" || !authenticated) return undefined;
+    if (!root || active !== "dashboard" || !authenticated || isMobileViewport) return undefined;
 
     const updateCanvasScale = () => {
       const scale = Math.min(window.innerWidth / 1536, window.innerHeight / 1024);
@@ -542,7 +553,7 @@ function App() {
       window.removeEventListener("resize", updateCanvasScale);
       document.body.classList.remove("dashboard-canvas-active");
     };
-  }, [active, authenticated]);
+  }, [active, authenticated, isMobileViewport]);
 
   const refresh = useCallback(async () => {
     if (!getToken() || refreshInFlight.current) return;
@@ -798,7 +809,7 @@ function App() {
   }
 
   return (
-    <div ref={dashboardRootRef} className={`app-shell ${active === "dashboard" ? "dashboard-canvas-shell" : ""} ${working ? "mode-working" : ""} ${sleeping ? "mode-sleep" : ""}`}>
+    <div ref={dashboardRootRef} className={`app-shell ${active === "dashboard" && !isMobileViewport ? "dashboard-canvas-shell" : ""} ${working ? "mode-working" : ""} ${sleeping ? "mode-sleep" : ""}`}>
       <div className="mrai-ambient" aria-hidden="true">
         <svg viewBox="-300 -300 600 600">
           <circle r="290" strokeDasharray="2 8" />
