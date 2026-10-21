@@ -33,13 +33,13 @@ function formatUptime(seconds) {
 
 function formatDashboardDate(value) {
   if (!(value instanceof Date) || Number.isNaN(value.getTime())) return "--";
-  return value.toLocaleDateString("en-GB", { weekday: "short", day: "2-digit", month: "short", year: "numeric" }).toUpperCase();
+  return value.toLocaleDateString("en-GB", { timeZone: "Africa/Dar_es_Salaam", weekday: "short", day: "2-digit", month: "short", year: "numeric" }).toUpperCase();
 }
 
 function formatTime(value) {
   if (!value) return "--";
   const d = new Date(value);
-  return Number.isNaN(d.getTime()) ? "--" : d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+  return Number.isNaN(d.getTime()) ? "--" : d.toLocaleTimeString("en-GB", { timeZone: "Africa/Dar_es_Salaam", hour: "2-digit", minute: "2-digit" });
 }
 
 function Panel({ eyebrow, title, badge, children, className = "", action }) {
@@ -148,6 +148,12 @@ function SystemStatus({ telemetry, telemetryHistory, connectionState, lastRefres
 
   return (
     <div className="cc-system-status">
+      {pct(telemetry?.storage_percent) !== null && pct(telemetry?.storage_percent) >= 80 && (
+        <div className="cc-storage-alert" role="alert">
+          <strong>TAHADHARI YA STORAGE</strong>
+          <span>Storage ya backend iko {pct(telemetry.storage_percent)}%, imevuka kizingiti cha 80%.</span>
+        </div>
+      )}
       <div className="cc-system-layout">
         <div className="cc-system-metrics">
           <Metric label="CPU Usage · BACKEND" value={telemetry?.cpu_percent} />
@@ -464,7 +470,7 @@ function WebResearch({ available = false }) {
         <article className="cc-research-item" key={result.url || index}>
           <span className="cc-research-icon">◎</span>
           <div>
-            <a href={result.url} target="_blank" rel="noreferrer"><strong>{result.title || result.url}</strong></a>
+            <a href={result.url} target="_blank" rel="noopener noreferrer"><strong>{result.title || result.url}</strong></a>
             <small>{result.content || result.engine || "Chanzo cha mtandao"}</small>
           </div>
         </article>
@@ -937,7 +943,7 @@ function MissionWorkbench({ onMissionUpdate }) {
                       {jobs.length > 0 && (
                         <div className="cc-mission-job-results">
                           {jobs.map((job, jobIndex) => (
-                            <a href={job.url} key={job.url || jobIndex} target="_blank" rel="noreferrer">
+                            <a href={job.url} key={job.url || jobIndex} target="_blank" rel="noopener noreferrer">
                               <strong>{job.title || "Nafasi ya kazi"}</strong>
                               <span>{job.company || "Mwajiri hajatambuliwa"} · {job.location || "Eneo halijawekwa"} · {job.source || "Chanzo"}</span>
                             </a>
