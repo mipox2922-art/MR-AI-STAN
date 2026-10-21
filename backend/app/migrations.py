@@ -7,7 +7,7 @@ COLUMN_UPGRADES = {
         "session_id": "VARCHAR(100)",
     },
     "tasks": {
-        "source": "VARCHAR(20) NOT NULL DEFAULT 'boss'",
+        "source": "VARCHAR(20) NOT NULL DEFAULT 'unknown'",
         "requested_by": "VARCHAR(100)",
         "approved_by": "INTEGER",
         "approved_at": "TIMESTAMP",
