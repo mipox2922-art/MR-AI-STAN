@@ -32,6 +32,10 @@ def _steps_for(db: Session, task_id: int) -> list[TaskStep]:
 
 def _next_action(status: str, task: Task, steps: list[TaskStep]) -> str:
     if status == "WAITING_APPROVAL": return "Inasubiri idhini ya Boss Ferisi."
+    if status == "PENDING" and task.source == "orchestrator" and task.approved_by:
+        return "Boss ametoa idhini; bofya ANZA MISSION ili kutekeleza hatua zilizoidhinishwa."
+    if status == "PENDING" and task.source == "agent" and task.approved_by:
+        return "Idhini imehifadhiwa, lakini executor ya wakala haijaunganishwa; kazi haijatekelezwa."
     if status == "WAITING_FOR_HAND": return "Inahitaji Browser/Device/Gmail hand iliyounganishwa."
     if status == "WAITING_FOR_VERIFICATION": return "Kagua au ongeza ushahidi wa hatua zilizobaki."
     if status in {"FAILED", "ERROR"}: return task.error or "Kazi imeshindwa; sababu zaidi haijathibitishwa."
@@ -103,6 +107,8 @@ async def add_task_step(task_id: int, payload: dict, current_user=Depends(get_cu
     task = db.query(Task).filter(Task.id == task_id, Task.user_id == current_user.id).first()
     if not task: raise HTTPException(404, "Task not found")
     if task.status in {"COMPLETED", "DONE"}: raise HTTPException(409, "Reopen the task before adding steps")
+    if task.source in {"agent", "orchestrator"} and not task.approved_by:
+        raise HTTPException(403, "Boss approval is required before editing execution steps")
     title = str(payload.get("title") or "").strip()
     if not title: raise HTTPException(400, "Step title is required")
     position = (db.query(TaskStep).filter(TaskStep.task_id == task.id).count() or 0) + 1
@@ -118,6 +124,8 @@ async def update_task_step(task_id: int, step_id: int, payload: dict, current_us
     if not task: raise HTTPException(404, "Task not found")
     step = db.query(TaskStep).filter(TaskStep.id == step_id, TaskStep.task_id == task.id).first()
     if not step: raise HTTPException(404, "Task step not found")
+    if task.source in {"agent", "orchestrator"} and not task.approved_by:
+        raise HTTPException(403, "Boss approval is required before editing execution steps")
     new_state = str(payload.get("state", step.state)).strip().lower()
     if new_state not in {"pending", "running", "verified", "failed"}:
         raise HTTPException(400, "state must be pending, running, verified, or failed")
