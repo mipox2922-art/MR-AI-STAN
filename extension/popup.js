@@ -25,15 +25,29 @@ async function getPage() {
   });
 
   const tab = tabs[0];
+  if (!tab?.id || !tab.url) throw new Error("No active web page is available.");
 
-  const response = await chrome.tabs.sendMessage(
-    tab.id,
-    { type: "GET_PAGE_DATA" }
-  );
+  const stored = await chrome.storage.local.get("mr_ai_browser_allowlist");
+  const allowlist = Array.isArray(stored.mr_ai_browser_allowlist) ? stored.mr_ai_browser_allowlist : [];
+  let host;
+  try {
+    const parsed = new URL(tab.url);
+    if (!["http:", "https:"].includes(parsed.protocol)) throw new Error("unsupported protocol");
+    host = parsed.hostname.toLowerCase();
+  } catch {
+    throw new Error("This page cannot be read by Browser Hands.");
+  }
+  const allowed = allowlist.some(entry => {
+    const domain = String(entry || "").trim().toLowerCase();
+    return domain && (host === domain || host.endsWith("." + domain));
+  });
+  if (!allowed) throw new Error("BLOCKED_BY_ALLOWLIST: Add " + host + " in Browser Hands allowlist before reading or sending page content to MR AI.");
 
+  const response = await chrome.tabs.sendMessage(tab.id, { type: "GET_PAGE_DATA" });
+  if (response?.ok === false) throw new Error(response.error || "The page is not approved.");
   return {
-    title: tab.title || "",
-    url: tab.url || "",
+    title: response?.title || tab.title || "",
+    url: response?.url || tab.url || "",
     text: response?.text || ""
   };
 }
