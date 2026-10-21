@@ -130,3 +130,122 @@ def test_chat_rejects_unknown_provider(tmp_path, monkeypatch):
 
     assert response.status_code == 400
     assert "Unknown provider" in response.json()["detail"]
+
+
+def test_chat_history_isolated_by_session_and_context_keeps_prior_turns(tmp_path, monkeypatch):
+    client, session_factory = build_chat_client(tmp_path)
+
+    class CapturingProvider:
+        def __init__(self):
+            self.prompts = []
+
+        async def generate(self, prompt, system_instruction=None):
+            self.prompts.append(prompt)
+            return f"reply-{len(self.prompts)}"
+
+    provider = CapturingProvider()
+    monkeypatch.setattr(ai_router, "get_provider", lambda _: provider)
+
+    async def no_broadcast(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(ai_router.manager, "broadcast", no_broadcast)
+
+    first = client.post("/ai/chat", json={
+        "message": "Tell me a short story",
+        "provider": "openrouter",
+        "session_id": "browser-session-a",
+    })
+    second = client.post("/ai/chat", json={
+        "message": "Continue that story",
+        "provider": "openrouter",
+        "session_id": "browser-session-a",
+    })
+    third = client.post("/ai/chat", json={
+        "message": "Tell me a short story",
+        "provider": "openrouter",
+        "session_id": "browser-session-b",
+    })
+
+    assert first.status_code == second.status_code == third.status_code == 200
+    assert "BOSS: Tell me a short story" in provider.prompts[1]
+    assert "MR AI: reply-1" in provider.prompts[1]
+    assert "Continue that story" in provider.prompts[1]
+    assert "MR AI: reply-1" not in provider.prompts[2]
+    assert "browser-session-a" not in provider.prompts[2]
+
+    history_a = client.get("/ai/history?session_id=browser-session-a").json()
+    history_b = client.get("/ai/history?session_id=browser-session-b").json()
+    assert len(history_a["messages"]) == 4
+    assert len(history_b["messages"]) == 2
+    assert history_a["session_id"] == "browser-session-a"
+    assert history_b["session_id"] == "browser-session-b"
+    with session_factory() as db:
+        assert db.query(ai_router.Conversation).filter_by(user_id=1).count() == 2
+
+
+def test_ai_health_returns_live_after_a_real_provider_call(tmp_path, monkeypatch):
+    client, _ = build_chat_client(tmp_path)
+
+    class HealthProvider:
+        async def generate(self, prompt, system_instruction=None):
+            assert prompt == "Reply with exactly the word LIVE."
+            assert system_instruction
+            return "LIVE"
+
+    monkeypatch.setattr(ai_router, "get_provider", lambda _: HealthProvider())
+
+    async def no_broadcast(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(ai_router.manager, "broadcast", no_broadcast)
+    response = client.get("/ai/health?provider=gemini")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "LIVE"
+    assert payload["provider"] == "gemini"
+    assert isinstance(payload["latency_ms"], int)
+    assert "api_key" not in payload
+    assert "token" not in payload
+
+
+def test_ai_health_reports_safe_provider_failure_without_credentials(tmp_path, monkeypatch):
+    client, _ = build_chat_client(tmp_path)
+
+    class FailingHealthProvider:
+        async def generate(self, prompt, system_instruction=None):
+            raise AIProviderError("test-provider", "request rejected: Bearer abcdef123456789")
+
+    monkeypatch.setattr(ai_router, "get_provider", lambda _: FailingHealthProvider())
+    response = client.get("/ai/health?provider=gemini")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "ERROR"
+    assert payload["reason"]
+    assert "abcdef123456789" not in payload["reason"]
+
+
+def test_ai_runtime_state_times_out_active_state_after_30_seconds(tmp_path, monkeypatch):
+    from app.models import AIStateSnapshot
+    from datetime import datetime, timedelta
+
+    client, session_factory = build_chat_client(tmp_path)
+    with session_factory() as db:
+        db.add(AIStateSnapshot(
+            user_id=1,
+            state="THINKING",
+            reason_safe="in progress",
+            request_id="old-request",
+            updated_at=datetime.utcnow() - timedelta(seconds=45),
+        ))
+        db.commit()
+
+    async def no_broadcast(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(ai_router.manager, "broadcast", no_broadcast)
+    response = client.get("/ai/state")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["state"] == "ERROR"
+    assert "timed out" in payload["reason"]
