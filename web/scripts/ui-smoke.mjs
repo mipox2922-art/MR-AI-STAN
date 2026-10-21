@@ -531,26 +531,41 @@ async function main() {
       return window.__mraiConfirmationResult;
     };
   });
-  for (const label of ["BRIDGE", "ADB DEVICES", "FASTBOOT", "WI-FI SCAN", "BLE SCAN", "RADIO / RF", "RADAR SCAN"]) {
+  const deviceCases = [
+    { button: "BRIDGE", resultLabel: "BRIDGE", outcome: "COMPLETED" },
+    { button: "ADB DEVICES", resultLabel: "ANDROID", outcome: "COMPLETED" },
+    { button: "FASTBOOT", resultLabel: "FASTBOOT", outcome: "COMPLETED" },
+    { button: "WI-FI SCAN", resultLabel: "WI-FI", outcome: "COMPLETED" },
+    { button: "BLE SCAN", resultLabel: "BLUETOOTH", outcome: "COMPLETED" },
+    { button: "RADIO / RF", resultLabel: "RADIO / RF", outcome: "UNVERIFIED" },
+    { button: "RADAR SCAN", resultLabel: "RADAR", outcome: "COMPLETED" },
+  ];
+  for (const testCase of deviceCases) {
     const promptsBefore = await page.evaluate(() => window.__mraiConfirmationMessages.length);
-    await deviceLab.getByRole("button", { name: label, exact: true }).click();
-    await deviceLab.locator(".device-result > strong").waitFor({ state: "visible", timeout: 5000 });
-    const expectedOutcome = label === "RADIO / RF" ? "UNVERIFIED" : "COMPLETED";
-    try {
-      await page.waitForFunction(expected => document.querySelector(".device-result > strong")?.textContent?.includes(expected), expectedOutcome, { timeout: 5000 });
-    } catch (error) {
-      const actual = await deviceLab.locator(".device-result > strong").textContent().catch(() => "(missing result)");
-      throw new Error(`Device Lab action "${label}" expected "${expectedOutcome}" but rendered "${actual}". ${error.message}`);
-    }
+    await deviceLab.getByRole("button", { name: testCase.button, exact: true }).click();
+    await page.waitForFunction(
+      expected => document.querySelector(".device-result > strong")?.textContent?.startsWith(expected),
+      testCase.resultLabel + ": " + testCase.outcome,
+      { timeout: 7000 }
+    );
     const promptsAfter = await page.evaluate(() => window.__mraiConfirmationMessages.length);
-    assert.equal(promptsAfter, promptsBefore + 1, `Device Lab action ${label} must ask Boss for one explicit confirmation.`);
+    assert.equal(promptsAfter, promptsBefore + 1,
+      `Device Lab action ${testCase.button} must ask Boss for one explicit confirmation.`);
   }
-  for (const label of ["DEVICE INFO", "DIAGNOSTICS", "BOOT STATE"]) {
+  for (const testCase of [
+    { button: "DEVICE INFO", resultLabel: "INFO" },
+    { button: "DIAGNOSTICS", resultLabel: "DIAGNOSTICS" },
+    { button: "BOOT STATE", resultLabel: "BOOT STATE" },
+  ]) {
     const promptsBefore = await page.evaluate(() => window.__mraiConfirmationMessages.length);
-    await deviceLab.getByRole("button", { name: label, exact: true }).click();
-    await page.waitForFunction(() => document.querySelector(".device-result > strong")?.textContent?.includes("COMPLETED"));
+    await deviceLab.getByRole("button", { name: testCase.button, exact: true }).click();
+    await page.waitForFunction(
+      expected => document.querySelector(".device-result > strong")?.textContent?.startsWith(expected),
+      testCase.resultLabel + ": COMPLETED",
+      { timeout: 7000 }
+    );
     assert.equal(await page.evaluate(() => window.__mraiConfirmationMessages.length), promptsBefore + 1,
-      `Device Lab action ${label} must ask Boss for one explicit confirmation.`);
+      `Device Lab action ${testCase.button} must ask Boss for one explicit confirmation.`);
   }
   const rebootCountBefore = rebootRequests;
   await page.evaluate(() => { window.__mraiConfirmationMessages = []; window.__mraiConfirmationResult = false; });
