@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { chat, routeTool, getExecutiveBriefing, getChatHistory } from "../api";
+import { chat, routeTool, getExecutiveBriefing, getChatHistory, setAIState } from "../api";
 import VoiceControl from "./VoiceControl";
 import { sanitizeAssistantMessage } from "../utils/chatSafety";
 
@@ -125,6 +125,20 @@ export default function Chat({
   tasksAvailable = false,
   telemetry = null,
 }) {
+  const [sessionId] = useState(() => {
+    try {
+      const key = "mr_ai_chat_session_id";
+      const existing = window.sessionStorage.getItem(key);
+      if (existing) return existing;
+      const created = window.crypto?.randomUUID
+        ? window.crypto.randomUUID()
+        : `session-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      window.sessionStorage.setItem(key, created);
+      return created;
+    } catch {
+      return `session-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    }
+  });
   const [message, setMessage] = useState("");
   const [provider, setProvider] = useState("openrouter");
   const utteranceRef = useRef(null);
@@ -134,13 +148,13 @@ export default function Chat({
   const [messages, setMessages] = useState([
     {
       role: "assistant",
-      content: "Habari Boss Ferisi. Niambie unachotaka nifanye. Nitakujibu kwa Kiswahili na nitaeleza wazi kazi iliyokamilika, inayosubiri muunganisho, au iliyoshindikana."
+      content: "Karibu Boss Ferisi. Nitaonyesha hali iliyohifadhiwa kwenye mfumo, na nitasema wazi pale data inapokosekana au haijathibitishwa."
     }
   ]);
 
   useEffect(() => {
     let active = true;
-    getChatHistory()
+    getChatHistory(sessionId)
       .then(data => {
         if (!active || !Array.isArray(data?.messages) || data.messages.length === 0) return;
         setMessages(data.messages.map(item => ({
@@ -154,7 +168,16 @@ export default function Chat({
     return () => {
       active = false;
     };
-  }, []);
+  }, [sessionId]);
+
+  function reportRuntimeState(nextState) {
+    onState?.(nextState);
+    if (["IDLE", "THINKING", "SPEAKING", "ERROR"].includes(nextState)) {
+      setAIState(nextState).catch(() => {
+        // The chat UI remains usable if the persisted-state route is unavailable.
+      });
+    }
+  }
 
   // Keep the embedded dashboard chat pinned to the newest exchange.
   useEffect(() => {
@@ -262,7 +285,7 @@ export default function Chat({
     ]);
     setMessage("");
     setSending(true);
-    onState("THINKING");
+    reportRuntimeState("THINKING");
 
     try {
       setToolStatus("ROUTING");
@@ -329,7 +352,7 @@ export default function Chat({
           : null,
         available_telemetry: telemetry || null,
       };
-      const result = await chat(text, provider, requestContext);
+      const result = await chat(text, provider, requestContext, sessionId);
       const safeResponse = finalizeAssistantReply(result?.response, messages, mode);
       setMessages(prev => [
         ...prev,
@@ -346,13 +369,13 @@ export default function Chat({
         utterance.lang = "sw-TZ";
         utterance.rate = 1;
         utterance.pitch = 1;
-        utterance.onstart = () => onState("SPEAKING");
-        utterance.onend = () => onState("IDLE");
-        utterance.onerror = () => onState("ERROR");
+        utterance.onstart = () => reportRuntimeState("SPEAKING");
+        utterance.onend = () => reportRuntimeState("IDLE");
+        utterance.onerror = () => reportRuntimeState("ERROR");
         utteranceRef.current = utterance;
         speech.speak(utterance);
       } else {
-        onState("IDLE");
+        reportRuntimeState("IDLE");
       }
     } catch (error) {
       setMessages(prev => [
@@ -362,7 +385,7 @@ export default function Chat({
           content: sanitizeAssistantMessage("Kuna tatizo boss: " + (error.message || "Hitilafu haijafafanuliwa."))
         }
       ]);
-      onState("ERROR");
+      reportRuntimeState("ERROR");
     } finally {
       setSending(false);
     }
