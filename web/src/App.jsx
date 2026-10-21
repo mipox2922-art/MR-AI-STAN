@@ -932,8 +932,8 @@ function App() {
           </div>
           <div className="top-status">
             <div>
-              <strong>{clock.toLocaleTimeString("sw-TZ", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</strong>
-              <span>{clock.toLocaleDateString("sw-TZ", { weekday: "short", day: "2-digit", month: "short", year: "numeric" })}</span>
+              <strong>{clock.toLocaleTimeString("sw-TZ", { timeZone: "Africa/Dar_es_Salaam", hour: "2-digit", minute: "2-digit", second: "2-digit" })}</strong>
+              <span>{clock.toLocaleDateString("sw-TZ", { timeZone: "Africa/Dar_es_Salaam", weekday: "short", day: "2-digit", month: "short", year: "numeric" })}</span>
             </div>
             <button
               type="button"
