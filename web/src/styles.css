@@ -8504,3 +8504,26 @@ body.dashboard-canvas-active #root {
   .cc-exec-agent-row { grid-template-columns: minmax(0, 1fr); }
   .cc-exec-agent-row > span { grid-column: 1; }
 }
+
+
+.cc-ai-health-state {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  margin: 8px 0;
+  padding: 9px 11px;
+  border: 1px solid var(--line, rgba(255,255,255,.14));
+  border-left: 3px solid var(--accent, #79d8ff);
+  background: rgba(4, 13, 23, .58);
+  color: var(--muted, #c2c6ce);
+  font-size: 11px;
+}
+.cc-ai-health-state strong { color: var(--accent, #79d8ff); letter-spacing: .06em; }
+.cc-ai-health-state.is-live { border-left-color: #42d392; }
+.cc-ai-health-state.is-live strong { color: #42d392; }
+.cc-ai-health-state.is-error { border-left-color: #ff6f79; }
+.cc-ai-health-state.is-error strong { color: #ff6f79; }
+.cc-ai-health-state p { flex-basis: 100%; margin: 0; overflow-wrap: anywhere; }
+.cc-ai-health-state small { flex-basis: 100%; opacity: .7; }
+
