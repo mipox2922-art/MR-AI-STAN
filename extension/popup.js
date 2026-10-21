@@ -158,3 +158,77 @@ document.getElementById("task").onclick =
         `ERROR: ${error.message}`;
     }
   };
+
+
+// Boss-managed Browser Hands allowlist. Render domain text safely (never innerHTML).
+const allowHostInput = document.getElementById("allow-host");
+const allowAddButton = document.getElementById("allow-add");
+const allowListElement = document.getElementById("allow-list");
+
+function normalizeAllowedHost(raw) {
+  const value = String(raw || "").trim();
+  if (!value || value.includes("/") || value.includes("@") || value.includes(":") || /\s/.test(value)) {
+    throw new Error("Weka domain tu, mfano example.com. Usitumie URL, path, port au credentials.");
+  }
+  let host;
+  try {
+    host = new URL("https://" + value).hostname.toLowerCase();
+  } catch {
+    throw new Error("Domain si sahihi.");
+  }
+  if (!host || host !== value.toLowerCase() || host.includes("..") || host.startsWith(".") || host.endsWith(".")) {
+    throw new Error("Domain si sahihi. Mfano: example.com");
+  }
+  return host;
+}
+
+async function renderAllowlist() {
+  const stored = await chrome.storage.local.get("mr_ai_browser_allowlist");
+  const items = Array.isArray(stored.mr_ai_browser_allowlist) ? stored.mr_ai_browser_allowlist : [];
+  allowListElement.replaceChildren();
+  if (!items.length) {
+    const empty = document.createElement("p");
+    empty.textContent = "Allowlist tupu. Browser automation imefungwa mpaka Boss aongeze domain.";
+    allowListElement.appendChild(empty);
+    return;
+  }
+  for (const host of items) {
+    const row = document.createElement("div");
+    row.className = "allow-item";
+    row.setAttribute("role", "listitem");
+    const label = document.createElement("span");
+    label.textContent = host;
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.textContent = "REMOVE";
+    remove.setAttribute("aria-label", "Ondoa " + host);
+    remove.addEventListener("click", async () => {
+      const latest = await chrome.storage.local.get("mr_ai_browser_allowlist");
+      const current = Array.isArray(latest.mr_ai_browser_allowlist) ? latest.mr_ai_browser_allowlist : [];
+      await chrome.storage.local.set({ mr_ai_browser_allowlist: current.filter(value => value !== host) });
+      await renderAllowlist();
+      result.textContent = "Allowlist updated: domain removed. Browser actions to this domain are now blocked.";
+    });
+    row.append(label, remove);
+    allowListElement.appendChild(row);
+  }
+}
+
+allowAddButton?.addEventListener("click", async () => {
+  try {
+    const host = normalizeAllowedHost(allowHostInput.value);
+    const stored = await chrome.storage.local.get("mr_ai_browser_allowlist");
+    const current = Array.isArray(stored.mr_ai_browser_allowlist) ? stored.mr_ai_browser_allowlist : [];
+    const next = [...new Set([...current, host])].slice(0, 100);
+    await chrome.storage.local.set({ mr_ai_browser_allowlist: next });
+    allowHostInput.value = "";
+    await renderAllowlist();
+    result.textContent = "Domain allowed: " + host + ". Payments, form submissions and downloads still need Boss confirmation.";
+  } catch (error) {
+    result.textContent = "ALLOWLIST ERROR: " + error.message;
+  }
+});
+
+renderAllowlist().catch(error => {
+  allowListElement.textContent = "Allowlist could not be loaded: " + error.message;
+});
