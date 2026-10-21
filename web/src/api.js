@@ -390,7 +390,7 @@ export async function browserAction(action, payload = {}) {
   }
 
   async function sendBrowserRequest(extra = {}) {
-    const requestId = \`mr-ai-\${Date.now()}-\${Math.random().toString(36).slice(2)}\`;
+    const requestId = `mr-ai-${Date.now()}-${Math.random().toString(36).slice(2)}`;
     const message = await Promise.race([
       globalThis.chrome.runtime.sendMessage(extensionId, {
         type: "MR_AI_BROWSER_ACTION",
@@ -414,7 +414,7 @@ export async function browserAction(action, payload = {}) {
   const risk = result.risk || "HIGH_RISK_ACTION";
   const reason = result.reason || "Kitendo hiki kina athari nje ya dashboard.";
   const approved = typeof window !== "undefined" && typeof window.confirm === "function"
-    && window.confirm(\`BOSS FERISI: Idhini inahitajika.\\n\\nKitendo: \${action}\\nHatari: \${risk}\\nDomain: \${host}\\n\\n\${reason}\\n\\nKuendelea mara hii tu?\`);
+    && window.confirm(`BOSS FERISI: Idhini inahitajika.\n\nKitendo: ${action}\nHatari: ${risk}\nDomain: ${host}\n\n${reason}\n\nKuendelea mara hii tu?`);
   if (!approved) {
     return { ...result, deniedByBoss: true, dispatched: false, note: "Boss hakuidhinisha; hakuna kitendo kilichotekelezwa." };
   }
