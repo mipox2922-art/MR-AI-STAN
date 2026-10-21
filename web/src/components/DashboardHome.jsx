@@ -166,6 +166,7 @@ function SystemStatus({ telemetry, telemetryHistory, connectionState, lastRefres
       </div>
       <div className="cc-system-footer">
         <span>RUNTIME · {connectionState || "CONNECTING"} · {refreshLabel}</span>
+        <span>BACKEND HOST UPTIME · {formatUptime(telemetry?.uptime_seconds)}</span>
         <strong>AUTHORIZED RUNTIME DATA ONLY</strong>
       </div>
       <button className="cc-inline-button" onClick={onRefresh}>REFRESH TELEMETRY</button>
@@ -1328,8 +1329,6 @@ export default function DashboardHome({
 }) {
   const telemetry = system?.telemetry || {};
   const services = system?.services || {};
-  const uptime = formatUptime(telemetry.uptime_seconds);
-  const activeCount = tasks.filter(t => !["COMPLETED", "FAILED"].includes(String(t.status || "").toUpperCase())).length;
   const [missionSnapshot, setMissionSnapshot] = useState(null);
 
   function handleMissionUpdate(snapshot) {
@@ -1341,9 +1340,7 @@ export default function DashboardHome({
     model: system?.ai?.model || "N/A",
     tier: system?.ai?.tier || "N/A",
     status: services.ai_core || "NOT_CONFIGURED",
-    uptime,
-    active: activeCount,
-  }), [system, services.ai_core, uptime, activeCount]);
+  }), [system, services.ai_core]);
 
   return (
     <div className={`command-center-reference ${working ? "cc-working" : "cc-normal"}`}>
@@ -1396,7 +1393,6 @@ export default function DashboardHome({
               <div><span>AI MODEL</span><strong>{topReadout.model}</strong></div>
               <div><span>AI TIER</span><strong>{topReadout.tier}</strong></div>
               <div><span>AI RUNTIME</span><strong>{system?.ai?.ready ? "LIVE-TESTED" : system?.ai?.configured ? "CONFIGURED · NOT TESTED" : "NOT CONFIGURED"}</strong></div>
-              <div><span>UPTIME</span><strong>{topReadout.uptime}</strong></div>
               <div><span>HALI</span><strong>{topReadout.status}</strong></div>
               <div><span>KAZI HAI</span><strong>{topReadout.active}</strong></div>
             </div>
