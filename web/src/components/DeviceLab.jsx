@@ -77,7 +77,7 @@ export default function DeviceLab() {
     ));
     const verified = data?.verified === true ||
       ["COMPLETED", "CONNECTED", "HEALTHY"].includes(resultStatus) ||
-      (hasReadEvidence && action !== "REBOOT_SYSTEM" && data?.scan_status !== "NOT_IMPLEMENTED");
+      (hasReadEvidence && !action.startsWith("REBOOT") && data?.scan_status !== "NOT_IMPLEMENTED");
     try {
       await recordActivityEvent({
         component: "device", action, outcome: verified ? "VERIFIED" : "DISPATCHED_UNVERIFIED",
