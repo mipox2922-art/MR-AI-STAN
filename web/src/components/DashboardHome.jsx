@@ -1273,6 +1273,24 @@ function ExecutiveMorningBrief({ system, gmailStatus, tasks = [], agents = [], o
     return String(item?.action || "SYSTEM EVENT").replaceAll("_", " ");
   }
 
+  function errorLocation(component) {
+    const locations = {
+      "ai.chat": "backend/app/routers/ai.py · POST /ai/chat",
+      "ai.health": "backend/app/routers/ai.py · GET /api/ai/health",
+      "ai.orchestration": "backend/app/routers/ai.py · run_orchestration()",
+      "task_runner": "backend/app/task_runner.py · run_pending_tasks()",
+      "task_runner.execution": "backend/app/task_runner.py · run_pending_tasks()",
+      "task_runner.job_research": "backend/app/task_runner.py · public job feed handler",
+      "orchestrator": "backend/app/core/orchestrator.py · run()",
+      "/ai/chat": "backend/app/routers/ai.py · POST /ai/chat",
+      "/api/ai/health": "backend/app/routers/ai.py · GET /api/ai/health",
+      "/tasks": "backend/app/routers/tasks.py · /tasks",
+      "/agents/mission": "backend/app/routers/agents.py · /agents/mission",
+      "/orchestrator/run": "backend/app/routers/orchestration.py · /orchestrator/run"
+    };
+    return locations[String(component || "")] || "Faili/route: Haijathibitishwa";
+  }
+
   return (
     <section className="cc-executive-brief" aria-labelledby="cc-executive-greeting">
       <div className="cc-executive-hero">
@@ -1396,7 +1414,7 @@ function ExecutiveMorningBrief({ system, gmailStatus, tasks = [], agents = [], o
               ? <div className="cc-exec-activity-list">{briefing.errors.map(item => (
                 <article className="cc-exec-activity-row" key={item.id}>
                   <span className="cc-exec-activity-mark">ERR</span>
-                  <div><strong>{item.component} · {item.code}</strong><p>{item.message}</p></div>
+                  <div><strong>{item.component} · {item.code}</strong><small>{errorLocation(item.component)}</small><p>{item.message}</p></div>
                   <time>{timeLabel(item.created_at)}</time>
                 </article>
               ))}</div>
