@@ -42,19 +42,36 @@ export function hasAssignedAgent(task) {
 }
 
 export function isTaskInProgress(task) {
-  return normalizeTaskStatus(task) === "in_progress" && hasAssignedAgent(task);
+  return ["in_progress", "running", "working", "started"].includes(normalizeTaskStatus(task)) && hasAssignedAgent(task);
 }
 
 export function isTaskWaiting(task) {
-  return ["waiting", "queued"].includes(normalizeTaskStatus(task));
+  return [
+    "pending", "queued", "waiting", "blocked", "waiting_approval",
+    "waiting_for_hand", "waiting_for_verification", "needs_approval"
+  ].includes(normalizeTaskStatus(task));
 }
 
 export function isTaskFailed(task) {
   return normalizeTaskStatus(task) === "failed";
 }
 
+export function hasVerifiedTaskEvidence(task) {
+  const steps = Array.isArray(task?.steps) ? task.steps : [];
+  if (steps.length > 0) {
+    return steps.every(step =>
+      String(step?.state || "").toLowerCase() === "verified" &&
+      (step?.has_evidence === true || Boolean(String(step?.evidence || "").trim()))
+    );
+  }
+  const stepCount = Number(task?.step_count);
+  const verifiedCount = Number(task?.verified_steps);
+  return Number.isFinite(stepCount) && stepCount > 0 &&
+    Number.isFinite(verifiedCount) && verifiedCount === stepCount;
+}
+
 export function isTaskCompleted(task) {
-  return normalizeTaskStatus(task) === "completed";
+  return normalizeTaskStatus(task) === "completed" && hasVerifiedTaskEvidence(task);
 }
 
 function agentKey(value) {
