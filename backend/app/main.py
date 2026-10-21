@@ -183,7 +183,7 @@ async def websocket_endpoint(websocket: WebSocket):
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
-    logger.exception("Unhandled error on %s: %s", request.url.path, exc)
+    logger.error("Unhandled error on %s error_type=%s", request.url.path, type(exc).__name__)
     return JSONResponse(
         status_code=500,
         content={"detail": "Internal server error"},
