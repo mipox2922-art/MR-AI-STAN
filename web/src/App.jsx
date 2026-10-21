@@ -534,9 +534,13 @@ function App() {
       root.style.setProperty("--dashboard-canvas-scale", String(scale));
     };
 
+    document.body.classList.add("dashboard-canvas-active");
     updateCanvasScale();
     window.addEventListener("resize", updateCanvasScale, { passive: true });
-    return () => window.removeEventListener("resize", updateCanvasScale);
+    return () => {
+      window.removeEventListener("resize", updateCanvasScale);
+      document.body.classList.remove("dashboard-canvas-active");
+    };
   }, [active, authenticated]);
 
   const refresh = useCallback(async () => {
