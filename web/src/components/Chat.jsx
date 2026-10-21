@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { chat, routeTool, getExecutiveBriefing, getChatHistory } from "../api";
 import VoiceControl from "./VoiceControl";
+import { sanitizeAssistantMessage } from "../utils/chatSafety";
 
 
 function renderInlineMessage(text) {
@@ -37,26 +38,19 @@ function ChatMessageContent({ content }) {
 }
 
 
-function sanitizeAssistantMessage(value) {
-  const lines = String(value || "").replace(/\r\n/g, "\n").split("\n");
-  const safeLines = lines.filter(line => {
-    const trimmed = line.trim();
-    if (!trimmed) return true;
-    if (/user\s*safety\s*:|\bNO_TOOL_MATCH\b|\btool_call\b|\bsystem_telemetry\b/i.test(trimmed)) {
-      return false;
-    }
-    // Hide standalone uppercase debug labels, not ordinary explanatory sentences.
-    if (/^[A-Z][A-Z0-9_]*(?:\s+[A-Z][A-Z0-9_]*)?:\s*(?:[A-Z0-9_ -]+)?$/.test(trimmed)) {
-      return false;
-    }
-    return true;
-  });
-  return safeLines.join("\n").trim();
-}
-
 function isGenericGreeting(value) {
   const normalized = String(value || "").trim().toLowerCase().replace(/[.!?]+$/g, "");
-  return /^(?:habari(?: boss ferisi)?|habari boss|hello(?: boss)?|hi(?: boss)?|good morning(?: boss)?|good afternoon(?: boss)?|good evening(?: boss)?|sawa\. unahitaji nini leo)$/.test(normalized);
+  if (normalized.length > 180) return false;
+  return /^(?:habari(?: boss(?: ferisi)?)?|hello(?: boss)?|hi(?: boss)?|good morning(?: boss)?|good afternoon(?: boss)?|good evening(?: boss)?|sawa\. unahitaji nini leo)(?:[,.!?\\s]|$)/.test(normalized);
+}
+
+function getModeStatusReply(value, mode) {
+  const text = String(value || "").trim();
+  const asksAboutMode = /(?:\b(?:uko|upo|niko|nipo)\b.{0,40}\b(?:working mode|normal mode|mode)\b|\b(?:what|which) mode\b|\bhali ya mode\b|\bmode ya sasa\b)/i.test(text);
+  const isQuestion = /\?$/.test(text) || /^(?:uko|upo|niko|nipo|what|which|hali ya mode|mode ya sasa)\b/i.test(text);
+  if (!asksAboutMode || !isQuestion) return null;
+  const normalized = mode === "working" ? "WORKING MODE" : mode === "sleep" ? "SLEEP MODE" : "NORMAL MODE";
+  return "Mode ya sasa ni " + normalized + ".";
 }
 
 function getAcknowledgementReply(value) {
@@ -74,7 +68,7 @@ function getUnsupportedCapabilityReply(value) {
   if (/\b(logs?|log files?|rekodi za mfumo)\b|kagua\s+logs?|angalia\s+logs?/i.test(text)) {
     return "Ukaguzi wa logs haujaunganishwa kwa sasa. Naweza kukusaidia kwa kitu kingine? Kwa sasa ninaweza kutumia historia ya mazungumzo haya, orodha ya kazi na telemetry iliyopokelewa tu.";
   }
-  if (/\b(?:kagua|angalia|chunguza|inspect|review)\b.{0,50}\b(?:repo(?:sitory)?|source code|msimbo wa mfumo|database|server errors?|makosa ya mfumo|bugs?)\b/i.test(text)) {
+  if (/\b(?:kagua|angalia|chunguza|inspect|review)\b.{0,50}\b(?:repo(?:sitory)?|source code|msimbo wa mfumo|database|server errors?|makosa(?:\s+ya\s+mfumo)?|bugs?)\b/i.test(text)) {
     return "Ukaguzi huo haujaunganishwa kwa sasa. Ninaweza kutumia historia ya mazungumzo haya, orodha ya kazi na telemetry iliyopokelewa tu.";
   }
   return null;
@@ -128,6 +122,7 @@ export default function Chat({
   mode = "normal",
   coreStatus = "IDLE",
   tasks = [],
+  tasksAvailable = false,
   telemetry = null,
 }) {
   const [message, setMessage] = useState("");
@@ -244,8 +239,9 @@ export default function Chat({
 
     const localCapabilityReply = getUnsupportedCapabilityReply(text);
     const acknowledgementReply = getAcknowledgementReply(text);
-    if (localCapabilityReply || acknowledgementReply) {
-      const content = localCapabilityReply || acknowledgementReply;
+    const modeStatusReply = getModeStatusReply(text, mode);
+    if (localCapabilityReply || acknowledgementReply || modeStatusReply) {
+      const content = localCapabilityReply || modeStatusReply || acknowledgementReply;
       setMessages(prev => [
         ...prev,
         { role: "user", content: text },
@@ -314,7 +310,7 @@ export default function Chat({
 
       const availableCapabilities = {
         read_conversation: true,
-        read_task_list: Array.isArray(tasks),
+        read_task_list: tasksAvailable === true,
         read_telemetry: Boolean(telemetry && typeof telemetry === "object"),
       };
       const requestContext = {
@@ -322,13 +318,15 @@ export default function Chat({
         conversation_history: conversationHistory,
         operational_mode: mode,
         allowed_capabilities: availableCapabilities,
-        available_task_list: tasks.map(task => ({
-          id: task.id,
-          title: task.title,
-          status: task.status,
-          agent: task.agent,
-          progress: task.progress,
-        })),
+        available_task_list: tasksAvailable
+          ? tasks.map(task => ({
+              id: task.id,
+              title: task.title,
+              status: task.status,
+              agent: task.agent,
+              progress: task.progress,
+            }))
+          : null,
         available_telemetry: telemetry || null,
       };
       const result = await chat(text, provider, requestContext);
