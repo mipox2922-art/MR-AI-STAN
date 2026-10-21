@@ -59,6 +59,24 @@ async def run_mission(
     return await execute_mission(request, current_user, db)
 
 
+@router.post("/mission/{mission_id}/start")
+async def start_approved_mission(
+    mission_id: int,
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    mission = db.query(Task).filter(
+        Task.id == mission_id,
+        Task.user_id == current_user.id,
+        Task.agent == "orchestrator",
+    ).first()
+    if not mission:
+        raise HTTPException(404, "Mission not found")
+    if mission.approved_by != current_user.id or mission.status != "PENDING":
+        raise HTTPException(403, "Boss approval is required before this mission can execute")
+    return await execute_mission(mission.description or mission.title, current_user, db, mission=mission)
+
+
 @router.post("/mission/{mission_id}/handoff")
 def report_mission_handoff(
     mission_id: int,
