@@ -952,7 +952,6 @@ function App() {
               onOpenDevice={() => setActive("device")}
               onRadarScan={handleRadarScan}
               clock={clock}
-              tasksAvailable={taskListAvailable}
             />
           )}
 
