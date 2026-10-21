@@ -143,6 +143,9 @@ def save_job(
         status="PENDING",
         priority="NORMAL",
         agent="jobs",
+        source="boss",
+        requested_by=str(getattr(current_user, "username", None) or "Boss Ferisi"),
+        progress=0,
     )
     db.add(task)
     db.add(ActivityLog(

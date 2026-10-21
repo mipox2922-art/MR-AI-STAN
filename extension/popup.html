@@ -24,7 +24,18 @@
     <button id="task">CREATE TASK</button>
   </div>
 
-  <div id="result">
+  <section class="allowlist-panel" aria-labelledby="allowlist-title">
+    <strong id="allowlist-title">BROWSER ALLOWLIST // BOSS CONTROL</strong>
+    <p>Automation imefungwa kwa chaguo-msingi. Ongeza domain unayoamini, mfano <code>example.com</code>. Hii haiidhinishi malipo au kutuma fomu.</p>
+    <div class="allowlist-add-row">
+      <input id="allow-host" type="text" autocomplete="off" spellcheck="false" placeholder="example.com" aria-label="Domain ya kuidhinisha">
+      <button id="allow-add" type="button">ADD DOMAIN</button>
+    </div>
+    <div id="allow-list" role="list" aria-live="polite"></div>
+    <small>Allowlist inaishi kwenye hifadhi ya extension ya kifaa hiki pekee.</small>
+  </section>
+
+  <div id="result" role="status" aria-live="polite">
     Ready.
   </div>
 </div>

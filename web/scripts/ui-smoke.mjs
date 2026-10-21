@@ -136,10 +136,18 @@ async function apiMock(route) {
     return sendJson(route, { deleted: true });
   }
   if (method === "GET" && path === "/activity") return sendJson(route, []);
+  if (method === "POST" && path === "/activity/events") {
+    assert.ok(!("message" in body) && !("content" in body) && !("token" in body),
+      "Audit API mock must not receive message content or credentials");
+    return sendJson(route, { status: "RECORDED", event_id: 1, action: body.action, outcome: body.outcome });
+  }
   if (method === "GET" && path === "/integrations/gmail/status") {
     return sendJson(route, { status: "NOT_CONFIGURED", configured: false, connected: false, scope: [] });
   }
-  if (method === "GET" && path === "/ai/history") return sendJson(route, { messages: [] });
+  if (method === "GET" && path === "/ai/history") return sendJson(route, { messages: [], session_id: url.searchParams.get("session_id") });
+  if (method === "GET" && path === "/ai/state") return sendJson(route, { state: "IDLE", verified: true, updated_at: new Date().toISOString() });
+  if (method === "POST" && path === "/ai/state") return sendJson(route, { state: body.state, verified: true, updated_at: new Date().toISOString() });
+  if (method === "GET" && path === "/ai/health") return sendJson(route, { status: "LIVE", provider: url.searchParams.get("provider") || "openrouter", latency_ms: 23, tested_at: new Date().toISOString(), reason: null });
   if (method === "POST" && path === "/ai/chat") {
     delayedChatRequestBodies.push({ message: body.message, at: Date.now() });
     if (body.message === "Timeout regression test") {
@@ -446,10 +454,18 @@ async function main() {
   completedChecks.push("sidebar voice control emits a recognized VIP command and normal-mode reset");
 
   await goTo("AI Core");
-  for (const state of ["IDLE", "LISTENING", "THINKING", "SPEAKING", "WORKING", "BUSY", "ERROR", "SLEEPING"]) {
-    await page.locator(".state-grid button").filter({ hasText: state }).click();
-    await page.waitForFunction(expected => document.querySelector(".state-grid .state-active")?.textContent === expected, state, { timeout: 3000 });
+  const runtimeStateLabels = page.locator(".state-grid > span");
+  await page.waitForFunction(() => document.querySelector(".state-grid .state-active") !== null, undefined, { timeout: 5000 });
+  assert.equal(await runtimeStateLabels.count(), 6,
+    "AI Core exposes only backend lifecycle states and derived working/sleep states.");
+  assert.equal(await page.locator(".state-grid button").count(), 0,
+    "AI runtime state must not be user-editable simulation controls.");
+  for (const state of ["IDLE", "THINKING", "SPEAKING", "WORKING", "ERROR", "SLEEPING"]) {
+    assert.equal(await runtimeStateLabels.filter({ hasText: new RegExp("^" + state + "$") }).count(), 1,
+      `AI Core state indicator ${state} is visible.`);
   }
+  assert.equal(await runtimeStateLabels.filter({ hasText: /^LISTENING$/ }).count(), 0,
+    "LISTENING must not be presented as live until voice input is connected.");
   await page.locator(".chat-panel select").selectOption("mistral");
   const coreInput = page.locator(".chat-panel .chat-input input");
   await coreInput.fill("Nipe taarifa za mfumo");
@@ -507,25 +523,68 @@ async function main() {
   const deviceLab = page.locator(".tool-panel");
   await deviceLab.locator('input[type="password"]').fill("ui-smoke-bridge-token");
   await deviceLab.getByRole("button", { name: "SAVE", exact: true }).click();
-  for (const label of ["BRIDGE", "ADB DEVICES", "FASTBOOT", "WI-FI SCAN", "BLE SCAN", "RADIO / RF", "RADAR SCAN"]) {
-    await deviceLab.getByRole("button", { name: label, exact: true }).click();
-    await deviceLab.locator(".device-result > strong").waitFor({ state: "visible", timeout: 5000 });
-    await page.waitForFunction(expected => document.querySelector(".device-result > strong")?.textContent?.includes(expected), "COMPLETED", { timeout: 5000 });
+  await page.evaluate(() => {
+    window.__mraiConfirmationMessages = [];
+    window.__mraiConfirmationResult = true;
+    window.confirm = message => {
+      window.__mraiConfirmationMessages.push(String(message || ""));
+      return window.__mraiConfirmationResult;
+    };
+  });
+  const deviceCases = [
+    { button: "BRIDGE", resultLabel: "BRIDGE", outcome: "COMPLETED" },
+    { button: "ADB DEVICES", resultLabel: "ANDROID", outcome: "COMPLETED" },
+    { button: "FASTBOOT", resultLabel: "FASTBOOT", outcome: "COMPLETED" },
+    { button: "WI-FI SCAN", resultLabel: "WI-FI", outcome: "COMPLETED" },
+    { button: "BLE SCAN", resultLabel: "BLUETOOTH", outcome: "COMPLETED" },
+    { button: "RADIO / RF", resultLabel: "RADIO / RF", outcome: "UNVERIFIED" },
+    { button: "RADAR SCAN", resultLabel: "RADAR", outcome: "COMPLETED" },
+  ];
+  for (const testCase of deviceCases) {
+    const promptsBefore = await page.evaluate(() => window.__mraiConfirmationMessages.length);
+    await deviceLab.getByRole("button", { name: testCase.button, exact: true }).click();
+    await page.waitForFunction(
+      expected => document.querySelector(".device-result > strong")?.textContent?.startsWith(expected),
+      testCase.resultLabel + ": " + testCase.outcome,
+      { timeout: 7000 }
+    );
+    const promptsAfter = await page.evaluate(() => window.__mraiConfirmationMessages.length);
+    assert.equal(promptsAfter, promptsBefore + 1,
+      `Device Lab action ${testCase.button} must ask Boss for one explicit confirmation.`);
   }
-  await deviceLab.getByRole("button", { name: "DEVICE INFO", exact: true }).click();
-  await page.waitForFunction(() => document.querySelector(".device-result > strong")?.textContent?.includes("COMPLETED"));
-  await deviceLab.getByRole("button", { name: "DIAGNOSTICS", exact: true }).click();
-  await page.waitForFunction(() => document.querySelector(".device-result > strong")?.textContent?.includes("COMPLETED"));
-  await deviceLab.getByRole("button", { name: "BOOT STATE", exact: true }).click();
-  await page.waitForFunction(() => document.querySelector(".device-result > strong")?.textContent?.includes("COMPLETED"));
+  for (const testCase of [
+    { button: "DEVICE INFO", resultLabel: "INFO" },
+    { button: "DIAGNOSTICS", resultLabel: "DIAGNOSTICS" },
+    { button: "BOOT STATE", resultLabel: "BOOT STATE" },
+  ]) {
+    const promptsBefore = await page.evaluate(() => window.__mraiConfirmationMessages.length);
+    await deviceLab.getByRole("button", { name: testCase.button, exact: true }).click();
+    await page.waitForFunction(
+      expected => document.querySelector(".device-result > strong")?.textContent?.startsWith(expected),
+      testCase.resultLabel + ": COMPLETED",
+      { timeout: 7000 }
+    );
+    assert.equal(await page.evaluate(() => window.__mraiConfirmationMessages.length), promptsBefore + 1,
+      `Device Lab action ${testCase.button} must ask Boss for one explicit confirmation.`);
+  }
   const rebootCountBefore = rebootRequests;
-  page.once("dialog", dialog => dialog.dismiss());
+  await page.evaluate(() => { window.__mraiConfirmationMessages = []; window.__mraiConfirmationResult = false; });
   await deviceLab.getByRole("button", { name: "REBOOT SYSTEM", exact: true }).click();
   assert.equal(rebootRequests, rebootCountBefore, "Dismissing reboot confirmation must not call the bridge.");
-  page.once("dialog", dialog => dialog.accept());
+  assert.equal(await page.evaluate(() => window.__mraiConfirmationMessages.length), 1,
+    "A rejected reboot must ask for explicit owner confirmation.");
+  await page.evaluate(() => { window.__mraiConfirmationMessages = []; window.__mraiConfirmationResult = true; });
   await deviceLab.getByRole("button", { name: "REBOOT SYSTEM", exact: true }).click();
-  await page.waitForFunction(() => document.querySelector(".device-result > strong")?.textContent?.includes("REBOOT: COMPLETED"));
-  assert.equal(rebootRequests, rebootCountBefore + 1, "Accepting reboot confirmation should call the bridge.");
+  try {
+    await page.waitForFunction(() => document.querySelector(".device-result > strong")?.textContent?.startsWith("REBOOT: UNVERIFIED"), undefined, { timeout: 8000 });
+  } catch (error) {
+    const actual = await deviceLab.locator(".device-result").innerText().catch(() => "(missing result)");
+    const confirmations = await page.evaluate(() => window.__mraiConfirmationMessages);
+    throw new Error(`Approved reboot did not reach UNVERIFIED result. rendered=${JSON.stringify(actual)} confirmations=${JSON.stringify(confirmations)} bridgeRequests=${rebootRequests}. ${error.message}`);
+  }
+  assert.equal(await page.evaluate(() => window.__mraiConfirmationMessages.length), 2,
+    "Reboot action and Device Lab each request explicit confirmation.");
+  assert.equal(rebootRequests, rebootCountBefore + 1, "Accepting both Boss confirmations should call the bridge.");
   completedChecks.push("Device Lab save, sensors, device info, diagnostics, boot state and guarded reboot (mock bridge)");
 
   await goTo("Creative Studio");

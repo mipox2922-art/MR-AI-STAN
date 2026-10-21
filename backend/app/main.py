@@ -9,7 +9,9 @@ from sqlalchemy import text
 from .config import settings, validate_secret_key
 from .github_oidc import verify_github_actions_token
 from .database import Base, SessionLocal, engine
+from .migrations import run_schema_migrations
 from .models import User
+from .audit import record_safe_error
 from .realtime import manager
 from .scheduler import run_scheduler_cycle, start_scheduler, stop_scheduler
 from .security import decode_access_token
@@ -38,6 +40,7 @@ validate_secret_key(settings.secret_key)
 # Apply schema changes in a controlled migration/setup step instead.
 if not settings.serverless_mode:
     Base.metadata.create_all(bind=engine)
+    run_schema_migrations(engine)
 
 app = FastAPI(
     title="MR AI — Digital Chief of Staff",
@@ -72,6 +75,9 @@ app.include_router(integrations.router)
 app.include_router(jobs.router)
 app.include_router(scheduler.router)
 app.include_router(notifications.router)
+
+# API-prefixed alias for clients and proxies that expose /api/* paths.
+app.add_api_route("/api/ai/health", ai.health_check, methods=["GET"], include_in_schema=False)
 
 
 @app.on_event("startup")
@@ -181,7 +187,33 @@ async def websocket_endpoint(websocket: WebSocket):
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
-    logger.exception("Unhandled error on %s: %s", request.url.path, exc)
+    # Associate the record with the authenticated user when possible, but never
+    # store Authorization headers, request bodies, prompts, or raw exceptions.
+    user_id = None
+    try:
+        scheme, separator, token = request.headers.get("authorization", "").partition(" ")
+        if scheme.lower() == "bearer" and separator and token.strip():
+            claims = decode_access_token(token.strip())
+            user_id = int(claims.get("sub"))
+    except Exception:
+        user_id = None
+
+    db = SessionLocal()
+    try:
+        record_safe_error(
+            db,
+            user_id,
+            component=request.url.path,
+            code=type(exc).__name__,
+            message_safe="Unhandled server error; request payload omitted from log.",
+        )
+    except Exception:
+        # Safe logging is best effort and must never hide the original HTTP failure.
+        pass
+    finally:
+        db.close()
+
+    logger.error("Unhandled error on route=%s error_type=%s", request.url.path, type(exc).__name__)
     return JSONResponse(
         status_code=500,
         content={"detail": "Internal server error"},

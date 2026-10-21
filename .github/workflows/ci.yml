@@ -94,7 +94,12 @@ jobs:
         env:
           VITE_API_URL: https://mr-ai-stan.onrender.com
           UI_SMOKE_URL: http://127.0.0.1:5173
-        run: node scripts/ui-smoke.mjs
+        run: |
+          node scripts/ui-smoke.mjs || {
+            echo "--- Vite transform/server log ---"
+            cat /tmp/mrai-vite.log || true
+            exit 1
+          }
       - name: Validate Render static site and frontend API configuration
         run: |
           node --check web/src/api.js

@@ -11,6 +11,28 @@ function isControllerPage(url = "") {
   return CONTROLLER_PATTERNS.some(pattern => pattern.test(url));
 }
 
+async function getAllowedHosts() {
+  const stored = await chrome.storage.local.get("mr_ai_browser_allowlist");
+  const rows = Array.isArray(stored.mr_ai_browser_allowlist) ? stored.mr_ai_browser_allowlist : [];
+  return rows.filter(value => typeof value === "string").map(value => value.trim().toLowerCase()).filter(Boolean);
+}
+
+function hostnameFromUrl(raw) {
+  try {
+    const parsed = new URL(raw);
+    if (!["http:", "https:"].includes(parsed.protocol) || parsed.username || parsed.password) return null;
+    return parsed.hostname.toLowerCase();
+  } catch {
+    return null;
+  }
+}
+
+function hostIsAllowed(hostname, allowlist) {
+  if (!hostname) return false;
+  return allowlist.some(entry => hostname === entry || hostname.endsWith("." + entry));
+}
+
+
 function rememberTarget(tab) {
   if (!tab || !Number.isInteger(tab.id) || isControllerPage(tab.url || "")) return;
   controlledTabId = tab.id;
@@ -103,15 +125,23 @@ chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => 
       throw new Error("The controlled tab points to the MR AI dashboard; open a target web page first.");
     }
 
-    const payload = {
-      type: "MR_AI_BROWSER_ACTION",
-      requestId: message.requestId,
-      action: message.action,
-      ...message
-    };
+    const allowlist = await getAllowedHosts();
+    const currentHost = hostnameFromUrl(target.url || "");
+    if (!hostIsAllowed(currentHost, allowlist)) {
+      throw new Error("BLOCKED_BY_ALLOWLIST: Boss Ferisi lazima aongeze domain hii kwenye Browser Hands allowlist ya extension kwanza.");
+    }
+    if (message.action === "NAVIGATE") {
+      const destinationHost = hostnameFromUrl(String(message.url || ""));
+      if (!hostIsAllowed(destinationHost, allowlist)) {
+        throw new Error("BLOCKED_BY_ALLOWLIST: Destination domain haipo kwenye Browser Hands allowlist.");
+      }
+    }
 
-    const result = await chrome.tabs.sendMessage(tabId, payload);
-    return result;
+    const payload = { type: "MR_AI_BROWSER_ACTION", requestId: message.requestId, action: message.action, ...message };
+    const response = await chrome.tabs.sendMessage(tabId, payload);
+    if (!response?.ok) throw new Error(response?.error || "Browser action failed.");
+    // Unwrap content-script response; don't let a nested {ok,result} look like verified success.
+    return { ...response.result, targetHost: currentHost };
   })()
     .then(result => sendResponse(result || { ok: false, error: "Empty extension response." }))
     .catch(error => sendResponse({

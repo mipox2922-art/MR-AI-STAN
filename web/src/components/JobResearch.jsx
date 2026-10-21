@@ -14,7 +14,7 @@ const TRACKING_STATUSES = [
 function dateLabel(value) {
   if (!value) return "Date not provided";
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? "Date not provided" : date.toLocaleDateString();
+  return Number.isNaN(date.getTime()) ? "Date not provided" : date.toLocaleDateString("en-GB", { timeZone: "Africa/Dar_es_Salaam" });
 }
 
 function parseTracking(value) {

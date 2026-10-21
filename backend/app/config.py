@@ -23,6 +23,8 @@ class Settings(BaseSettings):
 
     openrouter_api_key: str = ""
     openrouter_model: str = "openrouter/free"
+    # Comma-separated fallback providers. Only configured/free fallbacks are used automatically.
+    ai_fallback_chain: str = "gemini,openrouter"
 
     mistral_api_key: str = ""
     mistral_model: str = "mistral-small-latest"

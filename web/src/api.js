@@ -154,12 +154,13 @@ export async function login(username, password) {
   return data;
 }
 
-export function chat(message, provider = "gemini", toolContext = null) {
+export function chat(message, provider = "gemini", toolContext = null, sessionId = null) {
   return request("/ai/chat", {
     method: "POST",
     body: JSON.stringify({
       message,
       provider,
+      session_id: sessionId,
       tool_context: toolContext
     })
   }, CHAT_API_TIMEOUT_MS);
@@ -193,16 +194,50 @@ export function getStatus() {
   return request("/system/status");
 }
 
-export function getChatHistory() {
-  return request("/ai/history");
+export function getChatHistory(sessionId = null) {
+  const params = new URLSearchParams();
+  if (sessionId) params.set("session_id", sessionId);
+  const suffix = params.toString();
+  return request("/ai/history" + (suffix ? "?" + suffix : ""));
+}
+
+export function getAIState() {
+  return request("/ai/state");
+}
+
+export function setAIState(state) {
+  return request("/ai/state", {
+    method: "POST",
+    body: JSON.stringify({ state }),
+  });
+}
+
+export function getAIHealth(provider = "gemini") {
+  const params = new URLSearchParams({ provider });
+  return request("/ai/health?" + params.toString(), {}, TOOL_API_TIMEOUT_MS);
 }
 
 export function getActivity() {
   return request("/activity");
 }
 
+export function recordActivityEvent(event) {
+  return request("/activity/events", {
+    method: "POST",
+    body: JSON.stringify(event),
+  });
+}
+
 export function getTasks() {
   return request("/tasks");
+}
+
+export function approveTask(taskId) {
+  return request(`/tasks/${encodeURIComponent(taskId)}/approve`, { method: "POST" });
+}
+
+export function startApprovedMission(taskId) {
+  return request(`/agents/mission/${encodeURIComponent(taskId)}/start`, { method: "POST", body: JSON.stringify({}) }, TOOL_API_TIMEOUT_MS);
 }
 
 export function createTask(title) {
@@ -355,37 +390,81 @@ export async function getBrowserHandsStatus() {
   };
 }
 
-export function browserAction(action, payload = {}) {
+export async function browserAction(action, payload = {}) {
   const extensionId = getBrowserExtensionId();
-
   if (!extensionId) {
-    return Promise.reject(
-      new Error(
-        "MR AI Browser Hands extension not detected. Reload the MR AI page after installing/reloading the extension."
-      )
-    );
+    throw new Error("MR AI Browser Hands extension not detected. Reload the MR AI page after installing/reloading the extension.");
   }
-
   const requestId = `mr-ai-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
-  return Promise.race([
-    globalThis.chrome.runtime.sendMessage(extensionId, {
-      type: "MR_AI_BROWSER_ACTION",
-      requestId,
-      action,
-      ...payload
-    }),
-    new Promise((_, reject) => {
-      window.setTimeout(() => {
-        reject(new Error("MR AI Browser Hands did not respond within 15 seconds."));
-      }, 15000);
-    })
-  ]).then(message => {
-    if (!message?.ok) {
-      throw new Error(message?.error || "Browser action failed");
-    }
+  async function sendBrowserRequest(extra = {}) {
+    const message = await Promise.race([
+      globalThis.chrome.runtime.sendMessage(extensionId, {
+        type: "MR_AI_BROWSER_ACTION",
+        requestId,
+        action,
+        ...payload,
+        ...extra
+      }),
+      new Promise((_, reject) => {
+        window.setTimeout(() => reject(new Error("MR AI Browser Hands did not respond within 15 seconds.")), 15000);
+      })
+    ]);
+    if (!message?.ok) throw new Error(message?.error || "Browser action failed");
     return message.result;
-  });
+  }
+
+  async function audit(outcome, result = {}, riskOverride = null) {
+    const targetHost = String(result?.targetHost || result?.host || "").toLowerCase();
+    const riskValue = String(riskOverride || result?.risk || "MEDIUM").toUpperCase();
+    const risk = ["LOW", "MEDIUM", "HIGH", "CRITICAL"].includes(riskValue) ? riskValue : "HIGH";
+    try {
+      await recordActivityEvent({
+        component: "browser",
+        action: String(action || "UNKNOWN").slice(0, 80),
+        outcome,
+        risk,
+        target_host: targetHost || undefined,
+        request_id: requestId,
+      });
+    } catch (error) {
+      // Fail closed for high-risk steps if the audit cannot be persisted.
+      throw new Error("AUDIT_LOG_FAILED: Kitendo hakijaendelea kwa sababu audit log haikuhifadhiwa. " + error.message);
+    }
+  }
+
+  let result;
+  try {
+    result = await sendBrowserRequest();
+  } catch (error) {
+    await audit("FAILED", {}, "MEDIUM").catch(() => {});
+    throw error;
+  }
+  if (!result?.approvalRequired) {
+    await audit(result?.verified === true ? "VERIFIED" : result?.dispatched ? "DISPATCHED_UNVERIFIED" : "REQUESTED", result);
+    return result;
+  }
+
+  await audit("APPROVAL_REQUIRED", result, result.risk || "HIGH");
+  const host = result.host || result.targetHost || "domain isiyojulikana";
+  const risk = result.risk || "HIGH_RISK_ACTION";
+  const reason = result.reason || "Kitendo hiki kina athari nje ya dashboard.";
+  const approved = typeof window !== "undefined" && typeof window.confirm === "function"
+    && window.confirm(`BOSS FERISI: Idhini inahitajika.\\n\\nKitendo: ${action}\\nHatari: ${risk}\\nDomain: ${host}\\n\\n${reason}\\n\\nKuendelea mara hii tu?`);
+  if (!approved) {
+    await audit("REJECTED", result, result.risk || "HIGH");
+    return { ...result, deniedByBoss: true, dispatched: false, note: "Boss hakuidhinisha; hakuna kitendo kilichotekelezwa." };
+  }
+
+  await audit("APPROVED", result, result.risk || "HIGH");
+  try {
+    const dispatched = await sendBrowserRequest({ boss_approved: true });
+    await audit(dispatched?.verified === true ? "VERIFIED" : dispatched?.dispatched ? "DISPATCHED_UNVERIFIED" : "REQUESTED", dispatched, result.risk || "HIGH");
+    return dispatched;
+  } catch (error) {
+    await audit("FAILED", result, result.risk || "HIGH").catch(() => {});
+    throw error;
+  }
 }
 
 export function getCurrentPage() {

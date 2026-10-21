@@ -11,7 +11,7 @@ except ImportError:
 from sqlalchemy.orm import Session
 
 from ..config import settings
-from ..models import Memory, Task
+from ..models import ActivityLog, ApprovalRequest, Memory, Task
 from .intent import Intent
 
 async def execute(intent: Intent, user_id: int, db: Session) -> dict[str, Any]:
@@ -56,12 +56,43 @@ async def execute(intent: Intent, user_id: int, db: Session) -> dict[str, Any]:
         db.refresh(row)
         result = {"status": "COMPLETED", "memory_id": row.id}
     elif intent.name == "TASK_CREATE":
-        title = intent.parameters.get("query", "MR AI task")
-        row = Task(user_id=user_id, title=title[:255], description=title, status="PENDING", priority="NORMAL")
+        title = intent.parameters.get("query", "MR AI task").strip() or "MR AI task"
+        row = Task(
+            user_id=user_id,
+            title=title[:255],
+            description=title[:12000],
+            status="WAITING_APPROVAL",
+            priority="NORMAL",
+            agent="orchestrator",
+            source="orchestrator",
+            requested_by="MR AI Orchestrator",
+            progress=0,
+        )
         db.add(row)
+        db.flush()
+        approval = ApprovalRequest(
+            user_id=user_id,
+            action="TASK_CREATE_PROPOSAL",
+            payload=json.dumps({"task_id": row.id}, ensure_ascii=False),
+            status="PENDING",
+        )
+        db.add(approval)
+        db.add(ActivityLog(
+            user_id=user_id,
+            action="TASK_PROPOSED",
+            details=f"task_id={row.id}; source=orchestrator; approval_id={approval.id if approval.id else 'pending'}",
+        ))
         db.commit()
         db.refresh(row)
-        result = {"status": "COMPLETED", "task_id": row.id, "task_status": row.status}
+        db.refresh(approval)
+        result = {
+            "status": "WAITING_APPROVAL",
+            "task_id": row.id,
+            "task_status": row.status,
+            "source": row.source,
+            "approval_id": approval.id,
+            "message": "Task proposal is saved. It will not execute until Boss approval and an explicit Start action.",
+        }
     elif intent.name == "WEB_RESEARCH":
         if not settings.searxng_url:
             return {"status": "NOT_CONNECTED", "reason": "SEARXNG_URL is not configured", "query": intent.parameters.get("query", "")}

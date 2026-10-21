@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   getAgents,
   getStatus,
+  getAIState,
   getSystemDiagnostics,
   getAuthStatus,
   getToken,
@@ -556,7 +557,7 @@ function App() {
   }, [active, authenticated, isMobileViewport]);
 
   const refresh = useCallback(async () => {
-    if (!getToken() || refreshInFlight.current) return;
+    if (!getToken() || refreshInFlight.current || document.visibilityState !== "visible") return;
     refreshInFlight.current = true;
     setConnectionState(current => current === "ONLINE" ? current : "CONNECTING");
 
@@ -568,6 +569,7 @@ function App() {
         getMemories(),
         getActivity(),
         getGmailStatus(),
+        getAIState(),
       ]);
 
       const unauthorized = results.some(
@@ -580,7 +582,7 @@ function App() {
         return;
       }
 
-      const [statusResult, fleetResult, taskResult, memoryResult, activityResult, gmailResult] = results;
+      const [statusResult, fleetResult, taskResult, memoryResult, activityResult, gmailResult, aiStateResult] = results;
 
       if (statusResult.status === "fulfilled") {
         const status = statusResult.value;
@@ -622,6 +624,10 @@ function App() {
       if (gmailResult.status === "fulfilled") {
         setGmailStatus(gmailResult.value);
       }
+      if (aiStateResult.status === "fulfilled") {
+        const runtimeState = String(aiStateResult.value?.state || "").toUpperCase();
+        if (["IDLE", "THINKING", "SPEAKING", "ERROR"].includes(runtimeState)) setCoreState(runtimeState);
+      }
 
       // Local Wi-Fi/BLE/ADB/Fastboot scans run only after an explicit user action.
       // Do not trigger hardware scans in the recurring telemetry poll.
@@ -641,9 +647,15 @@ function App() {
 
   useEffect(() => {
     if (!authenticated) return undefined;
-    if (mode !== "sleep") refresh();
-    const timer = mode === "sleep" ? null : setInterval(refresh, 5000);
+    if (mode !== "sleep" && document.visibilityState === "visible") refresh();
+    const timer = mode === "sleep" ? null : setInterval(() => {
+      if (document.visibilityState === "visible") refresh();
+    }, 7000);
     const clockTimer = setInterval(() => setClock(new Date()), 1000);
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible" && mode !== "sleep") refresh();
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
 
     const onShortcut = event => {
       if (event.ctrlKey && event.shiftKey && event.key.toLowerCase() === "m") {
@@ -651,7 +663,6 @@ function App() {
         setMode(current => {
           const next = current === "working" ? "normal" : "working";
           localStorage.setItem("mr_ai_mode", next);
-          setCoreState(next === "working" ? "WORKING" : "IDLE");
           return next;
         });
       }
@@ -676,6 +687,7 @@ function App() {
     return () => {
       if (timer) clearInterval(timer);
       clearInterval(clockTimer);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
       window.removeEventListener("keydown", onShortcut);
       window.removeEventListener("keydown", onCommandPalette);
       window.removeEventListener("online", refreshDataLink);
@@ -778,7 +790,10 @@ function App() {
   const working = normalizedMode === "working";
   const sleeping = normalizedMode === "sleep";
   const taskSummary = getTaskSummary(tasks, agents);
-  const coreStatus = sleeping ? "SLEEPING" : working && taskSummary.inProgress > 0 ? "WORKING" : "IDLE";
+  const runtimeCoreState = String(coreState || "IDLE").toUpperCase();
+  const coreStatus = sleeping ? "SLEEPING"
+    : ["THINKING", "SPEAKING", "ERROR"].includes(runtimeCoreState) ? runtimeCoreState
+    : taskSummary.inProgress > 0 ? "WORKING" : "IDLE";
 
   function setOperationalMode(nextMode) {
     const next = ["normal", "working", "sleep"].includes(nextMode)
@@ -787,7 +802,6 @@ function App() {
     localStorage.setItem("mr_ai_mode", next);
     setMode(next);
     // Mode itself does not imply a real task is running.
-    setCoreState(next === "sleep" ? "SLEEPING" : "IDLE");
   }
 
   function toggleMode(nextWorking) {
@@ -916,8 +930,8 @@ function App() {
           </div>
           <div className="top-status">
             <div>
-              <strong>{clock.toLocaleTimeString("sw-TZ", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</strong>
-              <span>{clock.toLocaleDateString("sw-TZ", { weekday: "short", day: "2-digit", month: "short", year: "numeric" })}</span>
+              <strong>{clock.toLocaleTimeString("sw-TZ", { timeZone: "Africa/Dar_es_Salaam", hour: "2-digit", minute: "2-digit", second: "2-digit" })}</strong>
+              <span>{clock.toLocaleDateString("sw-TZ", { timeZone: "Africa/Dar_es_Salaam", weekday: "short", day: "2-digit", month: "short", year: "numeric" })}</span>
             </div>
             <button
               type="button"
@@ -976,8 +990,8 @@ function App() {
                   </div>
                 </div>
                 <div className="state-grid">
-                  {["IDLE", "LISTENING", "THINKING", "SPEAKING", "WORKING", "BUSY", "ERROR", "SLEEPING"].map(state => (
-                    <button className={coreState === state ? "state-active" : ""} key={state} onClick={() => setCoreState(state)}>{state}</button>
+                  {["IDLE", "THINKING", "SPEAKING", "WORKING", "ERROR", "SLEEPING"].map(state => (
+                    <span aria-current={coreState === state ? "true" : undefined} className={coreState === state ? "state-active" : ""} key={state}>{state}</span>
                   ))}
                 </div>
                 <div className="core-stage tall"><Core state={coreStatus} modActive={working} /></div>

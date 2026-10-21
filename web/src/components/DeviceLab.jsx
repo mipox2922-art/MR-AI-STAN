@@ -11,7 +11,8 @@ import {
   rebootAndroid,
   setBridgeToken,
   getRadioStatus,
-  scanRadar
+  scanRadar,
+  recordActivityEvent
 } from "../api";
 
 export default function DeviceLab() {
@@ -22,16 +23,76 @@ export default function DeviceLab() {
 
   async function run(label, fn) {
     if (running) return;
+    const action = String(label || "DEVICE_ACTION").toUpperCase().replace(/[^A-Z0-9_.:-]/g, "_").slice(0, 80);
+    const requestId = `device-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+    try {
+      await recordActivityEvent({
+        component: "device", action, outcome: "REQUESTED", risk: "HIGH", request_id: requestId,
+      });
+    } catch (error) {
+      setResult({ label, status: "ERROR", error: "Audit log haipatikani; kitendo kimezuiwa. " + error.message });
+      return;
+    }
+
+    const approved = window.confirm(
+      `BOSS FERISI: Idhini inahitajika kwa kila kitendo cha Device Lab.\n\nKitendo: ${label}\nKifaa kilichochaguliwa: ${selected || "hakijachaguliwa"}\n\nKuendelea?`
+    );
+    if (!approved) {
+      await recordActivityEvent({
+        component: "device", action, outcome: "REJECTED", risk: "HIGH", request_id: requestId,
+      }).catch(() => {});
+      setResult({ label, status: "REJECTED", error: "Boss hakuidhinisha; hakukuwa na kitendo cha kifaa." });
+      return;
+    }
+
+    try {
+      await recordActivityEvent({
+        component: "device", action, outcome: "APPROVED", risk: "HIGH", request_id: requestId,
+      });
+    } catch (error) {
+      setResult({ label, status: "ERROR", error: "Idhini haikuweza kuhifadhiwa kwenye audit log; kitendo kimezuiwa. " + error.message });
+      return;
+    }
+
     setRunning(true);
     setResult({ label, status: "RUNNING" });
+    let data;
     try {
-      const data = await fn();
-      setResult({ label, status: "COMPLETED", data });
+      data = await fn();
     } catch (error) {
+      await recordActivityEvent({
+        component: "device", action, outcome: "FAILED", risk: "HIGH", request_id: requestId,
+      }).catch(() => {});
       setResult({ label, status: "ERROR", error: error.message });
-    } finally {
       setRunning(false);
+      return;
     }
+
+    const resultStatus = String(data?.status || "").toUpperCase();
+    const hasReadEvidence = Boolean(data && typeof data === "object" && (
+      Array.isArray(data.devices) || Array.isArray(data.networks) || Array.isArray(data.findings) ||
+      Array.isArray(data.detected_signals) || data.serial || data.model || data.android_version ||
+      data.adb_state || data.state || data.battery || data.storage
+    ));
+    const verified = data?.verified === true ||
+      ["COMPLETED", "CONNECTED", "HEALTHY"].includes(resultStatus) ||
+      (hasReadEvidence && !action.startsWith("REBOOT") && data?.scan_status !== "NOT_IMPLEMENTED");
+    try {
+      await recordActivityEvent({
+        component: "device", action, outcome: verified ? "VERIFIED" : "DISPATCHED_UNVERIFIED",
+        risk: "HIGH", request_id: requestId,
+      });
+    } catch (error) {
+      // The device call already returned. Do not relabel a real outcome as an execution failure
+      // merely because the result audit could not be persisted afterward.
+      setResult({ label, status: "UNVERIFIED", data,
+        error: "Kitendo kilirudisha matokeo, lakini audit ya matokeo haikuhifadhiwa: " + error.message });
+      setRunning(false);
+      return;
+    }
+    setResult({ label, status: verified ? "COMPLETED" : "UNVERIFIED", data });
+    setRunning(false);
   }
 
   function saveToken() {
