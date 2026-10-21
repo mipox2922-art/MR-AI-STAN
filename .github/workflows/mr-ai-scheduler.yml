@@ -16,7 +16,7 @@ concurrency:
 jobs:
   run-due-work:
     runs-on: ubuntu-latest
-    timeout-minutes: 6
+    timeout-minutes: 8
     steps:
       - name: Wake backend and verify health
         shell: bash
