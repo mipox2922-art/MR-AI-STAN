@@ -150,6 +150,21 @@ def get_or_create_conversation(
             conversation = query.filter(Conversation.session_id.is_(None)).order_by(Conversation.id.desc()).first()
             if conversation:
                 return conversation
+        if session_id:
+            # Bound per-user session storage so arbitrary browser session IDs cannot
+            # grow the conversation table forever. Retain the newest 49 before adding one.
+            existing_sessions = (
+                query.filter(Conversation.session_id.is_not(None))
+                .order_by(Conversation.id.desc())
+                .all()
+            )
+            stale_sessions = existing_sessions[49:]
+            stale_ids = [row.id for row in stale_sessions]
+            if stale_ids:
+                db.query(Message).filter(Message.conversation_id.in_(stale_ids)).delete(synchronize_session=False)
+                db.query(Conversation).filter(Conversation.id.in_(stale_ids)).delete(synchronize_session=False)
+                db.flush()
+
         conversation = Conversation(user_id=user_id, title=title, session_id=session_id)
         db.add(conversation)
         db.flush()
@@ -393,17 +408,11 @@ async def generate_with_timeout(
                 await asyncio.sleep(wait_time)
             
         except AIProviderError as exc:
-            logger.error(
-                f"❌ AI provider error: {exc}",
-                extra={"provider": provider.__class__.__name__}
-            )
+            logger.warning("AI provider error; provider=%s error_type=%s", provider.__class__.__name__, type(exc).__name__)
             last_error = exc
             
         except Exception as exc:
-            logger.exception(
-                f"❌ Unexpected AI provider error: {exc}",
-                extra={"provider": provider.__class__.__name__}
-            )
+            logger.warning("Unexpected AI provider error; provider=%s error_type=%s", provider.__class__.__name__, type(exc).__name__)
             last_error = exc
     
     # All retries exhausted
@@ -436,10 +445,7 @@ async def notify_realtime_safe(
     
     except Exception as exc:
         # Log but don't raise - realtime is non-critical
-        logger.warning(
-            f"⚠️  {REALTIME_ERROR_MSG}: {type(exc).__name__}: {exc}",
-            extra={"event": event}
-        )
+        logger.warning("Real-time notification failed; event=%s error_type=%s", event, type(exc).__name__)
 
 # ==============================================================================
 # MAIN CHAT ENDPOINT
