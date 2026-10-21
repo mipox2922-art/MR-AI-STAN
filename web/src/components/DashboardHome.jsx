@@ -1345,7 +1345,7 @@ function ExecutiveMorningBrief({ system, gmailStatus, tasks = [], agents = [], o
                 {taskRows.map(task => {
                   const status = String(task.status || "Haijathibitishwa").toUpperCase();
                   const sourceLabel = ({ boss: "Boss", orchestrator: "Orchestrator", agent: "Wakala" })[String(task.source || "").toLowerCase()] || "Haijathibitishwa";
-                  const evidenceCount = \`\${task.verified_steps ?? "?"}/\${task.step_count ?? "?"} hatua zenye ushahidi\`;
+                  const evidenceCount = `${task.verified_steps ?? "?"}/${task.step_count ?? "?"} hatua zenye ushahidi`;
                   const busy = taskAction?.id === task.id;
                   return (
                     <article className="cc-exec-task-row" key={task.id}>
