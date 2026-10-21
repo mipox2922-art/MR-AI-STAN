@@ -395,9 +395,9 @@ export async function browserAction(action, payload = {}) {
   if (!extensionId) {
     throw new Error("MR AI Browser Hands extension not detected. Reload the MR AI page after installing/reloading the extension.");
   }
+  const requestId = \`mr-ai-\${Date.now()}-\${Math.random().toString(36).slice(2)}\`;
 
   async function sendBrowserRequest(extra = {}) {
-    const requestId = `mr-ai-${Date.now()}-${Math.random().toString(36).slice(2)}`;
     const message = await Promise.race([
       globalThis.chrome.runtime.sendMessage(extensionId, {
         type: "MR_AI_BROWSER_ACTION",
@@ -414,20 +414,55 @@ export async function browserAction(action, payload = {}) {
     return message.result;
   }
 
-  const result = await sendBrowserRequest();
-  if (!result?.approvalRequired) return result;
+  async function audit(outcome, result = {}, riskOverride = null) {
+    const targetHost = String(result?.targetHost || result?.host || "").toLowerCase();
+    try {
+      await recordActivityEvent({
+        component: "browser",
+        action: String(action || "UNKNOWN").slice(0, 80),
+        outcome,
+        risk: riskOverride || result?.risk || "MEDIUM",
+        target_host: targetHost || undefined,
+        request_id: requestId,
+      });
+    } catch (error) {
+      // Fail closed for high-risk steps if the audit cannot be persisted.
+      throw new Error("AUDIT_LOG_FAILED: Kitendo hakijaendelea kwa sababu audit log haikuhifadhiwa. " + error.message);
+    }
+  }
 
-  const host = result.host || "domain isiyojulikana";
+  let result;
+  try {
+    result = await sendBrowserRequest();
+  } catch (error) {
+    await audit("FAILED", {}, "MEDIUM").catch(() => {});
+    throw error;
+  }
+  if (!result?.approvalRequired) {
+    await audit(result?.verified === true ? "VERIFIED" : result?.dispatched ? "DISPATCHED_UNVERIFIED" : "REQUESTED", result);
+    return result;
+  }
+
+  await audit("APPROVAL_REQUIRED", result, result.risk || "HIGH");
+  const host = result.host || result.targetHost || "domain isiyojulikana";
   const risk = result.risk || "HIGH_RISK_ACTION";
   const reason = result.reason || "Kitendo hiki kina athari nje ya dashboard.";
   const approved = typeof window !== "undefined" && typeof window.confirm === "function"
-    && window.confirm(`BOSS FERISI: Idhini inahitajika.\n\nKitendo: ${action}\nHatari: ${risk}\nDomain: ${host}\n\n${reason}\n\nKuendelea mara hii tu?`);
+    && window.confirm(\`BOSS FERISI: Idhini inahitajika.\\n\\nKitendo: \${action}\\nHatari: \${risk}\\nDomain: \${host}\\n\\n\${reason}\\n\\nKuendelea mara hii tu?\`);
   if (!approved) {
+    await audit("REJECTED", result, result.risk || "HIGH");
     return { ...result, deniedByBoss: true, dispatched: false, note: "Boss hakuidhinisha; hakuna kitendo kilichotekelezwa." };
   }
-  // Approval is a one-action override. Domain allowlist is still enforced by both
-  // extension worker and content script, and secrets/password fields remain blocked.
-  return sendBrowserRequest({ boss_approved: true });
+
+  await audit("APPROVED", result, result.risk || "HIGH");
+  try {
+    const dispatched = await sendBrowserRequest({ boss_approved: true });
+    await audit(dispatched?.verified === true ? "VERIFIED" : dispatched?.dispatched ? "DISPATCHED_UNVERIFIED" : "REQUESTED", dispatched, result.risk || "HIGH");
+    return dispatched;
+  } catch (error) {
+    await audit("FAILED", result, result.risk || "HIGH").catch(() => {});
+    throw error;
+  }
 }
 
 export function getCurrentPage() {
