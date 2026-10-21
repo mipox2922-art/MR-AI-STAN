@@ -524,14 +524,14 @@ async function main() {
   await deviceLab.locator('input[type="password"]').fill("ui-smoke-bridge-token");
   await deviceLab.getByRole("button", { name: "SAVE", exact: true }).click();
   for (const label of ["BRIDGE", "ADB DEVICES", "FASTBOOT", "WI-FI SCAN", "BLE SCAN", "RADIO / RF", "RADAR SCAN"]) {
-    page.once("dialog", dialog => dialog.accept());
+    page.once("dialog", dialog => dialog.accept().catch(() => {}));
     await deviceLab.getByRole("button", { name: label, exact: true }).click();
     await deviceLab.locator(".device-result > strong").waitFor({ state: "visible", timeout: 5000 });
     const expectedOutcome = label === "RADIO / RF" ? "UNVERIFIED" : "COMPLETED";
     await page.waitForFunction(expected => document.querySelector(".device-result > strong")?.textContent?.includes(expected), expectedOutcome, { timeout: 5000 });
   }
   for (const label of ["DEVICE INFO", "DIAGNOSTICS", "BOOT STATE"]) {
-    page.once("dialog", dialog => dialog.accept());
+    page.once("dialog", dialog => dialog.accept().catch(() => {}));
     await deviceLab.getByRole("button", { name: label, exact: true }).click();
     await page.waitForFunction(() => document.querySelector(".device-result > strong")?.textContent?.includes("COMPLETED"));
   }
@@ -540,7 +540,7 @@ async function main() {
   await deviceLab.getByRole("button", { name: "REBOOT SYSTEM", exact: true }).click();
   assert.equal(rebootRequests, rebootCountBefore, "Dismissing reboot confirmation must not call the bridge.");
   const rebootDialogs = [];
-  const approveRebootDialogs = async dialog => { rebootDialogs.push(dialog.message()); await dialog.accept(); };
+  const approveRebootDialogs = async dialog => { rebootDialogs.push(dialog.message()); await dialog.accept().catch(() => {}); };
   page.on("dialog", approveRebootDialogs);
   await deviceLab.getByRole("button", { name: "REBOOT SYSTEM", exact: true }).click();
   page.off("dialog", approveRebootDialogs);
