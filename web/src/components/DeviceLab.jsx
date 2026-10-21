@@ -11,7 +11,8 @@ import {
   rebootAndroid,
   setBridgeToken,
   getRadioStatus,
-  scanRadar
+  scanRadar,
+  recordActivityEvent
 } from "../api";
 
 export default function DeviceLab() {
@@ -22,12 +23,52 @@ export default function DeviceLab() {
 
   async function run(label, fn) {
     if (running) return;
+    const action = String(label || "DEVICE_ACTION").toUpperCase().replace(/[^A-Z0-9_.:-]/g, "_").slice(0, 80);
+    const requestId = \`device-\${Date.now()}-\${Math.random().toString(36).slice(2)}\`;
+
+    try {
+      await recordActivityEvent({
+        component: "device", action, outcome: "REQUESTED", risk: "HIGH", request_id: requestId,
+      });
+    } catch (error) {
+      setResult({ label, status: "ERROR", error: "Audit log haipatikani; kitendo kimezuiwa. " + error.message });
+      return;
+    }
+
+    const approved = window.confirm(
+      \`BOSS FERISI: Idhini inahitajika kwa kila kitendo cha Device Lab.\n\nKitendo: \${label}\nKifaa kilichochaguliwa: \${selected || "hakijachaguliwa"}\n\nKuendelea?\`
+    );
+    if (!approved) {
+      await recordActivityEvent({
+        component: "device", action, outcome: "REJECTED", risk: "HIGH", request_id: requestId,
+      }).catch(() => {});
+      setResult({ label, status: "REJECTED", error: "Boss hakuidhinisha; hakukuwa na kitendo cha kifaa." });
+      return;
+    }
+
+    try {
+      await recordActivityEvent({
+        component: "device", action, outcome: "APPROVED", risk: "HIGH", request_id: requestId,
+      });
+    } catch (error) {
+      setResult({ label, status: "ERROR", error: "Idhini haikuweza kuhifadhiwa kwenye audit log; kitendo kimezuiwa. " + error.message });
+      return;
+    }
+
     setRunning(true);
     setResult({ label, status: "RUNNING" });
     try {
       const data = await fn();
-      setResult({ label, status: "COMPLETED", data });
+      const verified = data?.verified === true || data?.status === "COMPLETED" || data?.status === "CONNECTED";
+      await recordActivityEvent({
+        component: "device", action, outcome: verified ? "VERIFIED" : "DISPATCHED_UNVERIFIED",
+        risk: "HIGH", request_id: requestId,
+      });
+      setResult({ label, status: verified ? "COMPLETED" : "UNVERIFIED", data });
     } catch (error) {
+      await recordActivityEvent({
+        component: "device", action, outcome: "FAILED", risk: "HIGH", request_id: requestId,
+      }).catch(() => {});
       setResult({ label, status: "ERROR", error: error.message });
     } finally {
       setRunning(false);
