@@ -27,8 +27,10 @@ from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
 
 from ..dependencies import get_current_user
+from ..config import settings
+from ..audit import record_safe_error, redact_sensitive_text
 from ..database import get_db
-from ..models import ActivityLog, Conversation, Message, User
+from ..models import ActivityLog, AIStateSnapshot, Conversation, Message, User
 from ..providers.factory import get_provider
 from ..providers.base import AIProviderError
 from ..realtime import manager
@@ -75,7 +77,7 @@ REALTIME_TIMEOUT = 5
 
 # Limits
 MAX_MESSAGE_LENGTH = 6000
-MAX_CONVERSATION_CONTEXT = 50  # Messages to keep in context
+MAX_CONVERSATION_CONTEXT = 24  # Up to 12 user/assistant turns per session
 MIN_MESSAGE_LENGTH = 1
 
 # Error messages (user-friendly)
@@ -128,45 +130,33 @@ def validate_chat_request(data: ChatRequest) -> ChatRequest:
 # ==============================================================================
 
 def get_or_create_conversation(
-    db: Session,
-    user_id: int,
-    title: str = "MR AI Chat"
+    db: Session, user_id: int, title: str = "MR AI Chat", session_id: str | None = None
 ) -> Conversation:
-    """Get latest conversation or create new one"""
+    """Get/create a conversation scoped to the authenticated user and session."""
     try:
-        conversation = (
-            db.query(Conversation)
-            .filter(Conversation.user_id == user_id)
-            .order_by(Conversation.id.desc())
-            .first()
-        )
-        
-        if conversation:
-            return conversation
-        
-        # Create new conversation
-        conversation = Conversation(
-            user_id=user_id,
-            title=title,
-        )
+        query = db.query(Conversation).filter(Conversation.user_id == user_id)
+        if session_id:
+            conversation = query.filter(Conversation.session_id == session_id).order_by(Conversation.id.desc()).first()
+            if conversation:
+                return conversation
+            # Adopt one legacy thread only if this account has no session-scoped thread yet.
+            has_session = query.filter(Conversation.session_id.is_not(None)).first()
+            legacy = query.filter(Conversation.session_id.is_(None)).order_by(Conversation.id.desc()).first()
+            if legacy and not has_session:
+                legacy.session_id = session_id
+                db.flush()
+                return legacy
+        else:
+            conversation = query.filter(Conversation.session_id.is_(None)).order_by(Conversation.id.desc()).first()
+            if conversation:
+                return conversation
+        conversation = Conversation(user_id=user_id, title=title, session_id=session_id)
         db.add(conversation)
-        db.flush()  # Get ID without committing
-        
-        logger.info(
-            "📝 New conversation created",
-            extra={
-                "conversation_id": conversation.id,
-                "user_id": user_id
-            }
-        )
-        
+        db.flush()
         return conversation
-    
-    except SQLAlchemyError as exc:
-        logger.error(
-            f"❌ Failed to get/create conversation: {exc}",
-            extra={"user_id": user_id}
-        )
+    except SQLAlchemyError:
+        db.rollback()
+        logger.exception("Failed to get/create conversation", extra={"user_id": user_id})
         raise
 
 def save_messages_and_log(
@@ -274,6 +264,81 @@ def build_model_prompt(
         "- Do not repeat a generic greeting when the user asks a substantive question.\n"
         "- Respond naturally in the user's language, preferably concise Swahili for Swahili input.\n"
     )
+
+
+VALID_AI_STATES = {"IDLE", "THINKING", "SPEAKING", "ERROR"}
+
+
+async def _set_ai_state(db: Session, user_id: int, state: str, request_id: str | None = None, reason_safe: str | None = None) -> None:
+    normalized = str(state or "IDLE").strip().upper()
+    if normalized not in VALID_AI_STATES:
+        normalized = "IDLE"
+    row = db.query(AIStateSnapshot).filter(AIStateSnapshot.user_id == user_id).first()
+    now = datetime.utcnow()
+    if row is None:
+        row = AIStateSnapshot(user_id=user_id, state=normalized)
+        db.add(row)
+    row.state = normalized
+    row.request_id = request_id
+    row.reason_safe = redact_sensitive_text(reason_safe, 500) if reason_safe else None
+    row.updated_at = now
+    db.commit()
+    await notify_realtime_safe("AI_STATE", {
+        "user_id": user_id, "state": row.state, "reason": row.reason_safe,
+        "request_id": row.request_id, "updated_at": row.updated_at.isoformat() + "Z",
+    })
+
+
+def _eligible_fallbacks(primary: str) -> list[str]:
+    """Use only configured, credentialed free-tier fallback providers."""
+    candidates = [name.strip().lower() for name in settings.ai_fallback_chain.split(",") if name.strip()]
+    allowed: list[str] = []
+    for name in candidates:
+        if name == primary or name in allowed:
+            continue
+        if name == "gemini" and settings.gemini_api_key.strip() and settings.gemini_tier.strip().upper() == "FREE":
+            allowed.append(name)
+        elif name == "openrouter" and settings.openrouter_api_key.strip():
+            model = settings.openrouter_model.strip().lower()
+            if model == "openrouter/free" or model.endswith(":free"):
+                allowed.append(name)
+    return allowed
+
+
+async def generate_reply_with_fallback(primary: str, prompt: str, timeout: int = 10) -> tuple[str, str]:
+    names = [primary] + _eligible_fallbacks(primary)
+    errors: list[str] = []
+    for index, name in enumerate(names):
+        try:
+            provider = get_provider(name)
+            answer = await generate_with_timeout(provider, prompt, timeout=timeout, max_retries=0)
+            return answer, name
+        except ValueError:
+            if index == 0:
+                raise
+            errors.append(f"{name}: unavailable")
+        except Exception as exc:
+            logger.warning("AI provider attempt failed: provider=%s error_type=%s", name, type(exc).__name__)
+            errors.append(f"{name}: {type(exc).__name__}")
+    raise AIProviderError(primary, f"{PROVIDER_ERROR_MSG}: {'; '.join(errors)[:300] or 'No eligible provider answered.'}")
+
+
+async def _load_ai_state(db: Session, user_id: int) -> dict:
+    row = db.query(AIStateSnapshot).filter(AIStateSnapshot.user_id == user_id).first()
+    if row is None:
+        return {"state": "IDLE", "reason": None, "request_id": None, "updated_at": None, "verified": True}
+    updated_at = row.updated_at or datetime.utcnow()
+    age = max(0.0, (datetime.utcnow() - updated_at).total_seconds())
+    if str(row.state).upper() in {"THINKING", "SPEAKING"} and age > 30:
+        await _set_ai_state(db, user_id, "ERROR", row.request_id, "AI state timed out after 30 seconds.")
+        row = db.query(AIStateSnapshot).filter(AIStateSnapshot.user_id == user_id).first()
+    return {
+        "state": row.state if row else "ERROR",
+        "reason": row.reason_safe if row else "AI state not available.",
+        "request_id": row.request_id if row else None,
+        "updated_at": row.updated_at.isoformat() + "Z" if row and row.updated_at else None,
+        "verified": row is not None,
+    }
 
 
 # ==============================================================================
@@ -387,350 +452,141 @@ async def notify_realtime_safe(
     summary="Chat with AI",
     description="Send a message to the AI provider and get a response",
 )
-async def chat(
-    data: ChatRequest,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-) -> ChatResponse:
-    """
-    Chat endpoint with comprehensive error handling
-    
-    Flow:
-    1. Validate request
-    2. Get/create conversation
-    3. Call AI provider (with retry)
-    4. Save to database (atomic transaction)
-    5. Broadcast to realtime (non-blocking)
-    6. Return response
-    
-    Errors are classified:
-    - Validation: 400 Bad Request
-    - Provider: 502 Bad Gateway
-    - Database: 500 Internal Server Error
-    - Realtime: 200 OK (doesn't block)
-    """
-    
+async def chat(data: ChatRequest, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> ChatResponse:
     request_start = time.time()
     request_id = f"{current_user.id}_{int(request_start * 1000)}"
-    
-    logger.info(
-        "🔵 Chat request received",
-        extra={
-            "request_id": request_id,
-            "user_id": current_user.id,
-            "provider": data.provider,
-        }
-    )
-    
-    # ─────────────────────────────────────────────────────────────────────
-    # STEP 1: VALIDATE REQUEST
-    # ─────────────────────────────────────────────────────────────────────
-    try:
-        data = validate_chat_request(data)
-    except HTTPException:
-        raise
-    except Exception as exc:
-        logger.error(
-            f"❌ Request validation error: {exc}",
-            extra={"request_id": request_id}
-        )
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid request format"
-        )
-    
-    # ─────────────────────────────────────────────────────────────────────
-    # STEP 2: LOAD CONVERSATION CONTEXT
-    # ─────────────────────────────────────────────────────────────────────
+    data = validate_chat_request(data)
     try:
         conversation = get_or_create_conversation(
-            db,
-            current_user.id,
-            title=f"Chat - {datetime.now(timezone.utc).strftime('%Y-%m-%d')}"
+            db, current_user.id,
+            title=f"Chat - {datetime.now(timezone.utc).strftime('%Y-%m-%d')}",
+            session_id=data.session_id,
         )
     except SQLAlchemyError as exc:
-        logger.error(
-            f"❌ Database error preparing chat context: {exc}",
-            extra={"request_id": request_id, "user_id": current_user.id}
-        )
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=DATABASE_ERROR_MSG,
-        )
+        record_safe_error(db, current_user.id, "ai.chat", "CONVERSATION_DB_ERROR", type(exc).__name__)
+        raise HTTPException(status_code=500, detail=DATABASE_ERROR_MSG) from exc
 
-    # ─────────────────────────────────────────────────────────────────────
-    # STEP 3: EXECUTE RECOGNIZED ACTIONS, THEN EXPLAIN VERIFIED RESULTS
-    # ─────────────────────────────────────────────────────────────────────
-    intent = classify(data.message)
-
-    if intent.name != "CHAT":
-        orchestration_result = await run_orchestration(
-            current_user.id,
-            data.message,
-            db,
-        )
-
-        if orchestration_result.get("status") == "WAITING_APPROVAL":
-            answer = (
-                f"Kitendo {intent.name} kinahitaji idhini yako. "
-                f"Approval ID: {orchestration_result.get('approval_id')}."
-            )
-            provider_name = "orchestrator"
-        else:
+    await _set_ai_state(db, current_user.id, "THINKING", request_id, "MR AI inachambua ombi.")
+    try:
+        intent = classify(data.message)
+        context = data.tool_context or {}
+        provider_name = data.provider
+        if intent.name != "CHAT":
             try:
-                provider = get_provider(data.provider)
-            except ValueError as exc:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Unknown provider: {data.provider}",
-                ) from exc
+                orchestration_result = await run_orchestration(current_user.id, data.message, db)
             except Exception as exc:
-                logger.exception(
-                    "❌ Provider initialization error after orchestration",
-                    extra={"request_id": request_id, "provider": data.provider},
-                )
-                raise HTTPException(
-                    status_code=status.HTTP_502_BAD_GATEWAY,
-                    detail="Failed to initialize AI provider",
-                ) from exc
-
-            model_prompt = build_model_prompt(
-                db,
-                conversation.id,
-                data.message,
-                {
-                    "orchestration": orchestration_result,
-                    "intent": {
-                        "name": intent.name,
-                        "confidence": intent.confidence,
-                        "risk": intent.risk,
-                    },
-                },
-            )
-
-            try:
-                answer = await generate_with_timeout(
-                    provider,
-                    model_prompt,
-                    timeout=AI_PROVIDER_TIMEOUT,
-                    max_retries=1,
-                )
-                provider_name = data.provider
-            except AIProviderError as exc:
-                logger.error(
-                    f"❌ AI explanation failed after action: {exc}",
-                    extra={"request_id": request_id, "intent": intent.name},
-                )
-                action_status = str(orchestration_result.get("status", "UNKNOWN")).upper()
-                if action_status == "COMPLETED":
-                    answer = (
-                        f"Hatua ya {intent.name} imeripotiwa kukamilika na mfumo "
-                        f"(status: {action_status}), lakini maelezo ya AI hayakupatikana."
-                    )
-                else:
-                    answer = (
-                        f"Siwezi kuthibitisha kuwa hatua ya {intent.name} imekamilika. "
-                        f"Provider ya AI imeshindwa kueleza matokeo; status ya mfumo ni {action_status}."
-                    )
-                provider_name = "orchestrator"
-
-        elapsed = time.time() - request_start
-        try:
-            save_messages_and_log(
-                db,
-                conversation.id,
-                current_user.id,
-                data.message,
-                answer,
-                provider_name,
-            )
-        except SQLAlchemyError:
-            raise HTTPException(status_code=500, detail=DATABASE_ERROR_MSG)
-
-        return ChatResponse(
-            response=answer,
-            provider=provider_name,
-            request_id=request_id,
-            elapsed_ms=int(elapsed * 1000),
-        )
-
-    # ─────────────────────────────────────────────────────────────────────
-    # STEP 4: GET AI PROVIDER FOR NORMAL CONVERSATION
-    # ─────────────────────────────────────────────────────────────────────
-    try:
-        provider = get_provider(data.provider)
-        logger.debug(
-            f"✅ Provider loaded: {provider.__class__.__name__}",
-            extra={"request_id": request_id},
-        )
-    except ValueError as exc:
-        logger.error(
-            f"❌ Invalid provider: {exc}",
-            extra={"request_id": request_id, "provider": data.provider},
-        )
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Unknown provider: {data.provider}",
-        ) from exc
-    except Exception as exc:
-        logger.exception(
-            f"❌ Provider initialization error: {exc}",
-            extra={"request_id": request_id, "provider": data.provider},
-        )
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="Failed to initialize AI provider",
-        ) from exc
-
-    model_prompt = build_model_prompt(
-        db,
-        conversation.id,
-        data.message,
-        data.tool_context,
-    )
-
-    try:
-        answer = await generate_with_timeout(
-            provider,
-            model_prompt,
-            timeout=AI_PROVIDER_TIMEOUT,
-            max_retries=2,
-        )
-    except AIProviderError as exc:
-        logger.error(
-            f"❌ AI provider failed: {exc}",
-            extra={"request_id": request_id},
-        )
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=str(exc),
-        ) from exc
-    except Exception as exc:
-        logger.exception(
-            f"❌ Unexpected AI error: {exc}",
-            extra={"request_id": request_id},
-        )
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="AI provider request failed",
-        ) from exc
-
-    # ─────────────────────────────────────────────────────────────────────
-    # STEP 5: SAVE MESSAGES TO DATABASE (atomic)
-    # ─────────────────────────────────────────────────────────────────────
-    try:
-        save_messages_and_log(
-            db,
-            conversation.id,
-            current_user.id,
-            data.message,
-            answer,
-            data.provider,
-        )
-    except SQLAlchemyError as exc:
-        logger.error(
-            f"❌ Failed to save messages: {exc}",
-            extra={
-                "request_id": request_id,
-                "conversation_id": conversation.id
+                record_safe_error(db, current_user.id, "ai.orchestration", type(exc).__name__,
+                                  "Orchestration failed before returning a verified result.")
+                orchestration_result = {"status": "FAILED", "error": type(exc).__name__}
+            context = {
+                "client_context": data.tool_context or {},
+                "orchestration": orchestration_result,
+                "intent": {"name": intent.name, "confidence": intent.confidence, "risk": intent.risk},
             }
-        )
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=DATABASE_ERROR_MSG,
-        )
-    
-    # ─────────────────────────────────────────────────────────────────────
-    # STEP 6: BROADCAST TO REALTIME (non-blocking)
-    # ─────────────────────────────────────────────────────────────────────
-    # Fire and forget - never let this break the response
-    asyncio.create_task(
-        notify_realtime_safe(
-            "NEW_MESSAGE",
-            {
-                "provider": data.provider,
-                "user_id": current_user.id,
-                "conversation_id": conversation.id,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-            },
-        )
-    )
-    
-    # ─────────────────────────────────────────────────────────────────────
-    # STEP 7: RETURN RESPONSE
-    # ─────────────────────────────────────────────────────────────────────
-    elapsed = time.time() - request_start
-    
-    logger.info(
-        "✅ Chat request completed",
-        extra={
-            "request_id": request_id,
-            "user_id": current_user.id,
-            "provider": data.provider,
-            "elapsed_ms": int(elapsed * 1000),
-        }
-    )
-    
-    return ChatResponse(
-        response=answer,
-        provider=data.provider,
-        request_id=request_id,
-        elapsed_ms=int(elapsed * 1000),
-    )
+            if str(orchestration_result.get("status", "")).upper() == "WAITING_APPROVAL":
+                answer = f"Kitendo {intent.name} kinasubiri idhini ya Boss Ferisi. Approval ID: {orchestration_result.get('approval_id', 'Haijathibitishwa')}."
+                provider_name = "orchestrator"
+            else:
+                answer, provider_name = await generate_reply_with_fallback(
+                    data.provider, build_model_prompt(db, conversation.id, data.message, context), timeout=10
+                )
+        else:
+            answer, provider_name = await generate_reply_with_fallback(
+                data.provider, build_model_prompt(db, conversation.id, data.message, context), timeout=10
+            )
+        try:
+            save_messages_and_log(db, conversation.id, current_user.id, data.message, answer, provider_name)
+        except SQLAlchemyError as exc:
+            record_safe_error(db, current_user.id, "ai.chat", "SAVE_MESSAGES_FAILED", type(exc).__name__)
+            await _set_ai_state(db, current_user.id, "ERROR", request_id, "Ujumbe haukuweza kuhifadhiwa.")
+            raise HTTPException(status_code=500, detail=DATABASE_ERROR_MSG) from exc
+        await _set_ai_state(db, current_user.id, "SPEAKING", request_id, "Jibu limetayarishwa.")
+        asyncio.create_task(notify_realtime_safe("NEW_MESSAGE", {
+            "provider": provider_name, "user_id": current_user.id, "conversation_id": conversation.id,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }))
+        return ChatResponse(response=answer, provider=provider_name, request_id=request_id,
+                            elapsed_ms=int((time.time() - request_start) * 1000))
+    except HTTPException as exc:
+        record_safe_error(db, current_user.id, "ai.chat", f"HTTP_{exc.status_code}", redact_sensitive_text(exc.detail, 350))
+        await _set_ai_state(db, current_user.id, "ERROR", request_id, "Ombi la AI limeshindwa; kagua error log.")
+        raise
+    except Exception as exc:
+        logger.warning("AI request failed: request_id=%s error_type=%s", request_id, type(exc).__name__)
+        record_safe_error(db, current_user.id, "ai.chat", type(exc).__name__, redact_sensitive_text(str(exc), 350))
+        await _set_ai_state(db, current_user.id, "ERROR", request_id, "Mtoa huduma wa AI ameshindwa kujibu.")
+        if isinstance(exc, ValueError) and "Unknown AI provider" in str(exc):
+            raise HTTPException(status_code=400, detail=f"Unknown provider: {data.provider}") from exc
+        raise HTTPException(status_code=502, detail=f"{PROVIDER_ERROR_MSG}: {type(exc).__name__}; {redact_sensitive_text(str(exc), 250)}") from exc
+
+
+@router.get("/state")
+async def ai_runtime_state(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
+    return await _load_ai_state(db, current_user.id)
+
+
+@router.post("/state")
+async def set_ai_runtime_state(payload: dict, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
+    state = str(payload.get("state") or "").strip().upper()
+    if state not in VALID_AI_STATES:
+        raise HTTPException(status_code=400, detail="state must be IDLE, THINKING, SPEAKING, or ERROR")
+    reasons = {"IDLE": "Hakuna ombi la AI linaloendelea.", "THINKING": "Ombi linafanyiwa kazi.",
+        "SPEAKING": "Jibu limetayarishwa kwa kuonyeshwa au kusomwa.", "ERROR": "Hatua ya AI imeshindwa."}
+    await _set_ai_state(db, current_user.id, state, None, reasons[state])
+    return await _load_ai_state(db, current_user.id)
+
 
 # ==============================================================================
 # CHAT HISTORY
 # ==============================================================================
 
 @router.get("/history")
-def chat_history(
+def chat_history(session_id: str | None = None, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
+    query = db.query(Conversation).filter(Conversation.user_id == current_user.id)
+    if session_id:
+        conversation = query.filter(Conversation.session_id == session_id).order_by(Conversation.id.desc()).first()
+    else:
+        conversation = query.filter(Conversation.session_id.is_(None)).order_by(Conversation.id.desc()).first()
+    if not conversation:
+        return {"conversation_id": None, "session_id": session_id, "messages": []}
+    rows = db.query(Message).filter(Message.conversation_id == conversation.id).order_by(Message.id.desc()).limit(MAX_CONVERSATION_CONTEXT).all()
+    rows.reverse()
+    return {"conversation_id": conversation.id, "session_id": conversation.session_id, "messages": [{
+        "id": row.id, "role": row.role, "content": row.content,
+        "created_at": row.created_at.isoformat() + "Z" if row.created_at and row.created_at.tzinfo is None
+            else row.created_at.isoformat() if row.created_at else None,
+    } for row in rows]}
+
+
+@router.get("/health", tags=["AI"])
+async def health_check(
+    provider: str = "gemini",
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> dict:
-    conversation = (
-        db.query(Conversation)
-        .filter(Conversation.user_id == current_user.id)
-        .order_by(Conversation.id.desc())
-        .first()
-    )
-    if not conversation:
-        return {"conversation_id": None, "messages": []}
+    """Perform a real, bounded provider call without returning credentials."""
+    started = time.perf_counter()
+    selected = str(provider or "").strip().lower()
+    if selected not in {"gemini", "kimi", "openrouter", "mistral", "grok"}:
+        raise HTTPException(status_code=400, detail="Unknown provider")
+    try:
+        instance = get_provider(selected)
+        result = await asyncio.wait_for(
+            instance.generate("Reply with exactly the word LIVE.", system_instruction="Return only the word LIVE."),
+            timeout=8,
+        )
+        if not isinstance(result, str) or not result.strip():
+            raise RuntimeError("Provider returned an empty response.")
+        return {"status": "LIVE", "provider": selected,
+            "latency_ms": round((time.perf_counter() - started) * 1000),
+            "tested_at": datetime.now(timezone.utc).isoformat(), "reason": None}
+    except Exception as exc:
+        reason = redact_sensitive_text(str(exc), 300) or type(exc).__name__
+        record_safe_error(db, current_user.id, "ai.health", type(exc).__name__, reason)
+        return {"status": "ERROR", "provider": selected,
+            "latency_ms": round((time.perf_counter() - started) * 1000),
+            "tested_at": datetime.now(timezone.utc).isoformat(), "reason": reason}
 
-    rows = (
-        db.query(Message)
-        .filter(Message.conversation_id == conversation.id)
-        .order_by(Message.id.desc())
-        .limit(MAX_CONVERSATION_CONTEXT)
-        .all()
-    )
-    rows.reverse()
-
-    return {
-        "conversation_id": conversation.id,
-        "messages": [
-            {
-                "id": row.id,
-                "role": row.role,
-                "content": row.content,
-                "created_at": row.created_at.isoformat() if row.created_at else None,
-            }
-            for row in rows
-        ],
-    }
-
-
-# ==============================================================================
-# HEALTH CHECK (for monitoring)
-# ==============================================================================
-
-@router.get("/health", tags=["AI"])
-async def health_check() -> dict:
-    """Check if AI endpoint is healthy"""
-    return {
-        "status": "healthy",
-        "service": "ai_chat",
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-    }
 
 # ==============================================================================
 # EXCEPTION HANDLERS
