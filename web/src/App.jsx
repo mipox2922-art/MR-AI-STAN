@@ -569,6 +569,7 @@ function App() {
         getMemories(),
         getActivity(),
         getGmailStatus(),
+        getAIState(),
       ]);
 
       const unauthorized = results.some(
@@ -581,7 +582,7 @@ function App() {
         return;
       }
 
-      const [statusResult, fleetResult, taskResult, memoryResult, activityResult, gmailResult] = results;
+      const [statusResult, fleetResult, taskResult, memoryResult, activityResult, gmailResult, aiStateResult] = results;
 
       if (statusResult.status === "fulfilled") {
         const status = statusResult.value;
@@ -622,6 +623,10 @@ function App() {
       }
       if (gmailResult.status === "fulfilled") {
         setGmailStatus(gmailResult.value);
+      }
+      if (aiStateResult.status === "fulfilled") {
+        const runtimeState = String(aiStateResult.value?.state || "").toUpperCase();
+        if (["IDLE", "THINKING", "SPEAKING", "ERROR"].includes(runtimeState)) setCoreState(runtimeState);
       }
 
       // Local Wi-Fi/BLE/ADB/Fastboot scans run only after an explicit user action.
@@ -691,20 +696,6 @@ function App() {
       browserConnection?.removeEventListener?.("change", refreshDataLink);
     };
   }, [authenticated, refresh, mode]);
-
-  useEffect(() => {
-    if (!authenticated) return undefined;
-    let active = true;
-    getAIState()
-      .then(result => {
-        const state = String(result?.state || "").toUpperCase();
-        if (active && ["IDLE", "THINKING", "SPEAKING", "ERROR"].includes(state)) setCoreState(state);
-      })
-      .catch(() => {
-        // The initial IDLE display is not a provider health claim.
-      });
-    return () => { active = false; };
-  }, [authenticated]);
 
   const telemetry = system?.telemetry || {};
   const services = system?.services || {};
