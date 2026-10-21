@@ -80,11 +80,6 @@ function finalizeAssistantReply(value, priorMessages, mode) {
     content = "Jibu lilikuwa na metadata ya ndani pekee, kwa hiyo halikuonyeshwa.";
   }
 
-  const unsupportedClaim = /(?:nime(?:kagua|angalia|chunguza|pima)|i have (?:checked|reviewed|inspected)|i(?:'ve| have) (?:checked|reviewed|inspected)).{0,70}\b(?:logs?|log files?|makosa ya mfumo|system errors?|source code|repository|database|bugs?)\b/i;
-  if (unsupportedClaim.test(content)) {
-    return "Ukaguzi huo haujaunganishwa kwa sasa. Ninaweza kutumia historia ya mazungumzo haya, orodha ya kazi na telemetry iliyopokelewa tu.";
-  }
-
   const previousAssistant = [...priorMessages].reverse().find(item => item.role === "assistant");
   if (previousAssistant && isGenericGreeting(content) && isGenericGreeting(previousAssistant.content)) {
     return "Nimekupata. Tuendelee na mada ya awali.";
@@ -260,15 +255,12 @@ export default function Chat({
 
     if (sending) return;
 
-    const localCapabilityReply = getUnsupportedCapabilityReply(text);
-    const acknowledgementReply = getAcknowledgementReply(text);
     const modeStatusReply = getModeStatusReply(text, mode);
-    if (localCapabilityReply || acknowledgementReply || modeStatusReply) {
-      const content = localCapabilityReply || modeStatusReply || acknowledgementReply;
+    if (modeStatusReply) {
       setMessages(prev => [
         ...prev,
         { role: "user", content: text },
-        { role: "assistant", content: sanitizeAssistantMessage(content) }
+        { role: "assistant", content: modeStatusReply }
       ]);
       setMessage("");
       return;
