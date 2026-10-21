@@ -344,6 +344,7 @@ function Radar({ findings = [], onRadarScan, sensorStatus = {}, onOpenDevice }) 
         </div>
       </div>
 
+      {!findings.length && <div className="cc-radar-bridge-note">NO SENSOR DATA UNTIL DEVICE BRIDGE IS CONNECTED.</div>}
       <div className="cc-radar-status"><span>{scanState}</span><strong>{findings.length ? "SENSOR RESULTS RECEIVED" : "NO SENSOR RESULTS"}</strong></div>
       {scanError && <div className="cc-radar-error" role="status">{scanError}</div>}
       <details className="cc-radar-details">
@@ -1377,8 +1378,6 @@ export default function DashboardHome({
         </div>
       </div>
 
-      <ExecutiveMorningBrief system={system} gmailStatus={gmailStatus} tasks={tasks} agents={agents} onOpenAgents={onOpenAgents} onOpenTasks={onOpenTasks} onOpenGmail={onOpenGmail} onOpenJobs={onOpenJobs} />
-
       <div className="cc-top-grid">
         <Panel eyebrow="TELEMETRY YA BACKEND" title="Hali ya Runtime">
           <SystemStatus
@@ -1427,17 +1426,21 @@ export default function DashboardHome({
         </Panel>
       </div>
 
-      <details className="cc-dashboard-drawer cc-mission-drawer">
-        <summary>
-          <span><strong>MISSION CONTROL</strong><small>Panga kazi na uone matokeo ya mawakala</small></span>
-          <b>FUNGUA <span aria-hidden="true">＋</span></b>
-        </summary>
-        <Panel eyebrow="MISSION CONTROL" title="Wape Mawakala Kazi" badge="MATOKEO YALIYOTHIBITISHWA" className="cc-mission-workbench-panel">
-          <MissionWorkbench onMissionUpdate={handleMissionUpdate} />
-        </Panel>
-      </details>
-
       <QuickCommands system={system} />
+
+      <div className="cc-bottom-content">
+        <ExecutiveMorningBrief system={system} gmailStatus={gmailStatus} tasks={tasks} agents={agents} onOpenAgents={onOpenAgents} onOpenTasks={onOpenTasks} onOpenGmail={onOpenGmail} onOpenJobs={onOpenJobs} />
+
+        <details className="cc-dashboard-drawer cc-mission-drawer">
+          <summary>
+            <span><strong>MISSION CONTROL</strong><small>Panga kazi na uone matokeo ya mawakala</small></span>
+            <b>FUNGUA <span aria-hidden="true">＋</span></b>
+          </summary>
+          <Panel eyebrow="MISSION CONTROL" title="Wape Mawakala Kazi" badge="MATOKEO YALIYOTHIBITISHWA" className="cc-mission-workbench-panel">
+            <MissionWorkbench onMissionUpdate={handleMissionUpdate} />
+          </Panel>
+        </details>
+      </div>
 
 
     </div>
