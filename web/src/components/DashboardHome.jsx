@@ -174,7 +174,8 @@ function SystemStatus({ telemetry, telemetryHistory, connectionState, lastRefres
 }
 
 function MissionOverview({ tasks = [] }) {
-  const active = tasks.filter(t => !["COMPLETED", "FAILED"].includes(String(t.status || "").toUpperCase()));
+  const summary = getTaskSummary(tasks);
+  const active = tasks.filter(isTaskInProgress);
   const values = active.slice(0, 16).map(t => pct(t.progress)).filter(v => v !== null);
   const chart = values.length
     ? values.map((v, i) => {
@@ -183,7 +184,7 @@ function MissionOverview({ tasks = [] }) {
         return `${x.toFixed(1)},${y.toFixed(1)}`;
       }).join(" ")
     : "";
-  const focus = active[0]?.title || tasks[0]?.title || "NO ACTIVE MISSION";
+  const focus = active[0]?.title || "NO ACTIVE MISSION";
 
   return (
     <div className="cc-mission">
@@ -191,7 +192,7 @@ function MissionOverview({ tasks = [] }) {
         <p>Muhtasari wa kazi zilizorekodiwa na maendeleo yaliyothibitishwa.</p>
         <span>KAZI INAYOANGALIWA</span>
         <strong>{focus === "NO ACTIVE MISSION" ? "Hakuna kazi inayoendelea" : focus}</strong>
-        <small className="cc-mission-summary">{active.length} ZINAENDELEA · {tasks.length} JUMLA</small>
+        <small className="cc-mission-summary">{summary.inProgress} ZINAENDELEA · {tasks.length} JUMLA</small>
       </div>
       <div className="cc-mission-graph">
         <div className="cc-graph-grid" />
@@ -469,37 +470,32 @@ function WebResearch({ available = false }) {
   );
 }
 
-function QuickCommands({ system = null }) {
+function QuickCommands({ system = null, working = false }) {
   const services = system?.services || {};
   const aiConfigured = services.ai_core === "CONFIGURED";
   const webConfigured = services.web_search === "CONFIGURED";
   const securityConfigured = services.security === "CONFIGURED";
   const commands = [
-    { icon: "⌕", label: "SCAN SYSTEM", kind: "dispatch", command: "scan my system status" },
-    ...(aiConfigured ? [
-      { icon: "◫", label: "ANALYZE DATA", kind: "ai", prompt: "Analyze the verified MR AI backend runtime telemetry below. Give concise observations and explicitly distinguish the Render backend host from the owner's personal PC. Do not claim any configuration changed." },
-    ] : []),
-    ...(webConfigured ? [
-      { icon: "◎", label: "WEB RESEARCH", kind: "search", query: "latest technology trends in AI and automation" },
-    ] : []),
-    ...(aiConfigured ? [
-      { icon: "▣", label: "GENERATE REPORT", kind: "ai", prompt: "Generate a concise executive report for BOSS FERISI using only the runtime telemetry and service status provided. Include confirmed facts, unknowns, and next actions. Do not invent results." },
-    ] : []),
-    ...(securityConfigured ? [
-      { icon: "◈", label: "SECURITY CHECK", kind: "dispatch", command: "run a security audit check" },
-    ] : []),
-    ...(aiConfigured ? [
-      { icon: "⚙", label: "OPTIMIZE", kind: "ai", prompt: "Review the verified MR AI backend telemetry and service state. Recommend up to three safe, specific optimizations. Do not claim to execute changes." },
-    ] : []),
+    { icon: "⌕", label: "SCAN SYSTEM", kind: "scan" },
+    { icon: "◫", label: "ANALYZE DATA", kind: "ai", prompt: "Analyze the verified MR AI backend runtime telemetry below. Give concise observations and explicitly distinguish the Render backend host from the owner's personal PC. Do not claim any configuration changed." },
+    { icon: "◎", label: "WEB RESEARCH", kind: "search", query: "latest technology trends in AI and automation" },
+    { icon: "▣", label: "GENERATE REPORT", kind: "ai", prompt: "Generate a concise executive report for BOSS FERISI using only the runtime telemetry and service status provided. Include confirmed facts, unknowns, and next actions. Do not invent results." },
+    { icon: "◈", label: working ? "SECURITY SCAN" : "SECURITY CHECK", kind: "security", command: "run a security audit check" },
+    { icon: "⚙", label: "OPTIMIZE", kind: "ai", prompt: "Review the verified MR AI backend telemetry and service state. Recommend up to three safe, specific optimizations. Do not claim to execute changes." },
   ];
   const [state, setState] = useState("READY");
   const [busy, setBusy] = useState("");
   const [resultText, setResultText] = useState("");
 
+  function showNotConnected(label, detail) {
+    setState(label + " · NOT CONNECTED");
+    setResultText("NOT CONNECTED: " + detail);
+  }
+
   async function run(command) {
     if (busy) return;
     setBusy(command.label);
-    setState(`RUNNING · ${command.label}`);
+    setState("RUNNING · " + command.label);
     setResultText("");
     try {
       const runtimeContext = {
@@ -509,7 +505,42 @@ function QuickCommands({ system = null }) {
         ai: system?.ai || {},
       };
       let result;
-      if (command.kind === "dispatch") {
+
+      if (command.kind === "scan") {
+        if (!system) {
+          showNotConnected(command.label, "Backend system status has not been received.");
+          return;
+        }
+        const t = runtimeContext.telemetry;
+        const metric = value => finiteNumber(value) === null ? "N/A" : value + "%";
+        setState(command.label + " · COMPLETED");
+        setResultText([
+          "VERIFIED BACKEND STATUS (not personal-PC telemetry)",
+          "CPU: " + metric(t.cpu_percent),
+          "Memory: " + metric(t.memory_percent),
+          "Storage: " + metric(t.storage_percent),
+          "GPU: " + metric(t.gpu?.utilization_percent),
+          "Database: " + (runtimeContext.services.database || "UNKNOWN"),
+          "AI Core: " + (runtimeContext.services.ai_core || "UNKNOWN"),
+          "Web search: " + (runtimeContext.services.web_search || "UNKNOWN"),
+        ].join("\n"));
+        return;
+      }
+
+      if (command.kind === "ai" && !aiConfigured) {
+        showNotConnected(command.label, "AI Core is not configured in the backend service status.");
+        return;
+      }
+      if (command.kind === "search" && !webConfigured) {
+        showNotConnected(command.label, "Web research is not connected in the backend service status.");
+        return;
+      }
+      if (command.kind === "security" && !securityConfigured) {
+        showNotConnected(command.label, "No connected security audit engine is available.");
+        return;
+      }
+
+      if (command.kind === "security") {
         result = await dispatchTool(command.command);
       } else if (command.kind === "search") {
         result = await searchToolWeb(command.query);
@@ -517,11 +548,16 @@ function QuickCommands({ system = null }) {
         result = await chat(command.prompt + "\n\nVERIFIED RUNTIME DATA:\n" + JSON.stringify(runtimeContext), "openrouter", {
           status: "RUNTIME_CONTEXT",
           result: runtimeContext,
+          allowed_capabilities: {
+            read_conversation: false,
+            read_task_list: false,
+            read_telemetry: true,
+          },
         });
       }
 
       const status = String(result?.status || (result?.response ? "COMPLETED" : "RESPONSE RECEIVED")).toUpperCase();
-      setState(`${command.label} · ${status}`);
+      setState(command.label + " · " + status);
 
       if (result?.response) {
         setResultText(result.response);
@@ -529,26 +565,26 @@ function QuickCommands({ system = null }) {
         const t = result.result.telemetry;
         setResultText([
           "Backend host telemetry snapshot (not personal PC metrics):",
-          `CPU: ${finiteNumber(t.cpu_percent) === null ? "N/A" : t.cpu_percent + "%"}`,
-          `Memory: ${finiteNumber(t.memory_percent) === null ? "N/A" : t.memory_percent + "%"}`,
-          `Storage: ${finiteNumber(t.storage_percent) === null ? "N/A" : t.storage_percent + "%"}`,
-          `GPU: ${finiteNumber(t.gpu?.utilization_percent) === null ? "N/A" : t.gpu.utilization_percent + "%"}`,
-          `Database: ${result.result.services?.database || "UNKNOWN"}`,
-          `AI Core: ${result.result.services?.ai_core || "UNKNOWN"}`,
+          "CPU: " + (finiteNumber(t.cpu_percent) === null ? "N/A" : t.cpu_percent + "%"),
+          "Memory: " + (finiteNumber(t.memory_percent) === null ? "N/A" : t.memory_percent + "%"),
+          "Storage: " + (finiteNumber(t.storage_percent) === null ? "N/A" : t.storage_percent + "%"),
+          "GPU: " + (finiteNumber(t.gpu?.utilization_percent) === null ? "N/A" : t.gpu.utilization_percent + "%"),
+          "Database: " + (result.result.services?.database || "UNKNOWN"),
+          "AI Core: " + (result.result.services?.ai_core || "UNKNOWN"),
         ].join("\n"));
       } else if (Array.isArray(result?.results)) {
         setResultText(result.results.length
-          ? result.results.slice(0, 4).map((item, index) => `${index + 1}. ${item.title || item.url || "Untitled source"}\n${item.url || ""}`).join("\n\n")
+          ? result.results.slice(0, 4).map((item, index) => (index + 1) + ". " + (item.title || item.url || "Untitled source") + "\n" + (item.url || "")).join("\n\n")
           : result.message || "No verified web results were returned.");
       } else if (result?.message) {
         setResultText(result.message);
       } else if (result?.route?.tool) {
-        setResultText(`Tool selected: ${result.route.tool}. Status: ${status}. ${result.message || "Review the connected hand status before assuming the action ran."}`);
+        setResultText("Tool selected: " + result.route.tool + ". Status: " + status + ". " + (result.message || "Review the connected hand status before assuming the action ran."));
       } else {
         setResultText(JSON.stringify(result, null, 2).slice(0, 1800));
       }
     } catch (error) {
-      setState(`${command.label} · ERROR`);
+      setState(command.label + " · ERROR");
       setResultText(error?.message || "Command failed.");
     } finally {
       setBusy("");
@@ -567,7 +603,6 @@ function QuickCommands({ system = null }) {
             <span>{command.icon}</span><strong>{command.label}</strong>
           </button>
         ))}
-        
       </div>
       {resultText && <div className="cc-quick-result" role="status" aria-live="polite"><strong>COMMAND OUTPUT</strong><pre>{resultText}</pre></div>}
     </section>
@@ -647,35 +682,25 @@ function AgentFleet({ agents = [], tasks = [], missionSnapshot = null, onOpenAge
     : Array.isArray(missionSnapshot?.plan?.steps)
       ? missionSnapshot.plan.steps
       : [];
-  const workingStatuses = ["RUNNING", "IN_PROGRESS", "WORKING", "EXECUTING"];
-  const waitingStatuses = ["WAITING", "WAITING_FOR_HAND", "WAITING_FOR_VERIFICATION"];
-  const activeTaskCount = tasks.filter(task => workingStatuses.includes(String(task.status || "").toUpperCase())).length;
-  const waitingTaskCount = tasks.filter(task => waitingStatuses.includes(String(task.status || "").toUpperCase())).length;
-  const waitingCount = waitingTaskCount + steps.filter(step => waitingStatuses.includes(String(step.status || "").toUpperCase())).length;
+  const summary = getTaskSummary(tasks, agents);
+
   function assignmentFor(agent) {
-    const id = String(agent.id || "").toLowerCase().trim();
-    const name = String(agent.name || "").toLowerCase().trim();
-    return tasks.filter(task => {
-      const owner = String(task.agent || "").toLowerCase().trim();
-      return owner === id || owner === name || owner.replaceAll(" ", "_") === id;
-    }).sort((a, b) => {
-      const aWorking = workingStatuses.includes(String(a.status || "").toUpperCase()) ? 1 : 0;
-      const bWorking = workingStatuses.includes(String(b.status || "").toUpperCase()) ? 1 : 0;
+    return tasks.filter(task => taskBelongsToAgent(task, agent)).sort((a, b) => {
+      const aWorking = isTaskInProgress(a) ? 1 : 0;
+      const bWorking = isTaskInProgress(b) ? 1 : 0;
       return bWorking - aWorking;
     })[0] || null;
   }
 
   function priorityFor(agent) {
-    const id = String(agent.id || "").toLowerCase();
     const task = assignmentFor(agent);
-    const taskStatus = String(task?.status || "").toUpperCase();
+    const activeTask = getActiveTaskForAgent(agent, tasks);
+    if (activeTask) return 100;
+    if (task && isTaskWaiting(task)) return 80;
+    const id = String(agent.id || "").toLowerCase();
     const step = [...steps].reverse().find(item => String(item.agent || "").toLowerCase() === id);
-    const stepStatus = String(step?.status || "").toUpperCase();
-    if (workingStatuses.includes(taskStatus) || ["RUNNING", "IN_PROGRESS", "WORKING", "EXECUTING"].includes(stepStatus)) return 100;
-    if (waitingStatuses.includes(taskStatus) || waitingStatuses.includes(stepStatus)) return 80;
-    if (step && stepStatus !== "PLANNED") return 70;
-    if (task) return 50;
     if (step) return 40;
+    if (task) return 50;
     return 0;
   }
 
@@ -686,24 +711,21 @@ function AgentFleet({ agents = [], tasks = [], missionSnapshot = null, onOpenAge
     <div className="cc-agent-fleet-wrap">
       <div className="cc-agent-fleet-summary">
         <div><span>MAWAKALA WALIOSAJILIWA</span><strong>{agents.length}</strong></div>
-        <div><span>WANAFANYA KAZI SASA</span><strong>{activeTaskCount}</strong></div>
+        <div><span>WANAFANYA KAZI SASA</span><strong>{summary.workingNow}</strong></div>
         <div><span>KAZI ZILIZOREKODIWA</span><strong>{tasks.length}</strong></div>
-        <div><span>ZINAZOSUBIRI MUUNGANISHO</span><strong>{waitingCount}</strong></div>
+        <div><span>ZINAZOSUBIRI MUUNGANISHO</span><strong>{summary.waiting}</strong></div>
       </div>
       <div className="cc-agent-fleet-grid">
         {visibleAgents.map(agent => {
           const id = String(agent.id || "").toLowerCase();
           const task = assignmentFor(agent);
-          const step = [...steps].reverse().find(item => String(item.agent || "").toLowerCase() === id);
-          let rawState = "STANDBY";
-          let currentWork = "Hakuna kazi iliyopangiwa kwa sasa";
-          if (step) {
-            rawState = String(step.status || "PLANNED").toUpperCase();
-            currentWork = step.evidence?.message || step.tool || (Array.isArray(step.tools) ? step.tools.slice(0, 2).join(" · ") : "") || "Hatua imepangwa";
-          } else if (task) {
-            rawState = String(task.status || "PENDING").toUpperCase();
-            currentWork = task.title || "Kazi iliyopangiwa";
-          }
+          const activeTask = getActiveTaskForAgent(agent, tasks);
+          const rawState = activeTask ? "IN_PROGRESS" : "STANDBY";
+          const currentWork = activeTask?.title || (
+            task && isTaskWaiting(task)
+              ? (task.title || "Kazi inasubiri")
+              : "Hakuna kazi iliyopangiwa kwa sasa"
+          );
           const statusClass = rawState.toLowerCase().replaceAll("_", "-");
           const glyph = id === "device" ? "⌁" : id === "creative" ? "✦" : id === "research" ? "◎" : id === "security" ? "◈" : id === "orchestrator" ? "MR" : "◆";
           return (
@@ -1004,8 +1026,6 @@ function ActiveTasks({ tasks = [] }) {
 
 function AgentCrewRoster({ agents = [], tasks = [], onOpenAgents }) {
   const visibleAgents = agents.slice(0, 8);
-  const activeStatuses = new Set(["RUNNING", "IN_PROGRESS", "WORKING", "EXECUTING"]);
-  const terminalStatuses = new Set(["COMPLETED", "FAILED", "CANCELLED"]);
 
   function agentName(agent) {
     const id = String(agent?.id || "").toLowerCase();
@@ -1043,54 +1063,20 @@ function AgentCrewRoster({ agents = [], tasks = [], onOpenAgents }) {
     return descriptions[id] || agent?.description || "Mwakala maalumu wa MR AI.";
   }
 
-  function assignedTasks(agent) {
-    const id = String(agent?.id || "").toLowerCase().trim();
-    const name = String(agent?.name || "").toLowerCase().trim();
-    return tasks.filter(task => {
-      const owner = String(task?.agent || "").toLowerCase().trim();
-      return owner === id || owner === name || (id && owner.replaceAll(" ", "_") === id);
-    });
-  }
-
   function statusFor(agent) {
-    const assigned = assignedTasks(agent);
-    const readStatus = task => String(task?.status || "WAITING").toUpperCase();
-    const active = assigned.find(task => activeStatuses.has(readStatus(task)));
-    if (active) return {
-      label: "INAENDELEA",
-      tone: "active",
-      task: active.title || "Kazi inaendelea",
-    };
-
-    const waiting = assigned.find(task =>
-      ["PENDING", "WAITING", "WAITING_FOR_HAND", "WAITING_FOR_VERIFICATION", "WAITING_APPROVAL", "PLANNED"].includes(readStatus(task))
-    );
-    if (waiting) return {
-      label: "INASUBIRI",
-      tone: "waiting",
-      task: waiting.title || "Kazi inasubiri kuanza.",
-    };
-
-    // Failed/error states are terminal, so check them explicitly before the
-    // generic non-terminal fallback. Otherwise they incorrectly appear idle.
-    const failed = assigned.find(task => /FAILED|ERROR|REJECTED/.test(readStatus(task)));
-    if (failed) return {
-      label: "INAHITAJI UKAGUZI",
-      tone: "blocked",
-      task: failed.title || "Kazi imeripoti tatizo.",
-    };
-
-    const current = assigned.find(task => !terminalStatuses.has(readStatus(task)));
-    if (!current) return {
-      label: "INASUBIRI KAZI",
-      tone: "idle",
-      task: "Hakuna mission inayoendelea kwa wakala huyu.",
-    };
+    const active = getActiveTaskForAgent(agent, tasks);
+    if (active) {
+      return {
+        label: "INAENDELEA",
+        tone: "active",
+        task: active.title || "Kazi inaendelea",
+      };
+    }
 
     return {
-      label: readStatus(current).replaceAll("_", " "),
-      tone: "waiting",
-      task: current.title || "Kazi imepangwa.",
+      label: "INASUBIRI KAZI",
+      tone: "idle",
+      task: "Hakuna kazi ya IN_PROGRESS iliyopangiwa kwa wakala huyu.",
     };
   }
 
@@ -1114,7 +1100,7 @@ function AgentCrewRoster({ agents = [], tasks = [], onOpenAgents }) {
                   <strong>{agentName(agent)}</strong>
                   <span className={"cc-exec-agent-state state-" + status.tone}>{status.label}</span>
                 </div>
-                <p>{status.task === "Hakuna mission inayoendelea kwa wakala huyu." ? agentDescription(agent) : status.task}</p>
+                <p>{status.tone === "idle" ? agentDescription(agent) : status.task}</p>
               </article>
             );
           })}
@@ -1157,8 +1143,8 @@ function ExecutiveMorningBrief({ system, gmailStatus, tasks = [], agents = [], o
 
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "GOOD MORNING, BOSS" : hour < 17 ? "GOOD AFTERNOON, BOSS" : "GOOD EVENING, BOSS";
-  const agentSummary = briefing?.agents || {};
-  const taskSummary = briefing?.tasks || {};
+  const taskSummary = getTaskSummary(tasks, agents);
+  const agentSummary = { total: agents.length, working: taskSummary.workingNow };
   const recent = Array.isArray(briefing?.recent_activity) ? briefing.recent_activity.slice(0, 5) : [];
   const jobTasks = tasks.filter(task => String(task?.agent || "").toLowerCase() === "jobs");
   const gmailState = String(gmailStatus?.status || system?.services?.gmail || "UNKNOWN").replaceAll("_", " ");
@@ -1168,10 +1154,10 @@ function ExecutiveMorningBrief({ system, gmailStatus, tasks = [], agents = [], o
   function briefingSpeechText() {
     const greetingText = hour < 12 ? "Good morning, Boss." : hour < 17 ? "Good afternoon, Boss." : "Good evening, Boss.";
     const agentsText = Number.isFinite(agentSummary.total)
-      ? (agentSummary.working || 0) + " agents working out of " + agentSummary.total + " registered."
+      ? taskSummary.workingNow + " agents working out of " + agentSummary.total + " registered."
       : "Agent status is not available yet.";
     const tasksText = Number.isFinite(taskSummary.completed)
-      ? taskSummary.completed + " tasks completed, " + (taskSummary.working || 0) + " in progress, " + (taskSummary.waiting || 0) + " waiting, and " + (taskSummary.failed || 0) + " failed."
+      ? taskSummary.completed + " tasks completed, " + taskSummary.inProgress + " in progress, " + taskSummary.waiting + " waiting, and " + taskSummary.failed + " failed."
       : "Task summary is not available yet.";
     const priorityText = briefing?.next_action || "No next action has been reported.";
     const gmailText = gmailConnected ? "Gmail is connected, but message and reply totals have not been verified in this briefing." : "Gmail is " + gmailState + ".";
@@ -1279,9 +1265,9 @@ function ExecutiveMorningBrief({ system, gmailStatus, tasks = [], agents = [], o
           <h2>Boss, next priorities</h2>
           <p>{briefing?.next_action || "Waiting for a verified briefing from the backend."}</p>
           <div className="cc-exec-priority-stats">
-            <div><span>IN PROGRESS</span><strong>{Number.isFinite(taskSummary.working) ? taskSummary.working : "N/A"}</strong></div>
-            <div><span>WAITING</span><strong>{Number.isFinite(taskSummary.waiting) ? taskSummary.waiting : "N/A"}</strong></div>
-            <div><span>FAILED</span><strong className={taskSummary.failed > 0 ? "exec-warn-text" : ""}>{Number.isFinite(taskSummary.failed) ? taskSummary.failed : "N/A"}</strong></div>
+            <div><span>IN PROGRESS</span><strong>{taskSummary.inProgress}</strong></div>
+            <div><span>WAITING</span><strong>{taskSummary.waiting}</strong></div>
+            <div><span>FAILED</span><strong className={taskSummary.failed > 0 ? "exec-warn-text" : ""}>{taskSummary.failed}</strong></div>
           </div>
           {blockers.length ? (
             <div className="cc-exec-blockers"><strong>NEEDS ATTENTION · {blockers.length}</strong>{blockers.slice(0, 3).map((blocker, index) => <p key={blocker.type || index}>{blocker.message || blocker.type}</p>)}</div>
@@ -1312,6 +1298,8 @@ export default function DashboardHome({
   activities = [],
   gmailStatus = null,
   coreState = "IDLE",
+  coreStatus = "IDLE",
+  mode = "normal",
   working = false,
   onRefresh,
   telemetryHistory = [],
@@ -1330,7 +1318,8 @@ export default function DashboardHome({
   const telemetry = system?.telemetry || {};
   const services = system?.services || {};
   const uptime = formatUptime(telemetry.uptime_seconds);
-  const activeCount = tasks.filter(t => !["COMPLETED", "FAILED"].includes(String(t.status || "").toUpperCase())).length;
+  const taskSummary = getTaskSummary(tasks, agents);
+  const activeCount = taskSummary.inProgress;
   const [missionSnapshot, setMissionSnapshot] = useState(null);
 
   function handleMissionUpdate(snapshot) {
@@ -1353,10 +1342,16 @@ export default function DashboardHome({
           <div className="cc-logo">MR AI</div>
           <div className="cc-title">COMMAND CENTER</div>
         </div>
-        <div className="cc-mode-chip">
+        <button
+          type="button"
+          className="cc-mode-chip"
+          onClick={() => onModToggle?.(mode !== "working")}
+          aria-label="Toggle NORMAL MODE / WORKING MODE"
+          style={{ background: "transparent", border: 0, padding: 0, color: "inherit", font: "inherit", cursor: "pointer" }}
+        >
           <span className="cc-mode-dot" />
-          <strong>{working ? "WORKING MODE" : "NORMAL MODE"}</strong>
-        </div>
+          <strong>{mode === "working" ? "WORKING MODE" : mode === "sleep" ? "SLEEP MODE" : "NORMAL MODE"}</strong>
+        </button>
         <div className="cc-header-right">
           <div className="cc-header-tools" aria-hidden="true">
             <span>♧</span>
@@ -1399,7 +1394,7 @@ export default function DashboardHome({
               <div><span>HALI</span><strong>{topReadout.status}</strong></div>
               <div><span>KAZI HAI</span><strong>{topReadout.active}</strong></div>
             </div>
-            <HudOrb state={coreState} working={working} />
+            <HudOrb state={coreStatus} working={coreStatus === "WORKING"} />
           </div>
         </Panel>
 
@@ -1418,7 +1413,15 @@ export default function DashboardHome({
         </Panel>
 
         <Panel eyebrow="MR AI CHAT" title="Mazungumzo na MR AI" className="cc-chat-panel">
-          <Chat onState={onState} onModToggle={onModToggle} onPowerCommand={onPowerCommand} />
+          <Chat
+            onState={onState}
+            onModToggle={onModToggle}
+            onPowerCommand={onPowerCommand}
+            mode={mode}
+            coreStatus={coreStatus}
+            tasks={tasks}
+            telemetry={telemetry}
+          />
         </Panel>
 
         <Panel eyebrow="WEB RESEARCH" title="Utafutaji wa Mtandaoni" className="cc-research-panel">
@@ -1426,7 +1429,7 @@ export default function DashboardHome({
         </Panel>
       </div>
 
-      <QuickCommands system={system} />
+      <QuickCommands system={system} working={working} />
 
       <div className="cc-bottom-content">
         <ExecutiveMorningBrief system={system} gmailStatus={gmailStatus} tasks={tasks} agents={agents} onOpenAgents={onOpenAgents} onOpenTasks={onOpenTasks} onOpenGmail={onOpenGmail} onOpenJobs={onOpenJobs} />
