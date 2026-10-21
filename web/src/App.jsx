@@ -523,6 +523,22 @@ function App() {
 
   const authenticated = Boolean(token);
 
+  const dashboardRootRef = useRef(null);
+
+  useEffect(() => {
+    const root = dashboardRootRef.current;
+    if (!root || active !== "dashboard" || !authenticated) return undefined;
+
+    const updateCanvasScale = () => {
+      const scale = Math.min(window.innerWidth / 1536, window.innerHeight / 1024);
+      root.style.setProperty("--dashboard-canvas-scale", String(scale));
+    };
+
+    updateCanvasScale();
+    window.addEventListener("resize", updateCanvasScale, { passive: true });
+    return () => window.removeEventListener("resize", updateCanvasScale);
+  }, [active, authenticated]);
+
   const refresh = useCallback(async () => {
     if (!getToken() || refreshInFlight.current) return;
     refreshInFlight.current = true;
@@ -770,7 +786,7 @@ function App() {
   }
 
   return (
-    <div className={`app-shell ${working ? "mode-working" : ""} ${sleeping ? "mode-sleep" : ""}`}>
+    <div ref={dashboardRootRef} className={`app-shell ${active === "dashboard" ? "dashboard-canvas-shell" : ""} ${working ? "mode-working" : ""} ${sleeping ? "mode-sleep" : ""}`}>
       <div className="mrai-ambient" aria-hidden="true">
         <svg viewBox="-300 -300 600 600">
           <circle r="290" strokeDasharray="2 8" />
