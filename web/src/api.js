@@ -221,6 +221,13 @@ export function getActivity() {
   return request("/activity");
 }
 
+export function recordActivityEvent(event) {
+  return request("/activity/events", {
+    method: "POST",
+    body: JSON.stringify(event),
+  });
+}
+
 export function getTasks() {
   return request("/tasks");
 }
