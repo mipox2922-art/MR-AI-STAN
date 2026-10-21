@@ -141,7 +141,7 @@ chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => 
     const response = await chrome.tabs.sendMessage(tabId, payload);
     if (!response?.ok) throw new Error(response?.error || "Browser action failed.");
     // Unwrap content-script response; don't let a nested {ok,result} look like verified success.
-    return response.result;
+    return { ...response.result, targetHost: currentHost };
   })()
     .then(result => sendResponse(result || { ok: false, error: "Empty extension response." }))
     .catch(error => sendResponse({
