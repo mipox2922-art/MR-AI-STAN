@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..dependencies import get_current_user
-from ..models import ActivityLog, Task
+from ..models import ActivityLog, ApprovalRequest, Task
 from ..routers.system import system_status
 from ..agents.registry import AGENTS
 from ..orchestration.planner import build_plan
@@ -24,6 +24,7 @@ def list_agents(current_user=Depends(get_current_user)):
             "description": agent.description,
             "capabilities": list(agent.capabilities),
             "tools": list(agent.tools),
+            "capability_count": len(agent.tools),
             "risk": agent.risk,
         }
         for agent in AGENTS
@@ -156,29 +157,32 @@ def execute_agent_action(
         title = str(payload.get("title", "")).strip()
         if not title:
             raise HTTPException(400, "title is required")
+        agent_id = str(payload.get("agent", "orchestrator")).strip() or "orchestrator"
         task = Task(
-            user_id=current_user.id,
-            title=title,
+            user_id=current_user.id, title=title,
             description=str(payload.get("description", "")).strip(),
             priority=str(payload.get("priority", "NORMAL")).upper(),
-            agent=str(payload.get("agent", "orchestrator")).strip() or "orchestrator",
+            agent=agent_id, status="WAITING_APPROVAL", source="agent",
+            requested_by=f"agent:{agent_id}", progress=0,
         )
         db.add(task)
-        db.add(ActivityLog(
-            user_id=current_user.id,
-            action="AGENT_TASK_CREATED",
-            details=title,
-        ))
+        db.flush()
+        approval = ApprovalRequest(
+            user_id=current_user.id, action="AGENT_TASK_PROPOSAL",
+            payload=json.dumps({"task_id": task.id, "agent": agent_id}, ensure_ascii=False),
+            status="PENDING",
+        )
+        db.add(approval)
+        db.add(ActivityLog(user_id=current_user.id, action="AGENT_TASK_PROPOSED",
+            details=f"task_id={task.id}; source=agent"))
         db.commit()
         db.refresh(task)
+        db.refresh(approval)
         return {
-            "status": "COMPLETED",
-            "action": action,
-            "result": {
-                "task_id": task.id,
-                "title": task.title,
-                "agent": task.agent,
-            },
+            "status": "WAITING_APPROVAL", "action": action, "approval_id": approval.id,
+            "message": "Wakala amependekeza kazi; haijaanza kutekelezwa. Boss Ferisi lazima aidhinishe.",
+            "result": {"task_id": task.id, "title": task.title, "agent": task.agent,
+                "status": task.status, "source": task.source},
         }
 
     if action in {"browser", "device", "gmail", "creative", "coding"}:
