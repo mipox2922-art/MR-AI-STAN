@@ -214,7 +214,7 @@ export function setAIState(state) {
 
 export function getAIHealth(provider = "gemini") {
   const params = new URLSearchParams({ provider });
-  return request("/ai/health?" + params.toString(), {}, TOOL_API_TIMEOUT_MS);
+  return request("/api/ai/health?" + params.toString(), {}, TOOL_API_TIMEOUT_MS);
 }
 
 export function getActivity() {
