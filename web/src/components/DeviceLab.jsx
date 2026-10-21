@@ -24,7 +24,7 @@ export default function DeviceLab() {
   async function run(label, fn) {
     if (running) return;
     const action = String(label || "DEVICE_ACTION").toUpperCase().replace(/[^A-Z0-9_.:-]/g, "_").slice(0, 80);
-    const requestId = \`device-\${Date.now()}-\${Math.random().toString(36).slice(2)}\`;
+    const requestId = `device-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
     try {
       await recordActivityEvent({
@@ -36,7 +36,7 @@ export default function DeviceLab() {
     }
 
     const approved = window.confirm(
-      \`BOSS FERISI: Idhini inahitajika kwa kila kitendo cha Device Lab.\n\nKitendo: \${label}\nKifaa kilichochaguliwa: \${selected || "hakijachaguliwa"}\n\nKuendelea?\`
+      `BOSS FERISI: Idhini inahitajika kwa kila kitendo cha Device Lab.\n\nKitendo: ${label}\nKifaa kilichochaguliwa: ${selected || "hakijachaguliwa"}\n\nKuendelea?`
     );
     if (!approved) {
       await recordActivityEvent({
