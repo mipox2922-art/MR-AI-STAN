@@ -176,6 +176,8 @@ def execute_agent_action(
         if not title:
             raise HTTPException(400, "title is required")
         agent_id = str(payload.get("agent", "orchestrator")).strip() or "orchestrator"
+        if agent_id not in {definition.id for definition in AGENTS}:
+            raise HTTPException(400, "Only a registered agent can propose work")
         task = Task(
             user_id=current_user.id, title=title,
             description=str(payload.get("description", "")).strip(),
