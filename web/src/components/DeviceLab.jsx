@@ -57,22 +57,34 @@ export default function DeviceLab() {
 
     setRunning(true);
     setResult({ label, status: "RUNNING" });
+    let data;
     try {
-      const data = await fn();
-      const verified = data?.verified === true || data?.status === "COMPLETED" || data?.status === "CONNECTED";
-      await recordActivityEvent({
-        component: "device", action, outcome: verified ? "VERIFIED" : "DISPATCHED_UNVERIFIED",
-        risk: "HIGH", request_id: requestId,
-      });
-      setResult({ label, status: verified ? "COMPLETED" : "UNVERIFIED", data });
+      data = await fn();
     } catch (error) {
       await recordActivityEvent({
         component: "device", action, outcome: "FAILED", risk: "HIGH", request_id: requestId,
       }).catch(() => {});
       setResult({ label, status: "ERROR", error: error.message });
-    } finally {
       setRunning(false);
+      return;
     }
+
+    const verified = data?.verified === true || data?.status === "COMPLETED" || data?.status === "CONNECTED";
+    try {
+      await recordActivityEvent({
+        component: "device", action, outcome: verified ? "VERIFIED" : "DISPATCHED_UNVERIFIED",
+        risk: "HIGH", request_id: requestId,
+      });
+    } catch (error) {
+      // The device call already returned. Do not relabel a real outcome as an execution failure
+      // merely because the result audit could not be persisted afterward.
+      setResult({ label, status: "UNVERIFIED", data,
+        error: "Kitendo kilirudisha matokeo, lakini audit ya matokeo haikuhifadhiwa: " + error.message });
+      setRunning(false);
+      return;
+    }
+    setResult({ label, status: verified ? "COMPLETED" : "UNVERIFIED", data });
+    setRunning(false);
   }
 
   function saveToken() {
