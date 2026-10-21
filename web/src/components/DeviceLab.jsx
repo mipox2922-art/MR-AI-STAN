@@ -69,7 +69,15 @@ export default function DeviceLab() {
       return;
     }
 
-    const verified = data?.verified === true || data?.status === "COMPLETED" || data?.status === "CONNECTED";
+    const resultStatus = String(data?.status || "").toUpperCase();
+    const hasReadEvidence = Boolean(data && typeof data === "object" && (
+      Array.isArray(data.devices) || Array.isArray(data.networks) || Array.isArray(data.findings) ||
+      Array.isArray(data.detected_signals) || data.serial || data.model || data.android_version ||
+      data.adb_state || data.state || data.battery || data.storage
+    ));
+    const verified = data?.verified === true ||
+      ["COMPLETED", "CONNECTED", "HEALTHY"].includes(resultStatus) ||
+      (hasReadEvidence && action !== "REBOOT_SYSTEM" && data?.scan_status !== "NOT_IMPLEMENTED");
     try {
       await recordActivityEvent({
         component: "device", action, outcome: verified ? "VERIFIED" : "DISPATCHED_UNVERIFIED",
