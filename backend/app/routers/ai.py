@@ -513,9 +513,9 @@ async def chat(data: ChatRequest, current_user: User = Depends(get_current_user)
         raise
     except Exception as exc:
         logger.warning("AI request failed: request_id=%s error_type=%s", request_id, type(exc).__name__)
-        record_safe_error(db, current_user.id, "ai.chat", type(exc).__name__, redact_sensitive_text(str(exc), 350))
+        record_safe_error(db, current_user.id, "ai.chat", type(exc).__name__, "AI request failed; user message and provider payload omitted from logs.")
         await _set_ai_state(db, current_user.id, "ERROR", request_id, "Mtoa huduma wa AI ameshindwa kujibu.")
-        if isinstance(exc, ValueError) and "Unknown provider" in str(exc):
+        if isinstance(exc, ValueError) and "unknown" in str(exc).lower() and "provider" in str(exc).lower():
             raise HTTPException(status_code=400, detail=f"Unknown provider: {data.provider}") from exc
         raise HTTPException(status_code=502, detail=f"{PROVIDER_ERROR_MSG}: {type(exc).__name__}; {redact_sensitive_text(str(exc), 250)}") from exc
 
