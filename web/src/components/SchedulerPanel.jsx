@@ -16,7 +16,7 @@ function toIso(localValue) {
   if (!localValue) return "";
   // datetime-local has no timezone; interpret the typed wall-clock time as UTC+3
   // regardless of the developer machine's configured timezone.
-  const match = String(localValue).match(/^(\\d{4}-\\d{2}-\\d{2})T(\\d{2}:\\d{2})(?::(\\d{2}))?$/);
+  const match = String(localValue).match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})(?::(\d{2}))?$/);
   if (!match) return "";
   const seconds = match[3] || "00";
   const date = new Date(`${match[1]}T${match[2]}:${seconds}+03:00`);
