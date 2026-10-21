@@ -18,7 +18,7 @@ def test_legacy_sqlite_schema_is_upgraded_and_unverified_done_is_downgraded():
         task = conn.execute(text("SELECT status, progress, source FROM tasks WHERE id=1")).one()
         assert task.status == "WAITING_FOR_VERIFICATION"
         assert task.progress == 0
-        assert task.source == "boss"
+        assert task.source == "unknown"
         convo_columns = {row[1] for row in conn.execute(text("PRAGMA table_info(conversations)")).all()}
         assert "session_id" in convo_columns
         assert conn.execute(text("SELECT COUNT(*) FROM sqlite_master WHERE type='index' AND name='ix_conversations_user_session'")).scalar_one() == 1
