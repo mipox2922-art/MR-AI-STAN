@@ -249,3 +249,20 @@ def test_ai_runtime_state_times_out_active_state_after_30_seconds(tmp_path, monk
     payload = response.json()
     assert payload["state"] == "ERROR"
     assert "timed out" in payload["reason"]
+
+
+def test_chat_session_store_is_bounded_per_user(tmp_path):
+    client, session_factory = build_chat_client(tmp_path)
+    with session_factory() as db:
+        for index in range(55):
+            conversation = ai_router.get_or_create_conversation(
+                db, user_id=1, title=f"session {index}", session_id=f"browser-{index}"
+            )
+            db.commit()
+        rows = db.query(ai_router.Conversation).filter(
+            ai_router.Conversation.user_id == 1,
+            ai_router.Conversation.session_id.is_not(None),
+        ).order_by(ai_router.Conversation.id.desc()).all()
+        assert len(rows) == 50
+        assert rows[0].session_id == "browser-54"
+        assert "browser-0" not in {row.session_id for row in rows}
