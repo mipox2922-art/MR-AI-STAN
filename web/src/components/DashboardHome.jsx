@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { dispatchTool, searchToolWeb, planAgentWork, executeMission, chat, getExecutiveBriefing, approveTask, startApprovedMission, browserNavigate, browserClick, browserType, browserScroll, browserDrag, getCurrentPage, reportMissionHandoff } from "../api";
+import { dispatchTool, searchToolWeb, planAgentWork, executeMission, chat, getExecutiveBriefing, getAIHealth, approveTask, startApprovedMission, browserNavigate, browserClick, browserType, browserScroll, browserDrag, getCurrentPage, reportMissionHandoff } from "../api";
 import HudOrb from "./HudOrb";
 import Chat from "./Chat";
 import { sanitizeAssistantMessage } from "../utils/chatSafety";
@@ -1135,6 +1135,7 @@ function ExecutiveMorningBrief({ system, gmailStatus, tasks = [], agents = [], o
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [taskAction, setTaskAction] = useState(null);
+  const [providerHealth, setProviderHealth] = useState(null);
 
   async function loadBriefing() {
     if (document.visibilityState !== "visible") return;
@@ -1202,6 +1203,16 @@ function ExecutiveMorningBrief({ system, gmailStatus, tasks = [], agents = [], o
       : "Hali ya Gmail: " + gmailState + ".";
     return ["Karibu Boss Ferisi.", "Huu hapa muhtasari wa MR AI STAN.", tasksText, agentsText,
       approvalText, failureText, gmailText, "Hatua inayopendekezwa: " + priorityText].join(" ");
+  }
+
+  async function checkAIProviderHealth() {
+    setProviderHealth({ status: "CHECKING", provider: "openrouter" });
+    try {
+      const result = await getAIHealth("openrouter");
+      setProviderHealth(result);
+    } catch (err) {
+      setProviderHealth({ status: "ERROR", provider: "openrouter", reason: err?.message || "Health check failed." });
+    }
   }
 
   async function approveProposedTask(task) {
@@ -1274,8 +1285,19 @@ function ExecutiveMorningBrief({ system, gmailStatus, tasks = [], agents = [], o
             <strong>{loading ? "SYNCING VERIFIED OPERATIONS..." : briefing ? "OPERATIONAL BRIEFING UPDATED" : "BRIEFING NOT AVAILABLE"}</strong>
             <span>{briefing?.generated_at ? timeLabel(briefing.generated_at) : "LIVE DATA PENDING"}</span>
             <button type="button" className="cc-exec-speak" onClick={speakBriefing}>▶ PLAY BRIEFING</button>
+            <button type="button" className="cc-exec-speak" onClick={checkAIProviderHealth} disabled={providerHealth?.status === "CHECKING"}>
+              {providerHealth?.status === "CHECKING" ? "TESTING AI..." : "TEST AI PROVIDER"}
+            </button>
           </div>
         </div>
+        {providerHealth && (
+          <div className={"cc-ai-health-state " + (providerHealth.status === "LIVE" ? "is-live" : providerHealth.status === "ERROR" ? "is-error" : "is-checking")} role="status" aria-live="polite">
+            <strong>OPENROUTER PROVIDER: {providerHealth.status}</strong>
+            {Number.isFinite(providerHealth.latency_ms) && <span>Latency {providerHealth.latency_ms} ms</span>}
+            {providerHealth.reason && <p>{providerHealth.reason}</p>}
+            {providerHealth.tested_at && <small>Checked {timeLabel(providerHealth.tested_at)} · Africa/Dar_es_Salaam</small>}
+          </div>
+        )}
         <div className="cc-executive-orb" aria-hidden="true">
           <div className="cc-exec-orbit cc-exec-orbit-a" />
           <div className="cc-exec-orbit cc-exec-orbit-b" />
