@@ -36,10 +36,78 @@ function ChatMessageContent({ content }) {
   );
 }
 
+
+function sanitizeAssistantMessage(value) {
+  const lines = String(value || "").replace(/\r\n/g, "\n").split("\n");
+  const safeLines = lines.filter(line => {
+    const trimmed = line.trim();
+    if (!trimmed) return true;
+    if (/user\s*safety\s*:|\bNO_TOOL_MATCH\b|\btool_call\b|\bsystem_telemetry\b/i.test(trimmed)) {
+      return false;
+    }
+    // Hide standalone uppercase debug labels, not ordinary explanatory sentences.
+    if (/^[A-Z][A-Z0-9_]*(?:\s+[A-Z][A-Z0-9_]*)?:\s*(?:[A-Z0-9_ -]+)?$/.test(trimmed)) {
+      return false;
+    }
+    return true;
+  });
+  return safeLines.join("\n").trim();
+}
+
+function isGenericGreeting(value) {
+  const normalized = String(value || "").trim().toLowerCase().replace(/[.!?]+$/g, "");
+  return /^(?:habari(?: boss ferisi)?|habari boss|hello(?: boss)?|hi(?: boss)?|good morning(?: boss)?|good afternoon(?: boss)?|good evening(?: boss)?|sawa\. unahitaji nini leo)$/.test(normalized);
+}
+
+function getAcknowledgementReply(value) {
+  const normalized = String(value || "").trim().toLowerCase().replace(/[.!?]+$/g, "").replace(/\s+/g, " ");
+  if (!/^(?:sawa|sasa|upo sawa|uko sawa|poa|nimekupata|okay|ok|asante)$/.test(normalized)) return null;
+  if (normalized === "sawa" || normalized === "okay" || normalized === "ok") {
+    return "Nimekupata. Tuendelee na mada ya awali.";
+  }
+  if (normalized === "sasa") return "Nipo hapa. Tuendelee na mada ya awali, au una jambo jipya?";
+  return "Nimekupata. Tuendelee na tulichokuwa tunazungumzia.";
+}
+
+function getUnsupportedCapabilityReply(value) {
+  const text = String(value || "");
+  if (/\b(logs?|log files?|rekodi za mfumo)\b|kagua\s+logs?|angalia\s+logs?/i.test(text)) {
+    return "Ukaguzi wa logs haujaunganishwa kwa sasa. Naweza kukusaidia kwa kitu kingine? Kwa sasa ninaweza kutumia historia ya mazungumzo haya, orodha ya kazi na telemetry iliyopokelewa tu.";
+  }
+  if (/\b(?:kagua|angalia|chunguza|inspect|review)\b.{0,50}\b(?:repo(?:sitory)?|source code|msimbo wa mfumo|database|server errors?|makosa ya mfumo|bugs?)\b/i.test(text)) {
+    return "Ukaguzi huo haujaunganishwa kwa sasa. Ninaweza kutumia historia ya mazungumzo haya, orodha ya kazi na telemetry iliyopokelewa tu.";
+  }
+  return null;
+}
+
+function finalizeAssistantReply(value, priorMessages, mode) {
+  let content = sanitizeAssistantMessage(value);
+  if (!content) {
+    content = "Jibu lilikuwa na metadata ya ndani pekee, kwa hiyo halikuonyeshwa.";
+  }
+
+  const unsupportedClaim = /(?:nime(?:kagua|angalia|chunguza|pima)|i have (?:checked|reviewed|inspected)|i(?:'ve| have) (?:checked|reviewed|inspected)).{0,70}\b(?:logs?|log files?|makosa ya mfumo|system errors?|source code|repository|database|bugs?)\b/i;
+  if (unsupportedClaim.test(content)) {
+    return "Ukaguzi huo haujaunganishwa kwa sasa. Ninaweza kutumia historia ya mazungumzo haya, orodha ya kazi na telemetry iliyopokelewa tu.";
+  }
+
+  const previousAssistant = [...priorMessages].reverse().find(item => item.role === "assistant");
+  if (previousAssistant && isGenericGreeting(content) && isGenericGreeting(previousAssistant.content)) {
+    return "Nimekupata. Tuendelee na mada ya awali.";
+  }
+
+  const modeClaim = /(?:nina|nipo|niko|iko)\s+(?:katika|kwenye)\s+working mode|working mode\s+(?:iko online|is online)/i;
+  if (mode !== "working" && modeClaim.test(content)) {
+    return "Hali ya sasa ni " + (mode === "sleep" ? "SLEEP MODE" : "NORMAL MODE") + ".";
+  }
+
+  return content;
+}
+
 function readableRoutingStatus(value) {
   const raw = String(value || "").trim();
   const upper = raw.toUpperCase();
-  if (!raw || upper === "AI_ONLY") return "MAZUNGUMZO YA AI";
+  if (!raw || upper === "AI_ONLY" || upper === "NO_TOOL_MATCH") return "MAZUNGUMZO YA AI";
   if (upper === "ROUTING") return "NACHAMBUA OMBI...";
   if (upper.includes("EXECUTIVE BRIEFING")) return "MUHTASARI WA MFUMO";
   if (upper.includes("TOOL ROUTER ERROR") || upper.includes("BRIEFING ERROR")) return "ZANA HAIPATIKANI · AI INAENDELEA";
@@ -53,7 +121,15 @@ function readableRoutingStatus(value) {
   return raw.replaceAll("_", " ");
 }
 
-export default function Chat({ onState, onModToggle, onPowerCommand }) {
+export default function Chat({
+  onState,
+  onModToggle,
+  onPowerCommand,
+  mode = "normal",
+  coreStatus = "IDLE",
+  tasks = [],
+  telemetry = null,
+}) {
   const [message, setMessage] = useState("");
   const [provider, setProvider] = useState("openrouter");
   const utteranceRef = useRef(null);
@@ -74,7 +150,7 @@ export default function Chat({ onState, onModToggle, onPowerCommand }) {
         if (!active || !Array.isArray(data?.messages) || data.messages.length === 0) return;
         setMessages(data.messages.map(item => ({
           role: item.role === "user" ? "user" : "assistant",
-          content: item.content,
+          content: item.role === "user" ? item.content : sanitizeAssistantMessage(item.content),
         })));
       })
       .catch(() => {
@@ -166,6 +242,24 @@ export default function Chat({ onState, onModToggle, onPowerCommand }) {
 
     if (sending) return;
 
+    const localCapabilityReply = getUnsupportedCapabilityReply(text);
+    const acknowledgementReply = getAcknowledgementReply(text);
+    if (localCapabilityReply || acknowledgementReply) {
+      const content = localCapabilityReply || acknowledgementReply;
+      setMessages(prev => [
+        ...prev,
+        { role: "user", content: text },
+        { role: "assistant", content: sanitizeAssistantMessage(content) }
+      ]);
+      setMessage("");
+      return;
+    }
+
+    const conversationHistory = messages.slice(-10).map(item => ({
+      role: item.role === "user" ? "user" : "assistant",
+      content: item.role === "assistant" ? sanitizeAssistantMessage(item.content) : String(item.content || ""),
+    }));
+
     setMessages(prev => [
       ...prev,
       { role: "user", content: text }
@@ -218,19 +312,39 @@ export default function Chat({ onState, onModToggle, onPowerCommand }) {
           }
         : null;
 
-      const result = await chat(text, provider, toolContext);
+      const availableCapabilities = {
+        read_conversation: true,
+        read_task_list: Array.isArray(tasks),
+        read_telemetry: Boolean(telemetry && typeof telemetry === "object"),
+      };
+      const requestContext = {
+        ...(toolContext || {}),
+        conversation_history: conversationHistory,
+        operational_mode: mode,
+        allowed_capabilities: availableCapabilities,
+        available_task_list: tasks.map(task => ({
+          id: task.id,
+          title: task.title,
+          status: task.status,
+          agent: task.agent,
+          progress: task.progress,
+        })),
+        available_telemetry: telemetry || null,
+      };
+      const result = await chat(text, provider, requestContext);
+      const safeResponse = finalizeAssistantReply(result?.response, messages, mode);
       setMessages(prev => [
         ...prev,
         {
           role: "assistant",
-          content: result.response
+          content: safeResponse
         }
       ]);
 
       const speech = window.speechSynthesis;
       if (speech && "SpeechSynthesisUtterance" in window) {
         speech.cancel();
-        const utterance = new SpeechSynthesisUtterance(result.response);
+        const utterance = new SpeechSynthesisUtterance(safeResponse);
         utterance.lang = "sw-TZ";
         utterance.rate = 1;
         utterance.pitch = 1;
@@ -247,7 +361,7 @@ export default function Chat({ onState, onModToggle, onPowerCommand }) {
         ...prev,
         {
           role: "assistant",
-          content: `Kuna tatizo boss: ${error.message}`
+          content: sanitizeAssistantMessage("Kuna tatizo boss: " + (error.message || "Hitilafu haijafafanuliwa."))
         }
       ]);
       onState("ERROR");
@@ -263,7 +377,7 @@ export default function Chat({ onState, onModToggle, onPowerCommand }) {
           <strong>MR AI CORE</strong>
           <span>MAZUNGUMZO NA MR AI</span>
         </div>
-        <span className="tool-routing-status" aria-live="polite" title={toolStatus}>{sending ? "NACHAMBUA OMBI..." : readableRoutingStatus(toolStatus)}</span>
+        <span className="tool-routing-status" aria-live="polite" title={toolStatus}>{sending ? "NACHAMBUA OMBI..." : coreStatus}</span>
         <select
           value={provider}
           onChange={e => setProvider(e.target.value)}
