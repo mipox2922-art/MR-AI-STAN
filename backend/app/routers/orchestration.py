@@ -133,15 +133,15 @@ def resolve_approval(
                 task.progress = 0
                 task.error = "Pendekezo limekataliwa na Boss Ferisi; hakuna kitendo kilichotekelezwa."
                 task.result = json.dumps({"approval_id": approval.id, "approved": False}, ensure_ascii=False)
-            elif approval.action == "MISSION_EXECUTION":
-                # A mission remains queued after approval. Execution needs a separate explicit Start action.
+            elif task.agent == "orchestrator":
+                # An explicit Start action is still required after approval.
                 task.status = "PENDING"
                 task.approved_by = current_user.id
                 task.approved_at = _now_utc().replace(tzinfo=None)
                 task.error = None
                 task.result = json.dumps({"approval_id": approval.id, "approved": True, "started": False}, ensure_ascii=False)
             else:
-                # Approval is logged, but high-impact external work does not run until a real hand is connected.
+                # Approved agent work remains blocked until a verified execution hand is available.
                 task.status = "WAITING_FOR_HAND"
                 task.approved_by = current_user.id
                 task.approved_at = _now_utc().replace(tzinfo=None)
