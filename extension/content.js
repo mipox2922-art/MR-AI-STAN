@@ -37,7 +37,58 @@
     descriptor?.set ? descriptor.set.call(element, value) : (element.value = value);
   }
 
+  async function allowedHost(hostname) {
+    const stored = await chrome.storage.local.get("mr_ai_browser_allowlist");
+    const entries = Array.isArray(stored.mr_ai_browser_allowlist)
+      ? stored.mr_ai_browser_allowlist.filter(value => typeof value === "string").map(value => value.trim().toLowerCase())
+      : [];
+    const host = String(hostname || "").toLowerCase();
+    return Boolean(host && entries.some(entry => host === entry || host.endsWith("." + entry)));
+  }
+
+  function highRiskClick(element) {
+    const description = describeElement(element);
+    const form = element.closest?.("form");
+    const text = [
+      description.text,
+      description.ariaLabel,
+      element.getAttribute?.("title") || "",
+      element.getAttribute?.("name") || "",
+      element.getAttribute?.("value") || "",
+      element.getAttribute?.("data-testid") || "",
+      element.getAttribute?.("href") || ""
+    ].join(" ").toLowerCase();
+    const submitControl = Boolean(form) && (
+      (element.tagName === "BUTTON" && String(element.type || "submit").toLowerCase() === "submit") ||
+      (element.tagName === "INPUT" && ["submit", "image"].includes(String(element.type || "").toLowerCase()))
+    );
+    const words = /\b(pay|payment|purchase|buy now|checkout|submit|send|apply|application|download|upload|delete|remove|transfer|order|withdraw|confirm booking|post message|publish|send reply|reply now)\b/i;
+    if (submitControl) return { required: true, risk: "FORM_SUBMISSION", reason: "Kutuma fomu au kuwasilisha mabadiliko kunahitaji idhini ya Boss." };
+    if (words.test(text)) return { required: true, risk: "EXTERNAL_SIDE_EFFECT", reason: "Malipo, kutuma, kuomba kazi, kupakua, kufuta au kuchapisha kunahitaji idhini ya Boss." };
+    const href = String(element.getAttribute?.("href") || "").toLowerCase();
+    if (/\.(pdf|zip|exe|msi|dmg|apk|7z|rar)(?:[?#]|$)/i.test(href)) {
+      return { required: true, risk: "DOWNLOAD", reason: "Kiungo hiki kinaweza kuanzisha upakuaji; idhini ya Boss inahitajika." };
+    }
+    return { required: false, risk: "LOW", reason: null };
+  }
+
+  function sensitiveInput(element) {
+    const type = String(element.type || "").toLowerCase();
+    const autocomplete = String(element.getAttribute?.("autocomplete") || "").toLowerCase();
+    const hint = [
+      element.name, element.id, element.getAttribute?.("aria-label"),
+      element.getAttribute?.("placeholder"), autocomplete
+    ].filter(Boolean).join(" ").toLowerCase();
+    return type === "password" ||
+      ["one-time-code", "cc-number", "cc-csc", "cc-exp"].includes(autocomplete) ||
+      /\b(password|passcode|otp|one.?time.?code|credit.?card|card.?number|cvv|cvc|security.?code|bank.?pin)\b/i.test(hint);
+  }
+
   async function performAction(action, payload = {}) {
+    const currentHost = window.location.hostname.toLowerCase();
+    if (!(await allowedHost(currentHost))) {
+      throw new Error("BLOCKED_BY_ALLOWLIST: Domain hii haijaidhinishwa na Boss Ferisi.");
+    }
     switch (action) {
       case "GET_PAGE_DATA":
         return { verified: true, action, page: pageData() };
@@ -45,24 +96,26 @@
       case "CLICK": {
         const element = resolveTarget(payload.selector);
         if (element.disabled) throw new Error("Target element is disabled.");
+        const risk = highRiskClick(element);
+        if (risk.required && payload.boss_approved !== true) {
+          return { verified: false, approvalRequired: true, action, risk: risk.risk,
+            reason: risk.reason, host: window.location.hostname, element: describeElement(element) };
+        }
         const beforeUrl = window.location.href;
         const description = describeElement(element);
         element.scrollIntoView({ block: "center", inline: "center", behavior: "auto" });
         element.click();
-        return {
-          verified: false,
-          dispatched: true,
-          action,
-          element: description,
-          beforeUrl,
-          afterUrl: window.location.href,
-          note: "DOM click event was dispatched, but the resulting application state was not independently verified."
-        };
+        return { verified: false, dispatched: true, action, risk: risk.risk, element: description,
+          beforeUrl, afterUrl: window.location.href,
+          note: "DOM click event dispatched; resulting external action requires independent confirmation." };
       }
 
       case "TYPE": {
         const element = resolveTarget(payload.selector);
         const value = String(payload.value ?? "");
+        if (sensitiveInput(element)) {
+          throw new Error("BLOCKED_SENSITIVE_FIELD: MR AI haiingizi nywila, OTP, PIN au taarifa za kadi kupitia Browser Hands.");
+        }
 
         if (element.isContentEditable) {
           element.focus();
@@ -134,8 +187,15 @@
         }
 
         const target = url.toString();
+        if (!(await allowedHost(url.hostname))) throw new Error("BLOCKED_BY_ALLOWLIST: Destination domain haijaidhinishwa na Boss Ferisi.");
+        const mayDownload = /.(pdf|zip|exe|msi|dmg|apk|7z|rar)(?:[?#]|$)/i.test(url.pathname + url.search);
+        if (mayDownload && payload.boss_approved !== true) {
+          return { verified: false, approvalRequired: true, action, risk: "DOWNLOAD", host: url.hostname,
+            target, reason: "Destination inaweza kupakua faili; idhini ya Boss inahitajika." };
+        }
         setTimeout(() => window.location.assign(target), 50);
-        return { verified: false, dispatched: true, action, target, note: "Navigation was requested; the destination and its resulting state have not yet been verified." };
+        return { verified: false, dispatched: true, action, target, risk: mayDownload ? "DOWNLOAD" : "LOW",
+          note: "Navigation was requested; the destination and its resulting state have not yet been verified." };
       }
 
       case "DRAG": {
