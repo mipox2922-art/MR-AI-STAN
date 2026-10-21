@@ -395,7 +395,7 @@ export async function browserAction(action, payload = {}) {
   if (!extensionId) {
     throw new Error("MR AI Browser Hands extension not detected. Reload the MR AI page after installing/reloading the extension.");
   }
-  const requestId = \`mr-ai-\${Date.now()}-\${Math.random().toString(36).slice(2)}\`;
+  const requestId = `mr-ai-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
   async function sendBrowserRequest(extra = {}) {
     const message = await Promise.race([
@@ -450,7 +450,7 @@ export async function browserAction(action, payload = {}) {
   const risk = result.risk || "HIGH_RISK_ACTION";
   const reason = result.reason || "Kitendo hiki kina athari nje ya dashboard.";
   const approved = typeof window !== "undefined" && typeof window.confirm === "function"
-    && window.confirm(\`BOSS FERISI: Idhini inahitajika.\\n\\nKitendo: \${action}\\nHatari: \${risk}\\nDomain: \${host}\\n\\n\${reason}\\n\\nKuendelea mara hii tu?\`);
+    && window.confirm(`BOSS FERISI: Idhini inahitajika.\\n\\nKitendo: ${action}\\nHatari: ${risk}\\nDomain: ${host}\\n\\n${reason}\\n\\nKuendelea mara hii tu?`);
   if (!approved) {
     await audit("REJECTED", result, result.risk || "HIGH");
     return { ...result, deniedByBoss: true, dispatched: false, note: "Boss hakuidhinisha; hakuna kitendo kilichotekelezwa." };
