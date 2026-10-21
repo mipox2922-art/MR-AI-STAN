@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   getAgents,
   getStatus,
+  getAIState,
   getSystemDiagnostics,
   getAuthStatus,
   getToken,
@@ -556,7 +557,7 @@ function App() {
   }, [active, authenticated, isMobileViewport]);
 
   const refresh = useCallback(async () => {
-    if (!getToken() || refreshInFlight.current) return;
+    if (!getToken() || refreshInFlight.current || document.visibilityState !== "visible") return;
     refreshInFlight.current = true;
     setConnectionState(current => current === "ONLINE" ? current : "CONNECTING");
 
@@ -641,9 +642,15 @@ function App() {
 
   useEffect(() => {
     if (!authenticated) return undefined;
-    if (mode !== "sleep") refresh();
-    const timer = mode === "sleep" ? null : setInterval(refresh, 5000);
+    if (mode !== "sleep" && document.visibilityState === "visible") refresh();
+    const timer = mode === "sleep" ? null : setInterval(() => {
+      if (document.visibilityState === "visible") refresh();
+    }, 7000);
     const clockTimer = setInterval(() => setClock(new Date()), 1000);
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible" && mode !== "sleep") refresh();
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
 
     const onShortcut = event => {
       if (event.ctrlKey && event.shiftKey && event.key.toLowerCase() === "m") {
@@ -676,6 +683,7 @@ function App() {
     return () => {
       if (timer) clearInterval(timer);
       clearInterval(clockTimer);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
       window.removeEventListener("keydown", onShortcut);
       window.removeEventListener("keydown", onCommandPalette);
       window.removeEventListener("online", refreshDataLink);
@@ -683,6 +691,20 @@ function App() {
       browserConnection?.removeEventListener?.("change", refreshDataLink);
     };
   }, [authenticated, refresh, mode]);
+
+  useEffect(() => {
+    if (!authenticated) return undefined;
+    let active = true;
+    getAIState()
+      .then(result => {
+        const state = String(result?.state || "").toUpperCase();
+        if (active && ["IDLE", "THINKING", "SPEAKING", "ERROR"].includes(state)) setCoreState(state);
+      })
+      .catch(() => {
+        // The initial IDLE display is not a provider health claim.
+      });
+    return () => { active = false; };
+  }, [authenticated]);
 
   const telemetry = system?.telemetry || {};
   const services = system?.services || {};
@@ -778,7 +800,10 @@ function App() {
   const working = normalizedMode === "working";
   const sleeping = normalizedMode === "sleep";
   const taskSummary = getTaskSummary(tasks, agents);
-  const coreStatus = sleeping ? "SLEEPING" : working && taskSummary.inProgress > 0 ? "WORKING" : "IDLE";
+  const runtimeCoreState = String(coreState || "IDLE").toUpperCase();
+  const coreStatus = sleeping ? "SLEEPING"
+    : ["THINKING", "SPEAKING", "ERROR"].includes(runtimeCoreState) ? runtimeCoreState
+    : taskSummary.inProgress > 0 ? "WORKING" : "IDLE";
 
   function setOperationalMode(nextMode) {
     const next = ["normal", "working", "sleep"].includes(nextMode)
@@ -976,8 +1001,8 @@ function App() {
                   </div>
                 </div>
                 <div className="state-grid">
-                  {["IDLE", "LISTENING", "THINKING", "SPEAKING", "WORKING", "BUSY", "ERROR", "SLEEPING"].map(state => (
-                    <button className={coreState === state ? "state-active" : ""} key={state} onClick={() => setCoreState(state)}>{state}</button>
+                  {["IDLE", "THINKING", "SPEAKING", "WORKING", "ERROR", "SLEEPING"].map(state => (
+                    <span aria-current={coreState === state ? "true" : undefined} className={coreState === state ? "state-active" : ""} key={state}>{state}</span>
                   ))}
                 </div>
                 <div className="core-stage tall"><Core state={coreStatus} modActive={working} /></div>
