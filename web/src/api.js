@@ -416,12 +416,14 @@ export async function browserAction(action, payload = {}) {
 
   async function audit(outcome, result = {}, riskOverride = null) {
     const targetHost = String(result?.targetHost || result?.host || "").toLowerCase();
+    const riskValue = String(riskOverride || result?.risk || "MEDIUM").toUpperCase();
+    const risk = ["LOW", "MEDIUM", "HIGH", "CRITICAL"].includes(riskValue) ? riskValue : "HIGH";
     try {
       await recordActivityEvent({
         component: "browser",
         action: String(action || "UNKNOWN").slice(0, 80),
         outcome,
-        risk: riskOverride || result?.risk || "MEDIUM",
+        risk,
         target_host: targetHost || undefined,
         request_id: requestId,
       });
