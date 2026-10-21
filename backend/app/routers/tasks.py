@@ -91,7 +91,10 @@ async def approve_task(task_id: int, current_user=Depends(get_current_user), db:
     if (task.source or "").lower() not in {"orchestrator", "agent"}:
         raise HTTPException(403, "Only agent/orchestrator proposals can use this approval path")
     now = datetime.now(timezone.utc).replace(tzinfo=None)
-    task.approved_by = current_user.id; task.approved_at = now; task.status = "PENDING"; task.error = None
+    task.approved_by = current_user.id
+    task.approved_at = now
+    task.status = "PENDING" if task.agent == "orchestrator" else "WAITING_FOR_HAND"
+    task.error = None if task.status == "PENDING" else "Idhini imerekodiwa; agent hii haina executor iliyothibitishwa ya kuanza hatua hii moja kwa moja."
     for approval in db.query(ApprovalRequest).filter(ApprovalRequest.user_id == current_user.id, ApprovalRequest.status == "PENDING").all():
         try: payload = json.loads(approval.payload or "{}")
         except (TypeError, ValueError): continue
