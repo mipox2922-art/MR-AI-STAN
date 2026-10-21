@@ -224,11 +224,9 @@ def save_messages_and_log(
     except SQLAlchemyError as exc:
         db.rollback()
         logger.error(
-            f"❌ Database error saving messages: {exc}",
-            extra={
-                "conversation_id": conversation_id,
-                "user_id": user_id
-            }
+            "Database error saving chat messages: %s",
+            type(exc).__name__,
+            extra={"conversation_id": conversation_id, "user_id": user_id},
         )
         raise
 
@@ -514,7 +512,7 @@ async def chat(data: ChatRequest, current_user: User = Depends(get_current_user)
         return ChatResponse(response=answer, provider=provider_name, request_id=request_id,
                             elapsed_ms=int((time.time() - request_start) * 1000))
     except HTTPException as exc:
-        record_safe_error(db, current_user.id, "ai.chat", f"HTTP_{exc.status_code}", redact_sensitive_text(exc.detail, 350))
+        record_safe_error(db, current_user.id, "ai.chat", f"HTTP_{exc.status_code}", "AI chat request returned an HTTP error; user content and request details were omitted.")
         await _set_ai_state(db, current_user.id, "ERROR", request_id, "Ombi la AI limeshindwa; kagua error log.")
         raise
     except Exception as exc:
@@ -523,7 +521,7 @@ async def chat(data: ChatRequest, current_user: User = Depends(get_current_user)
         await _set_ai_state(db, current_user.id, "ERROR", request_id, "Mtoa huduma wa AI ameshindwa kujibu.")
         if isinstance(exc, ValueError) and "unknown" in str(exc).lower() and "provider" in str(exc).lower():
             raise HTTPException(status_code=400, detail=f"Unknown provider: {data.provider}") from exc
-        raise HTTPException(status_code=502, detail=f"{PROVIDER_ERROR_MSG}: {type(exc).__name__}; {redact_sensitive_text(str(exc), 250)}") from exc
+        raise HTTPException(status_code=502, detail=f"{PROVIDER_ERROR_MSG}: {type(exc).__name__}") from exc
 
 
 @router.get("/state")
@@ -581,8 +579,8 @@ async def health_check(
             instance.generate("Reply with exactly the word LIVE.", system_instruction="Return only the word LIVE."),
             timeout=8,
         )
-        if not isinstance(result, str) or not result.strip():
-            raise RuntimeError("Provider returned an empty response.")
+        if not isinstance(result, str) or result.strip().upper() != "LIVE":
+            raise RuntimeError("Provider did not return the expected LIVE probe response.")
         return {"status": "LIVE", "provider": selected,
             "latency_ms": round((time.perf_counter() - started) * 1000),
             "tested_at": datetime.now(timezone.utc).isoformat(), "reason": None}
