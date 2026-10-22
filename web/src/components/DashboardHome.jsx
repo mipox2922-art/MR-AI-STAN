@@ -1153,6 +1153,9 @@ function ExecutiveMorningBrief({ system, gmailStatus, tasks = [], agents = [], o
 
   useEffect(() => {
     loadBriefing();
+    // On dashboard entry, verify the selected free AI provider once and clear
+    // stale persisted ERROR state only if this live check succeeds.
+    checkAIProviderHealth();
     const timer = window.setInterval(() => {
       if (document.visibilityState === "visible") loadBriefing();
     }, 30000);
