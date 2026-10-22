@@ -99,7 +99,7 @@ For the Render backend, use this callback URI in Render environment variables an
 
 `https://mr-ai-stan.onrender.com/integrations/gmail/callback`
 
-Configure `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`, and `GMAIL_SCOPES=https://www.googleapis.com/auth/gmail.readonly`. The browser must never receive a Gmail refresh token. Sending/replying is not enabled by the current read-only integration.
+Configure `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`, `GMAIL_REDIRECT_URI`, and `GMAIL_SCOPES=https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.send`. Enable the Gmail API in Google Cloud and add the exact callback URI above to the OAuth web client. Refresh tokens remain encrypted server-side and are never returned to the browser. Reading/searching and user-confirmed compose/reply are supported; sending requires the Gmail send scope and fresh authorization.
 
 ## Health and authentication
 
