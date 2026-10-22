@@ -749,7 +749,10 @@ def update_job_tracking(
     # Preserve the autopilot's source/job/draft packet when recording a
     # user-reported application status. Tracking is not independent proof of
     # submission, so only the explicit tracking fields are updated.
-    merged_result = {**previous, **tracking}
+    if previous.get("workflow") == "JOB_APPLICATION":
+        merged_result = {**previous, "tracking": tracking}
+    else:
+        merged_result = {**previous, **tracking}
     task.result = json.dumps(merged_result, ensure_ascii=False, default=str)
     db.add(ActivityLog(
         user_id=current_user.id,
