@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { dispatchTool, searchToolWeb, planAgentWork, executeMission, chat, getExecutiveBriefing, getAIHealth, approveTask, startApprovedMission, browserNavigate, browserClick, browserType, browserScroll, browserDrag, getCurrentPage, reportMissionHandoff } from "../api";
+import { dispatchTool, searchToolWeb, planAgentWork, executeMission, chat, getExecutiveBriefing, getAIHealth, setAIState, approveTask, startApprovedMission, browserNavigate, browserClick, browserType, browserScroll, browserDrag, getCurrentPage, reportMissionHandoff } from "../api";
 import HudOrb from "./HudOrb";
 import Chat from "./Chat";
 import { sanitizeAssistantMessage } from "../utils/chatSafety";
@@ -1218,6 +1218,10 @@ function ExecutiveMorningBrief({ system, gmailStatus, tasks = [], agents = [], o
     try {
       const result = await getAIHealth("openrouter");
       setProviderHealth(result);
+      // Clear a persisted stale ERROR only after OpenRouter passes a live probe.
+      if (result?.status === "LIVE") {
+        await setAIState("IDLE").catch(() => {});
+      }
     } catch (err) {
       setProviderHealth({ status: "ERROR", provider: "openrouter", reason: err?.message || "Health check failed." });
     }
