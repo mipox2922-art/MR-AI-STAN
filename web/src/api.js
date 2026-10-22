@@ -383,11 +383,36 @@ export async function getBrowserHandsStatus() {
   const extensionId = getBrowserExtensionId();
   const token = getToken();
   if (token) syncExtensionAuthToken(token);
-  return {
-    installed: Boolean(extensionId),
-    extensionId: extensionId || null,
-    targetTab: extensionId ? "controlled_non_mr_ai_tab" : "unknown"
-  };
+  if (!extensionId || typeof globalThis.chrome?.runtime?.sendMessage !== "function") {
+    return { installed: false, connected: false, extensionId: extensionId || null, targetTab: "unknown" };
+  }
+
+  try {
+    const response = await Promise.race([
+      globalThis.chrome.runtime.sendMessage(extensionId, { type: "MR_AI_PING" }),
+      new Promise((_, reject) => window.setTimeout(
+        () => reject(new Error("Extension ping timed out.")),
+        2500
+      ))
+    ]);
+    const installed = response?.ok === true && response?.type === "MR_AI_PONG";
+    return {
+      installed,
+      connected: installed,
+      extensionId,
+      targetTab: installed ? "controlled_non_mr_ai_tab" : "unknown",
+      version: response?.version || null,
+      error: installed ? null : (response?.error || "Extension did not answer the connection check.")
+    };
+  } catch (error) {
+    return {
+      installed: false,
+      connected: false,
+      extensionId,
+      targetTab: "unknown",
+      error: error instanceof Error ? error.message : String(error)
+    };
+  }
 }
 
 export async function browserAction(action, payload = {}) {
