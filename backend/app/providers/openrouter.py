@@ -68,12 +68,25 @@ class OpenRouterProvider(AIProvider):
         try:
             payload = response.json()
             choices = payload.get("choices") or []
-            content = (choices[0].get("message") or {}).get("content") if choices else None
+            message = (choices[0].get("message") or {}) if choices else {}
+            content = message.get("content")
         except (ValueError, AttributeError, IndexError, TypeError) as exc:
             raise AIProviderError("openrouter", "API returned an invalid response") from exc
 
+        # OpenAI-compatible providers normally return a string, but some
+        # OpenRouter routes return multimodal/content-block arrays. Extract text
+        # blocks instead of rejecting a usable answer as "empty".
+        if isinstance(content, list):
+            content = "".join(
+                part.get("text", "")
+                for part in content
+                if isinstance(part, dict) and isinstance(part.get("text"), str)
+            )
         if not isinstance(content, str) or not content.strip():
             finish_reason = (choices[0] or {}).get("finish_reason", "UNKNOWN") if choices else "UNKNOWN"
+            refusal = message.get("refusal") if isinstance(message, dict) else None
+            if refusal:
+                raise AIProviderError("openrouter", f"model refused request: {str(refusal)[:200]}")
             raise AIProviderError("openrouter", f"empty content (finish_reason={finish_reason})")
 
         return content.strip()
