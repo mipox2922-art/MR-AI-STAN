@@ -454,6 +454,53 @@ async def notify_realtime_safe(
         # Log but don't raise - realtime is non-critical
         logger.warning("Real-time notification failed; event=%s error_type=%s", event, type(exc).__name__)
 
+def _format_job_research_reply(orchestration_result: dict) -> str:
+    """Produce an honest user-facing job report without depending on an LLM."""
+    job_result = orchestration_result.get("job_results") or {}
+    query = str(job_result.get("query") or "remote jobs").strip()
+    results = job_result.get("results") or []
+    status = str(job_result.get("status") or orchestration_result.get("status") or "FAILED").upper()
+    warnings = job_result.get("source_warnings") or []
+
+    if status == "FAILED" or str(orchestration_result.get("status") or "").upper() == "FAILED":
+        return (
+            "Samahani Boss Ferisi, utafutaji wa kazi haujakamilika kwa sababu vyanzo vya kazi "
+            "havikurudisha matokeo yanayoweza kutumika. Hakuna ombi la kazi lililotumwa. "
+            "Jaribu tena baadaye kupitia Job Research."
+        )
+
+    if not results:
+        return (
+            f"Boss Ferisi, nimekamilisha utafutaji wa nafasi za kazi kwa '{query}', lakini "
+            "sijapata nafasi inayolingana kwenye vyanzo vya umma vilivyopatikana sasa. "
+            "Hakuna ombi la kazi lililotumwa. Tunaweza kubadili maneno ya utafutaji kupitia Job Research."
+        )
+
+    lines = [
+        f"Boss Ferisi, utafutaji wa kazi umekamilika. Nimepata nafasi {len(results)} kwa '{query}'.",
+        "Matokeo haya yametoka kwenye public job feeds. Hakuna maombi yaliyotumwa; hakiki tangazo kwenye tovuti ya mwajiri.",
+        "",
+    ]
+    for index, item in enumerate(results[:5], start=1):
+        if not isinstance(item, dict):
+            continue
+        title = str(item.get("title") or "Nafasi ya kazi")[:180]
+        company = str(item.get("company") or "Mwajiri hajatajwa")[:120]
+        location = str(item.get("location") or "Mahali hapajabainishwa")[:100]
+        url = str(item.get("url") or "")
+        source = str(item.get("source") or "")[:50]
+        lines.append(f"{index}. {title} | {company} | {location}")
+        if source:
+            lines.append(f"   Chanzo: {source}")
+        if url.startswith("https://"):
+            lines.append(f"   {url}")
+        lines.append("")
+    if warnings:
+        lines.append("Tahadhari: chanzo kimoja au zaidi hakikujibu. Matokeo yanaweza yasiwe kamili.")
+    lines.append(f"Task ID: {orchestration_result.get('task_id', 'Haijaripotiwa')} · Hali: Utafutaji umerekodiwa.")
+    return "\n".join(lines).strip()
+
+
 # ==============================================================================
 # MAIN CHAT ENDPOINT
 # ==============================================================================
@@ -496,9 +543,15 @@ async def chat(data: ChatRequest, current_user: User = Depends(get_current_user)
                 "orchestration": orchestration_result,
                 "intent": {"name": intent.name, "confidence": intent.confidence, "risk": intent.risk},
             }
-            if str(orchestration_result.get("status", "")).upper() == "WAITING_APPROVAL":
+            orchestration_status = str(orchestration_result.get("status", "")).upper()
+            if orchestration_status == "WAITING_APPROVAL":
                 answer = f"Kitendo {intent.name} kinasubiri idhini ya Boss Ferisi. Approval ID: {orchestration_result.get('approval_id', 'Haijathibitishwa')}."
                 provider_name = "orchestrator"
+            elif intent.name == "JOB_RESEARCH":
+                # Deliver verified job-feed results directly. A provider outage
+                # must not turn a successful read-only search into a failed chat.
+                answer = _format_job_research_reply(orchestration_result)
+                provider_name = "job_research"
             else:
                 answer, provider_name = await generate_reply_with_fallback(
                     data.provider, build_model_prompt(db, conversation.id, data.message, context), timeout=10
