@@ -214,6 +214,17 @@ export default function Chat({
     return true;
   }
 
+  function getAcknowledgementReply(value) {
+    const text = String(value || "").trim().toLowerCase().replace(/[.!?]+$/g, "").replace(/\s+/g, " ");
+    if (/^(sasa|mambo|vipi|niaje|habari|upo|uko hapo|mr ai)$/.test(text)) {
+      return "Nipo hapa Boss Ferisi. Niko tayari kusaidia. Hali ya AI Core bado inahitaji jaribio lililofanikiwa kabla sijadai kuwa huduma ya AI inafanya kazi.";
+    }
+    if (/^(kazi|tuanze kazi|endelea|endelea kazi)$/.test(text)) {
+      return "Nimekupata Boss. Kwa sasa hakuna kazi hai iliyothibitishwa kwenye dashboard. AI Core inarudisha hitilafu, kwa hiyo siwezi kudai kuwa mawakala wameanza kazi. Kipaumbele ni kupima provider, kisha kuanzisha kazi zilizoidhinishwa na kuhifadhi ushahidi wa matokeo.";
+    }
+    return null;
+  }
+
   function isGreeting(value) {
     return /^(mr\s*ai|mr ai[,! ]*(habari|mambo|vipi|hello|hi|niaje)?|habari( mr ai)?|mambo( mr ai)?|vipi( mr ai)?|niaje( mr ai)?|good morning( mr ai)?|good evening( mr ai)?)\W*$/i.test(value.trim());
   }
