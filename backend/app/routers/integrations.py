@@ -11,6 +11,8 @@ from ..connectors.gmail import (
     get_message,
     is_configured,
     list_messages,
+    reply_to_message,
+    send_message,
 )
 from ..database import get_db
 from ..dependencies import get_current_user
