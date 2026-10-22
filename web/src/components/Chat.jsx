@@ -54,13 +54,15 @@ function getModeStatusReply(value, mode) {
 }
 
 function getAcknowledgementReply(value) {
-  const normalized = String(value || "").trim().toLowerCase().replace(/[.!?]+$/g, "").replace(/\s+/g, " ");
-  if (!/^(?:sawa|sasa|upo sawa|uko sawa|poa|nimekupata|okay|ok|asante)$/.test(normalized)) return null;
-  if (normalized === "sawa" || normalized === "okay" || normalized === "ok") {
-    return "Nimekupata. Tuendelee na mada ya awali.";
+  const text = String(value || "").trim().toLowerCase().replace(/[.!?]+$/g, "").replace(/\s+/g, " ");
+  if (/^(sasa|mambo|vipi|niaje|habari|upo|uko hapo|mr ai)$/.test(text)) {
+    return "Nipo hapa Boss Ferisi. Niko tayari kusaidia. Hali ya AI Core bado inahitaji jaribio lililofanikiwa kabla sijadai kuwa huduma ya AI inafanya kazi.";
   }
-  if (normalized === "sasa") return "Nipo hapa. Tuendelee na mada ya awali, au una jambo jipya?";
-  return "Nimekupata. Tuendelee na tulichokuwa tunazungumzia.";
+  if (/^(kazi|tuanze kazi|endelea|endelea kazi)$/.test(text)) {
+    return "Nimekupata Boss. Kwa sasa hakuna kazi hai iliyothibitishwa kwenye dashboard. AI Core inarudisha hitilafu, kwa hiyo siwezi kudai kuwa mawakala wameanza kazi. Kipaumbele ni kupima provider, kisha kuanzisha kazi zilizoidhinishwa na kuhifadhi ushahidi wa matokeo.";
+  }
+  if (/^(sawa|upo sawa|uko sawa|poa|nimekupata|okay|ok|asante)$/.test(text)) return "Nimekupata Boss. Tuendelee na kazi iliyopo.";
+  return null;
 }
 
 function getUnsupportedCapabilityReply(value) {
@@ -212,17 +214,6 @@ export default function Chat({
     if (!command) return false;
     onPowerCommand?.(command);
     return true;
-  }
-
-  function getAcknowledgementReply(value) {
-    const text = String(value || "").trim().toLowerCase().replace(/[.!?]+$/g, "").replace(/\s+/g, " ");
-    if (/^(sasa|mambo|vipi|niaje|habari|upo|uko hapo|mr ai)$/.test(text)) {
-      return "Nipo hapa Boss Ferisi. Niko tayari kusaidia. Hali ya AI Core bado inahitaji jaribio lililofanikiwa kabla sijadai kuwa huduma ya AI inafanya kazi.";
-    }
-    if (/^(kazi|tuanze kazi|endelea|endelea kazi)$/.test(text)) {
-      return "Nimekupata Boss. Kwa sasa hakuna kazi hai iliyothibitishwa kwenye dashboard. AI Core inarudisha hitilafu, kwa hiyo siwezi kudai kuwa mawakala wameanza kazi. Kipaumbele ni kupima provider, kisha kuanzisha kazi zilizoidhinishwa na kuhifadhi ushahidi wa matokeo.";
-    }
-    return null;
   }
 
   function isGreeting(value) {
