@@ -32,6 +32,19 @@ function hostIsAllowed(hostname, allowlist) {
   return allowlist.some(entry => hostname === entry || hostname.endsWith("." + entry));
 }
 
+async function findAllowedTarget(allowlist, preferredTabId = null) {
+  const tabs = await chrome.tabs.query({ lastFocusedWindow: true });
+  const candidates = tabs.filter(tab => {
+    if (!Number.isInteger(tab.id) || isControllerPage(tab.url || "")) return false;
+    return hostIsAllowed(hostnameFromUrl(tab.url || ""), allowlist);
+  });
+
+  const preferred = candidates.find(tab => tab.id === preferredTabId);
+  if (preferred) return preferred;
+
+  candidates.sort((a, b) => (b.lastAccessed || 0) - (a.lastAccessed || 0));
+  return candidates[0] || null;
+}
 
 function rememberTarget(tab) {
   if (!tab || !Number.isInteger(tab.id) || isControllerPage(tab.url || "")) return;
@@ -124,25 +137,47 @@ chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => 
   }
 
   (async () => {
-    const tabId = await restoreTarget();
-    if (!Number.isInteger(tabId)) {
-      throw new Error("No controlled browser tab is available. Open a target web page first.");
-    }
-
-    const target = await chrome.tabs.get(tabId);
-    if (isControllerPage(target.url || "")) {
-      throw new Error("The controlled tab points to the MR AI dashboard; open a target web page first.");
-    }
-
     const allowlist = await getAllowedHosts();
-    const currentHost = hostnameFromUrl(target.url || "");
-    if (!hostIsAllowed(currentHost, allowlist)) {
-      throw new Error("BLOCKED_BY_ALLOWLIST: Boss Ferisi lazima aongeze domain hii kwenye Browser Hands allowlist ya extension kwanza.");
+    const rememberedTabId = await restoreTarget();
+    let target = null;
+
+    if (Number.isInteger(rememberedTabId)) {
+      try {
+        const remembered = await chrome.tabs.get(rememberedTabId);
+        const rememberedHost = hostnameFromUrl(remembered.url || "");
+        if (!isControllerPage(remembered.url || "") && hostIsAllowed(rememberedHost, allowlist)) {
+          target = remembered;
+        }
+      } catch {
+        // Fall through and search for an allowed tab.
+      }
     }
+
+    // If the remembered target is stale or outside the allowlist, select the
+    // most recently used open tab whose exact host (or subdomain) is approved.
+    if (!target) {
+      target = await findAllowedTarget(allowlist);
+      if (target) rememberTarget(target);
+    }
+
+    if (!target || !Number.isInteger(target.id)) {
+      const tabs = await chrome.tabs.query({ lastFocusedWindow: true });
+      const activeTab = tabs.find(tab => tab.active && !isControllerPage(tab.url || ""));
+      const activeHost = hostnameFromUrl(activeTab?.url || "");
+      const allowlistText = allowlist.length ? allowlist.join(", ") : "(tupu)";
+      throw new Error(
+        `BLOCKED_BY_ALLOWLIST: Hakuna tab iliyo wazi inayolingana na Allowlist [${allowlistText}]. Tab ya sasa: ${activeHost || "haijatambuliwa"}. Fungua tovuti iliyoidhinishwa, mfano remoteok.com, kisha jaribu tena.`
+      );
+    }
+
+    const tabId = target.id;
+    const currentHost = hostnameFromUrl(target.url || "");
     if (message.action === "NAVIGATE") {
       const destinationHost = hostnameFromUrl(String(message.url || ""));
       if (!hostIsAllowed(destinationHost, allowlist)) {
-        throw new Error("BLOCKED_BY_ALLOWLIST: Destination domain haipo kwenye Browser Hands allowlist.");
+        throw new Error(
+          `BLOCKED_BY_ALLOWLIST: Destination ${destinationHost || "isiyotambuliwa"} haipo kwenye Allowlist [${allowlist.join(", ") || "(tupu)"}].`
+        );
       }
     }
 
@@ -150,7 +185,7 @@ chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => 
     const response = await chrome.tabs.sendMessage(tabId, payload);
     if (!response?.ok) throw new Error(response?.error || "Browser action failed.");
     // Unwrap content-script response; don't let a nested {ok,result} look like verified success.
-    return { ...response.result, targetHost: currentHost };
+    return { ...response.result, targetHost: currentHost, targetUrl: target.url || null, targetTitle: target.title || null };
   })()
     .then(result => sendResponse(result || { ok: false, error: "Empty extension response." }))
     .catch(error => sendResponse({
