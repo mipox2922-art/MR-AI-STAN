@@ -61,7 +61,7 @@ function getAcknowledgementReply(value) {
   if (/^(kazi|tuanze kazi|endelea|endelea kazi)$/.test(text)) {
     return "Nimekupata Boss. Kwa sasa hakuna kazi hai iliyothibitishwa kwenye dashboard. AI Core inarudisha hitilafu, kwa hiyo siwezi kudai kuwa mawakala wameanza kazi. Kipaumbele ni kupima provider, kisha kuanzisha kazi zilizoidhinishwa na kuhifadhi ushahidi wa matokeo.";
   }
-  if (/^(sawa|upo sawa|uko sawa|poa|nimekupata|okay|ok|asante)$/.test(text)) return "Nimekupata Boss. Tuendelee na kazi iliyopo.";
+  if (/^(sawa|saw|sawasawa|sawa boss|upo sawa|uko sawa|poa|nimekupata|okay|ok|asante)$/.test(text)) return "Nimekupata Boss. Tuendelee na kazi iliyopo.";
   return null;
 }
 
