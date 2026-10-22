@@ -25,17 +25,35 @@ async def run(user_id: int, text: str, db: Session) -> dict:
     # Run it directly so a normal "tafuta kazi" request never becomes a
     # meaningless approval request that blocks the user's actual goal.
     if intent.name == "JOB_RESEARCH":
-        query = re.sub(
-            r"^(?:nitafutie|tafutia|tafuta|find(?: me)?|search(?: for)?|research|job research)\\b",
-            "", request, flags=re.IGNORECASE,
-        ).strip(" :,-")
-        query = re.sub(
-            r"^(?:nafasi za kazi|kazi|ajira|remote jobs?|jobs?)\\b",
-            "", query, flags=re.IGNORECASE,
+        words = request.strip(" :,-").split()
+        prefixes = (
+            ("nitafutie",), ("tafutia",), ("tafuta",),
+            ("find", "me"), ("find",), ("search", "for"), ("search",),
+            ("research",), ("job", "research"),
         )
-        query = re.sub(r"^(?:za|ya|for|in)\\b", "", query, flags=re.IGNORECASE).strip()
-        query = re.sub(r"(?:^|\\s+)(?:sawa\\s+fanya|sawa|fanya|tafadhali|please)\\s*$", "", query, flags=re.IGNORECASE).strip()
-        query = query or "remote jobs"
+        lowered = [word.casefold() for word in words]
+        for prefix in prefixes:
+            if tuple(lowered[:len(prefix)]) == prefix:
+                words = words[len(prefix):]
+                lowered = lowered[len(prefix):]
+                break
+
+        job_prefixes = (
+            ("nafasi", "za", "kazi"), ("remote", "jobs"), ("remote", "job"),
+            ("kazi",), ("ajira",), ("jobs",), ("job",),
+        )
+        for prefix in job_prefixes:
+            if tuple(lowered[:len(prefix)]) == prefix:
+                words = words[len(prefix):]
+                lowered = lowered[len(prefix):]
+                break
+        while lowered and lowered[0] in {"za", "ya", "for", "in"}:
+            words.pop(0)
+            lowered.pop(0)
+        while lowered and lowered[-1] in {"sawa", "fanya", "tafadhali", "please"}:
+            words.pop()
+            lowered.pop()
+        query = " ".join(words).strip() or "remote jobs"
 
         try:
             from ..routers.jobs import research_public_jobs
