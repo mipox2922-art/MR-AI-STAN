@@ -6,6 +6,16 @@ function progressValue(value) {
   return Number.isFinite(number) ? Math.max(0, Math.min(100, number)) : null;
 }
 
+function parseTaskResult(value) {
+  if (!value) return {};
+  try {
+    const parsed = typeof value === "string" ? JSON.parse(value) : value;
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
 export default function TaskCenter({ tasks = [], onOpenAgents }) {
   const [items, setItems] = useState(tasks);
   const [title, setTitle] = useState("");
@@ -83,12 +93,41 @@ export default function TaskCenter({ tasks = [], onOpenAgents }) {
         {ordered.map(task => {
           const progress = progressValue(task.progress);
           const taskStatus = String(task.status || "PENDING").toUpperCase();
+          const resultPacket = parseTaskResult(task.result);
+          const jobWorkflow = resultPacket.workflow === "JOB_APPLICATION";
+          const job = resultPacket.job && typeof resultPacket.job === "object" ? resultPacket.job : {};
+          const draft = resultPacket.application_draft && typeof resultPacket.application_draft === "object"
+            ? resultPacket.application_draft
+            : null;
           return (
             <article className="task-center-row" key={task.id}>
               <div className="task-center-main">
                 <strong>{task.title || "Untitled task"}</strong>
                 <span>{task.description || "No description provided."}</span>
                 <small>#{task.id} · {String(task.agent || "orchestrator").toUpperCase()} · {String(task.priority || "NORMAL").toUpperCase()}</small>
+                {jobWorkflow && (
+                  <div style={{ marginTop: 12, padding: 12, border: "1px solid var(--line)", borderRadius: 8, display: "grid", gap: 8 }}>
+                    <strong>MR AI JOB AGENT · APPLICATION WORKFLOW</strong>
+                    <span>{job.company || "Company not listed"} · {job.location || "Location not provided"}</span>
+                    {job.url && String(job.url).startsWith("https://") && (
+                      <a href={job.url} target="_blank" rel="noreferrer">OPEN ORIGINAL JOB POSTING ↗</a>
+                    )}
+                    {Number.isFinite(Number(resultPacket.match_score)) && resultPacket.match_score !== null && (
+                      <small>SKILL MATCH: {resultPacket.match_score}% · Based on saved profile keywords only</small>
+                    )}
+                    {draft ? (
+                      <details>
+                        <summary style={{ cursor: "pointer", fontWeight: 700 }}>OPEN APPLICATION DRAFT · {draft.subject || "Cover letter"}</summary>
+                        <div style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere", padding: 10, background: "var(--panel, transparent)", borderRadius: 6 }}>{draft.cover_letter || "No cover letter draft."}</div>
+                        <small>{draft.source_note || "Draft only. Check facts before submission."}</small>
+                      </details>
+                    ) : (
+                      <span>Profile bado haijakamilika. Fungua Job Research → Job Autopilot na hifadhi jina, email, skills na muhtasari wa uzoefu.</span>
+                    )}
+                    <small style={{ fontWeight: 700 }}>APPLICATION SUBMISSION: {resultPacket.submission?.status || "NOT_SUBMITTED"}</small>
+                    <small>{resultPacket.submission?.reason || "Hakuna ushahidi wa kuwasilisha ombi bado."}</small>
+                  </div>
+                )}
               </div>
               <div className="task-center-progress">
                 <span className={`task-center-state state-${taskStatus.toLowerCase().replaceAll("_", "-")}`}>{taskStatus}</span>
