@@ -266,3 +266,45 @@ def test_chat_session_store_is_bounded_per_user(tmp_path):
         assert len(rows) == 50
         assert rows[0].session_id == "browser-54"
         assert "browser-0" not in {row.session_id for row in rows}
+
+def test_openrouter_extracts_text_from_content_block_arrays(monkeypatch):
+    import asyncio
+    from app.providers import openrouter as openrouter_module
+
+    monkeypatch.setattr(openrouter_module.settings, "openrouter_api_key", "test-key")
+    monkeypatch.setattr(openrouter_module.settings, "openrouter_model", "openrouter/free")
+
+    class FakeResponse:
+        status_code = 200
+        is_error = False
+
+        def json(self):
+            return {
+                "choices": [{
+                    "message": {
+                        "content": [
+                            {"type": "text", "text": "Karibu "},
+                            {"type": "image", "image_url": "not-text"},
+                            {"type": "text", "text": "Boss Ferisi"}
+                        ]
+                    },
+                    "finish_reason": "stop"
+                }]
+            }
+
+    class FakeClient:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_args):
+            return False
+
+        async def post(self, *_args, **_kwargs):
+            return FakeResponse()
+
+    monkeypatch.setattr(openrouter_module.httpx, "AsyncClient", lambda **_kwargs: FakeClient())
+    provider = openrouter_module.OpenRouterProvider()
+    answer = asyncio.run(provider.generate("salamu", system_instruction="Jibu Kiswahili"))
+
+    assert answer == "Karibu Boss Ferisi"
+
