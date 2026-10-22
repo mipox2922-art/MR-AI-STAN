@@ -266,6 +266,20 @@ export default function Chat({
       return;
     }
 
+    // Handle short acknowledgements locally. These do not need an AI-provider
+    // round trip, which previously caused ordinary messages like "sasa" to fail.
+    const acknowledgementReply = getAcknowledgementReply(text);
+    if (acknowledgementReply) {
+      setMessages(prev => [
+        ...prev,
+        { role: "user", content: text },
+        { role: "assistant", content: acknowledgementReply }
+      ]);
+      setMessage("");
+      reportRuntimeState("IDLE");
+      return;
+    }
+
     const conversationHistory = messages.slice(-10).map(item => ({
       role: item.role === "user" ? "user" : "assistant",
       content: item.role === "assistant" ? sanitizeAssistantMessage(item.content) : String(item.content || ""),
@@ -370,11 +384,21 @@ export default function Chat({
         reportRuntimeState("IDLE");
       }
     } catch (error) {
+      // Keep provider internals out of the conversation. If a tool/briefing
+      // already returned data, tell the Boss what failed without pretending the
+      // requested operation succeeded.
+      const rawError = String(error?.message || "");
+      const providerFailure = /AIProviderError|empty or invalid response|provider.*failed|model.*unavailable|rate.?limit/i.test(rawError);
+      const readableError = providerFailure
+        ? "Samahani Boss, huduma ya AI haijatoa jibu linaloweza kutumika. Sijathibitisha kuwa ombi limekamilika. Kagua AI Core na ufanye TEST AI PROVIDER kabla ya kujaribu tena."
+        : rawError
+          ? "Samahani Boss, ombi halijakamilika: " + rawError.slice(0, 220)
+          : "Samahani Boss, ombi halijakamilika kwa sababu isiyojulikana.";
       setMessages(prev => [
         ...prev,
         {
           role: "assistant",
-          content: sanitizeAssistantMessage("Kuna tatizo boss: " + (error.message || "Hitilafu haijafafanuliwa."))
+          content: sanitizeAssistantMessage(readableError)
         }
       ]);
       reportRuntimeState("ERROR");
