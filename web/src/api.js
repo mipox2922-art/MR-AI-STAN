@@ -186,6 +186,20 @@ export function getGmailMessage(messageId) {
   return request(`/integrations/gmail/messages/${encodeURIComponent(messageId)}`);
 }
 
+export function sendGmailMessage({ to, subject, body }) {
+  return request("/integrations/gmail/messages/send", {
+    method: "POST",
+    body: JSON.stringify({ to, subject, body }),
+  });
+}
+
+export function replyToGmailMessage(messageId, body) {
+  return request(`/integrations/gmail/messages/${encodeURIComponent(messageId)}/reply`, {
+    method: "POST",
+    body: JSON.stringify({ body }),
+  });
+}
+
 export function disconnectGmail() {
   return request("/integrations/gmail", { method: "DELETE" });
 }
