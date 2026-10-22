@@ -60,7 +60,7 @@ async function askMR(promptText) {
   const messageWasTrimmed = originalMessage.length > MAX_CHAT_MESSAGE_LENGTH;
   const boundedMessage = messageWasTrimmed
     ? originalMessage.slice(0, MAX_CHAT_MESSAGE_LENGTH - 80) +
-      "\\n\\n[Maudhui yamepunguzwa ili yasizidi kikomo cha MR AI.]"
+      "\n\n[Maudhui yamepunguzwa ili yasizidi kikomo cha MR AI.]"
     : originalMessage;
 
   const apiUrl = await getApiUrl();
@@ -91,7 +91,7 @@ async function askMR(promptText) {
   }
 
   return messageWasTrimmed
-    ? `${data.response || ""}\\n\\n[Maelezo: sehemu ya mwisho ya ukurasa ilipunguzwa ili kuendana na kikomo cha ujumbe cha MR AI.]`
+    ? `${data.response || ""}\n\n[Maelezo: sehemu ya mwisho ya ukurasa ilipunguzwa ili kuendana na kikomo cha ujumbe cha MR AI.]`
     : data.response;
 }
 
