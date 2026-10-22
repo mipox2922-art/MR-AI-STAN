@@ -16,7 +16,17 @@ let rebootRequests = 0;
 let radarScanRequests = 0;
 let delayedChatRequests = 0;
 let delayedChatRequestBodies = [];
-
+let mockJobAutopilot = {
+  config: {
+    enabled: true,
+    queries: ["graphic designer", "AI data annotation", "virtual assistant", "remote customer support"],
+    interval_hours: 6,
+    max_new_jobs: 12,
+    last_run_at: null,
+  },
+  profile: { full_name: "", email: "", phone: "", location: "", skills: [], experience_summary: "", portfolio_url: "", resume_text: "" },
+  metrics: { jobs_found: 0, drafts_ready: 0, waiting_for_profile: 0, applications_submitted_automatically: 0, failed: 0 },
+};
 const services = {
   ai_core: "CONFIGURED", database: "ONLINE", memory: "ONLINE", web_app: "ONLINE",
   agents: "REGISTERED", web_search: "CONFIGURED", security: "CONFIGURED", voice: "NOT_CONFIGURED", extension: "NOT_CONNECTED",
@@ -170,6 +180,18 @@ async function apiMock(route) {
   }
   if (method === "POST" && path === "/tools/route") return sendJson(route, { status: "ROUTED", route: { agent: "research", tool: "searxng" }, result: { status: "COMPLETED", results: [] }, message: "Mock tool routing only." });
   if (method === "POST" && path === "/tools/dispatch") return sendJson(route, { status: "COMPLETED", route: { agent: "orchestrator", tool: "system_telemetry" }, result: systemStatus });
+  if (method === "GET" && path === "/jobs/autopilot") return sendJson(route, mockJobAutopilot);
+  if (method === "PUT" && path === "/jobs/autopilot") {
+    mockJobAutopilot.config = { ...mockJobAutopilot.config, ...body };
+    return sendJson(route, { status: "SAVED", config: mockJobAutopilot.config });
+  }
+  if (method === "PUT" && path === "/jobs/autopilot/profile") {
+    mockJobAutopilot.profile = { ...mockJobAutopilot.profile, ...body };
+    return sendJson(route, { status: "SAVED", profile_ready: Boolean(body.full_name && body.email && (body.skills?.length || body.experience_summary)), drafts_refreshed: 0, message: "Mock profile saved." });
+  }
+  if (method === "POST" && path === "/jobs/autopilot/run-now") {
+    return sendJson(route, { status: "COMPLETED", new_jobs: 1, drafts_ready: 0, waiting_for_profile: 1, applications_submitted: 0, source_errors: [] });
+  }
   if (method === "GET" && path === "/jobs/research") return sendJson(route, { status: "COMPLETED", query: url.searchParams.get("query"), count: 1, sources: ["RemoteOK", "Remotive"], source_warnings: [], results: [{ id: "smoke-job-1", title: "Python Developer", company: "Example Remote", location: "Worldwide", url: "https://example.com/jobs/python", description: "Build Python APIs", tags: ["python", "api"], published_at: "2026-10-12", source: "RemoteOK" }] });
   if (method === "POST" && path === "/jobs/save") {
     const task = {
