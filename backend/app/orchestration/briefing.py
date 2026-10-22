@@ -1,15 +1,16 @@
 from __future__ import annotations
+import json
 from collections import Counter
 from datetime import datetime, timezone
 from typing import Any
 from sqlalchemy.orm import Session
-from ..models import ActivityLog, SystemErrorLog, Task, TaskStep
+from ..models import ActivityLog, Setting, SystemErrorLog, Task, TaskStep
 from ..routers.system import system_status
 from ..tools.registry import registry_summary
 from ..agents.registry import AGENTS
 
 ACTIVE_TASK_STATES = {"IN_PROGRESS", "RUNNING", "WORKING", "STARTED"}
-WAITING_TASK_STATES = {"PENDING", "WAITING", "BLOCKED", "WAITING_APPROVAL", "WAITING_FOR_HAND", "WAITING_FOR_VERIFICATION"}
+WAITING_TASK_STATES = {"PENDING", "WAITING", "BLOCKED", "WAITING_APPROVAL", "WAITING_FOR_HAND", "WAITING_FOR_VERIFICATION", "WAITING_FOR_PROFILE", "READY_FOR_REVIEW"}
 FAILED_TASK_STATES = {"FAILED", "ERROR"}
 
 def _utc_iso(value: datetime | None) -> str | None:
@@ -106,6 +107,44 @@ def build_executive_briefing(user: Any, db: Session) -> dict[str, Any]:
         else "Hakuna kazi kwenye database; hakuna kazi inayoendelea iliyothibitishwa." if not task_rows
         else "Kagua ripoti ya kazi na chagua hatua inayofuata."
     )
+
+    job_rows = [
+        row for row in task_rows
+        if str(row.get("agent") or "").casefold() == "jobs"
+        and str(row.get("source") or "").casefold() == "autopilot"
+    ]
+    job_packets: list[dict[str, Any]] = []
+    for row in job_rows:
+        try:
+            packet = json.loads(row.get("result") or "{}")
+        except (TypeError, ValueError):
+            packet = {}
+        if isinstance(packet, dict) and packet.get("workflow") == "JOB_APPLICATION":
+            job_packets.append(packet)
+    config_row = (
+        db.query(Setting)
+        .filter(Setting.user_id == user.id, Setting.key == "job_autopilot_config")
+        .order_by(Setting.id.desc())
+        .first()
+    )
+    try:
+        job_config = json.loads(config_row.value or "{}") if config_row else {"enabled": True}
+    except (TypeError, ValueError):
+        job_config = {"enabled": True}
+    job_autopilot = {
+        "enabled": bool(job_config.get("enabled", True)),
+        "last_run_at": job_config.get("last_run_at"),
+        "jobs_found": len(job_packets),
+        "drafts_ready": sum(1 for row in job_rows if row["status"] == "READY_FOR_REVIEW"),
+        "waiting_for_profile": sum(1 for row in job_rows if row["status"] == "WAITING_FOR_PROFILE"),
+        "applications_submitted_automatically": sum(
+            1 for packet in job_packets
+            if str((packet.get("submission") or {}).get("status") or "").upper() == "SUBMITTED"
+            and (packet.get("submission") or {}).get("verified") is True
+        ),
+        "auto_submit_available": False,
+        "submission_blocker": "Application form/email submission is not connected to a verified execution hand.",
+    }
     return {
         "status": "COMPLETED", "generated_at": now.isoformat().replace("+00:00", "Z"),
         "timezone": "Africa/Dar_es_Salaam", "system": system,
@@ -114,6 +153,7 @@ def build_executive_briefing(user: Any, db: Session) -> dict[str, Any]:
         "tasks": {"total": len(task_rows), "completed": completed, "working": active, "waiting": waiting,
             "failed": failed, "counts": dict(counts), "items": task_rows, "pending_approval": approvals},
         "recent_activity": recent_activity, "errors": errors, "tools": tools,
+        "job_autopilot": job_autopilot,
         "financial": {"status": "NOT_CONNECTED", "message": "Hakuna muunganisho wa fedha uliothibitishwa."},
         "social": {"status": "NOT_CONNECTED", "message": "Hakuna muunganisho wa uchapishaji wa mitandao ya kijamii uliothibitishwa."},
         "discoveries": [], "blockers": blockers, "next_action": next_action,
