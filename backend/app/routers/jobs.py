@@ -706,7 +706,11 @@ def update_job_tracking(
         previous = {}
     owner_confirmed = payload.get("owner_confirmed") is True
     tracking = _build_tracking_record(status, evidence_url, previous, owner_confirmed)
-    task.result = json.dumps(tracking)
+    # Preserve the autopilot's source/job/draft packet when recording a
+    # user-reported application status. Tracking is not independent proof of
+    # submission, so only the explicit tracking fields are updated.
+    merged_result = {**previous, **tracking}
+    task.result = json.dumps(merged_result, ensure_ascii=False, default=str)
     db.add(ActivityLog(
         user_id=current_user.id,
         action="JOB_TRACKING_UPDATED",
