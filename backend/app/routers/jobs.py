@@ -622,6 +622,7 @@ def update_job_application_profile(
     return {
         "status": "SAVED",
         "profile_ready": _profile_ready(profile),
+        "drafts_refreshed": refreshed_drafts,
         "message": (
             "Profile saved. New runs can prepare application drafts from the supplied facts."
             if _profile_ready(profile) else
