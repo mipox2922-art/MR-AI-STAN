@@ -34,7 +34,7 @@ async def run(user_id: int, text: str, db: Session) -> dict:
             "", query, flags=re.IGNORECASE,
         )
         query = re.sub(r"^(?:za|ya|for|in)\\b", "", query, flags=re.IGNORECASE).strip()
-        query = re.sub(r"\\s+(?:sawa\\s+fanya|sawa|fanya|tafadhali|please)\\s*$", "", query, flags=re.IGNORECASE).strip()
+        query = re.sub(r"(?:^|\\s+)(?:sawa\\s+fanya|sawa|fanya|tafadhali|please)\\s*$", "", query, flags=re.IGNORECASE).strip()
         query = query or "remote jobs"
 
         try:
