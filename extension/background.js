@@ -187,7 +187,10 @@ chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => 
     // Unwrap content-script response; don't let a nested {ok,result} look like verified success.
     return { ...response.result, targetHost: currentHost, targetUrl: target.url || null, targetTitle: target.title || null };
   })()
-    .then(result => sendResponse(result || { ok: false, error: "Empty extension response." }))
+    .then(result => sendResponse({
+      ok: true,
+      result: result || { ok: false, error: "Empty extension response." }
+    }))
     .catch(error => sendResponse({
       ok: false,
       error: error instanceof Error ? error.message : String(error)
