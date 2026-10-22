@@ -322,7 +322,7 @@ def _eligible_fallbacks(primary: str) -> list[str]:
     return allowed
 
 
-async def generate_reply_with_fallback(primary: str, prompt: str, timeout: int = 10) -> tuple[str, str]:
+async def generate_reply_with_fallback(primary: str, prompt: str, timeout: int = 40) -> tuple[str, str]:
     names = [primary] + _eligible_fallbacks(primary)
     errors: list[str] = []
     for index, name in enumerate(names):
@@ -554,7 +554,7 @@ async def chat(data: ChatRequest, current_user: User = Depends(get_current_user)
                 provider_name = "job_research"
             else:
                 answer, provider_name = await generate_reply_with_fallback(
-                    data.provider, build_model_prompt(db, conversation.id, data.message, context), timeout=10
+                    data.provider, build_model_prompt(db, conversation.id, data.message, context), timeout=40
                 )
         else:
             answer, provider_name = await generate_reply_with_fallback(
@@ -652,9 +652,10 @@ async def health_check(
         instance = get_provider(selected)
         result = await asyncio.wait_for(
             instance.generate("Reply with exactly the word LIVE.", system_instruction="Return only the word LIVE."),
-            timeout=8,
+            timeout=25,
         )
-        if not isinstance(result, str) or result.strip().upper() != "LIVE":
+        normalized_probe = str(result or "").strip().strip("`*# ").upper().rstrip(".! \\t\\r\\n")
+        if normalized_probe != "LIVE":
             raise RuntimeError("Provider did not return the expected LIVE probe response.")
         return {"status": "LIVE", "provider": selected,
             "latency_ms": round((time.perf_counter() - started) * 1000),
