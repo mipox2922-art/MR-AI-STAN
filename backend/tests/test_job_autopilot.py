@@ -158,3 +158,27 @@ def test_saving_application_profile_refreshes_pending_autopilot_draft():
     assert packet["application_draft"]["cover_letter"]
     assert step.state == "pending"
     assert json.loads(step.evidence or "{}")["submitted"] is False
+
+def test_job_autopilot_retries_source_outage_after_short_backoff(monkeypatch):
+    db = make_db()
+    calls = 0
+
+    async def failing_research(query, limit=25):
+        nonlocal calls
+        calls += 1
+        raise RuntimeError("public feed offline")
+
+    monkeypatch.setattr(jobs, "research_public_jobs", failing_research)
+
+    first = asyncio.run(jobs.run_job_autopilot_for_user(db, 11, force=True))
+    second = asyncio.run(jobs.run_job_autopilot_for_user(db, 11, force=False))
+    setting = db.query(Setting).filter_by(user_id=11, key=jobs.AUTOPILOT_CONFIG_KEY).one()
+
+    assert first["status"] == "SOURCE_ERROR"
+    assert first["retry_after_minutes"] == 30
+    assert second["status"] == "NOT_DUE"
+    assert calls == 4
+    stored = json.loads(setting.value)
+    assert stored["last_run_status"] == "SOURCE_ERROR"
+    assert stored["last_run_error_count"] == 4
+
