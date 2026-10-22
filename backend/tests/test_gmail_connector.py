@@ -41,12 +41,12 @@ def test_gmail_refresh_token_is_encrypted_at_rest():
     assert _load_refresh_token(db, 7) == "refresh-secret-value"
 
 
-def test_gmail_authorization_url_uses_readonly_offline_flow(monkeypatch):
+def test_gmail_authorization_url_uses_configured_scopes_offline_flow(monkeypatch):
     db = make_db()
     monkeypatch.setattr(settings, "gmail_client_id", "client-id")
     monkeypatch.setattr(settings, "gmail_client_secret", "client-secret")
     monkeypatch.setattr(settings, "gmail_redirect_uri", "http://localhost:8000/integrations/gmail/callback")
-    monkeypatch.setattr(settings, "gmail_scopes", "https://www.googleapis.com/auth/gmail.readonly")
+    monkeypatch.setattr(settings, "gmail_scopes", "https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.send")
 
     url = build_authorization_url(db, 42)
     query = parse_qs(urlparse(url).query)
@@ -54,7 +54,7 @@ def test_gmail_authorization_url_uses_readonly_offline_flow(monkeypatch):
     assert query["client_id"] == ["client-id"]
     assert query["access_type"] == ["offline"]
     assert query["prompt"] == ["consent"]
-    assert query["scope"] == ["https://www.googleapis.com/auth/gmail.readonly"]
+    assert query["scope"] == ["https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.send"]
     assert query["state"][0].startswith("42:")
 
     state_row = (
