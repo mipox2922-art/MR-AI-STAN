@@ -112,7 +112,8 @@ def test_chat_maps_provider_failure_to_gateway_error(tmp_path, monkeypatch):
 
     assert response.status_code == 502
     assert "AI provider returned empty or invalid response" in response.json()["detail"]
-    assert "AIProviderError" in response.json()["detail"]
+    assert "provider unavailable" in response.json()["detail"]
+    assert "AIProviderError" not in response.json()["detail"]
 
 
 def test_chat_rejects_unknown_provider(tmp_path, monkeypatch):
