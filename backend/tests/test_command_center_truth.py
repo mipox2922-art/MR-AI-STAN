@@ -58,6 +58,30 @@ def test_task_cannot_be_completed_with_zero_steps_or_missing_evidence():
     assert payload["progress"] == 0
 
 
+def test_safe_system_status_mission_runs_without_manual_approval(monkeypatch):
+    import asyncio
+    import app.orchestration.executor as executor_module
+
+    db = make_db()
+    user = SimpleNamespace(id=1)
+    monkeypatch.setattr(
+        executor_module,
+        "system_status",
+        lambda _user: {"runtime": "ONLINE", "verified": True},
+    )
+
+    result = asyncio.run(execute_mission("system status", user, db))
+
+    task = db.query(Task).one()
+    assert result["status"] == "COMPLETED"
+    assert task.status == "COMPLETED"
+    assert task.approved_by == user.id
+    assert db.query(ApprovalRequest).count() == 0
+    step = db.query(TaskStep).one()
+    assert step.state == "verified"
+    assert "verified" in (step.evidence or "").lower() or "ONLINE" in (step.evidence or "")
+
+
 def test_orchestrator_mission_starts_as_approval_proposal_and_runs_nothing():
     db = make_db()
     user = SimpleNamespace(id=1)
