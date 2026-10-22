@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "MR AI — Browser Hands",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "description": "MR AI browser extension connected to the shared secure backend.",
   "permissions": [
     "activeTab",
