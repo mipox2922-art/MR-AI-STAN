@@ -336,8 +336,10 @@ async def generate_reply_with_fallback(primary: str, prompt: str, timeout: int =
             errors.append(f"{name}: unavailable")
         except Exception as exc:
             logger.warning("AI provider attempt failed: provider=%s error_type=%s", name, type(exc).__name__)
-            errors.append(f"{name}: {type(exc).__name__}")
-    raise AIProviderError(primary, f"{PROVIDER_ERROR_MSG}: {'; '.join(errors)[:300] or 'No eligible provider answered.'}")
+            raw_detail = getattr(exc, "detail", None) or str(exc) or type(exc).__name__
+            safe_detail = redact_sensitive_text(str(raw_detail), 180) or type(exc).__name__
+            errors.append(f"{name}: {safe_detail}")
+    raise AIProviderError(primary, f"{PROVIDER_ERROR_MSG}: {'; '.join(errors)[:450] or 'No eligible provider answered.'}")
 
 
 async def _load_ai_state(db: Session, user_id: int) -> dict:
@@ -412,14 +414,17 @@ async def generate_with_timeout(
         except AIProviderError as exc:
             logger.warning("AI provider error; provider=%s error_type=%s", provider.__class__.__name__, type(exc).__name__)
             last_error = exc
-            
+
         except Exception as exc:
             logger.warning("Unexpected AI provider error; provider=%s error_type=%s", provider.__class__.__name__, type(exc).__name__)
             last_error = exc
-    
-    # All retries exhausted
-    error_detail = f"{PROVIDER_ERROR_MSG}: {type(last_error).__name__}"
-    logger.error(f"🚫 All retries exhausted: {error_detail}")
+
+    # Keep a useful, sanitized reason for diagnostics instead of reducing every
+    # provider failure to the unhelpful string "AIProviderError".
+    raw_detail = getattr(last_error, "detail", None) or type(last_error).__name__
+    error_detail = redact_sensitive_text(str(raw_detail), 300) or type(last_error).__name__
+    logger.error("AI retries exhausted: provider=%s reason=%s",
+        provider.__class__.__name__, error_detail)
     raise AIProviderError(provider.__class__.__name__, error_detail)
 
 # ==============================================================================
@@ -525,7 +530,20 @@ async def chat(data: ChatRequest, current_user: User = Depends(get_current_user)
         await _set_ai_state(db, current_user.id, "ERROR", request_id, "Mtoa huduma wa AI ameshindwa kujibu.")
         if isinstance(exc, ValueError) and "unknown" in str(exc).lower() and "provider" in str(exc).lower():
             raise HTTPException(status_code=400, detail=f"Unknown provider: {data.provider}") from exc
-        raise HTTPException(status_code=502, detail=f"{PROVIDER_ERROR_MSG}: {type(exc).__name__}") from exc
+        safe_detail = redact_sensitive_text(
+            str(getattr(exc, "detail", "") or str(exc) or type(exc).__name__), 450
+        )
+        detail_lower = safe_detail.casefold()
+        if "api_key" in detail_lower and ("haipo" in detail_lower or "missing" in detail_lower):
+            safe_detail = "API key ya provider iliyochaguliwa haijawekwa kwenye hosting environment."
+        elif "401" in detail_lower or "unauthorized" in detail_lower or "invalid api key" in detail_lower:
+            safe_detail = "Provider imekataa API key. Hakiki key kwenye Render Environment."
+        elif "429" in detail_lower or "quota" in detail_lower or "rate limit" in detail_lower:
+            safe_detail = "Provider imezuia ombi kwa sababu ya quota au rate limit. Jaribu fallback ya bure au subiri quota irejee."
+        raise HTTPException(
+            status_code=502,
+            detail=f"{PROVIDER_ERROR_MSG}: {safe_detail or type(exc).__name__}",
+        ) from exc
 
 
 @router.get("/state")
