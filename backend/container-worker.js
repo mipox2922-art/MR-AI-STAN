@@ -34,7 +34,7 @@ export class MrAiApiContainer extends Container {
         workerEnv.CORS_ORIGINS || "https://mr-ai-stan.pages.dev",
       ),
       GEMINI_API_KEY: String(workerEnv.GEMINI_API_KEY || ""),
-      GEMINI_MODEL: String(workerEnv.GEMINI_MODEL || "gemini-2.5-flash"),
+      GEMINI_MODEL: String(workerEnv.GEMINI_MODEL || "gemini-3.8-flash"),
       GEMINI_TIER: String(workerEnv.GEMINI_TIER || "FREE"),
       KIMI_API_KEY: String(workerEnv.KIMI_API_KEY || ""),
       KIMI_MODEL: String(workerEnv.KIMI_MODEL || "kimi-k2"),
