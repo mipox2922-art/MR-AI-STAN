@@ -157,4 +157,4 @@ def test_saving_application_profile_refreshes_pending_autopilot_draft():
     assert task.status == "READY_FOR_REVIEW"
     assert packet["application_draft"]["cover_letter"]
     assert step.state == "pending"
-    assert "submitted": False not in (step.evidence or "")
+    assert json.loads(step.evidence or "{}")["submitted"] is False
