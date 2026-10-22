@@ -153,9 +153,10 @@ def test_public_job_research_executes_and_records_verified_evidence(monkeypatch)
     db = make_db()
     user = SimpleNamespace(id=1)
 
+    calls = {}
+
     async def fake_research(query, limit=25):
-        assert query == "remote jobs"
-        assert limit == 15
+        calls.update(query=query, limit=limit)
         return {
             "status": "COMPLETED",
             "query": query,
@@ -175,6 +176,7 @@ def test_public_job_research_executes_and_records_verified_evidence(monkeypatch)
     monkeypatch.setattr(jobs_module, "research_public_jobs", fake_research)
     result = asyncio.run(run_orchestration(1, "TAFUTA KAZI SAWA FANYA", db))
 
+    assert calls == {"query": "remote jobs", "limit": 15}, result
     task = db.query(Task).one()
     step = db.query(TaskStep).one()
     assert result["status"] == "COMPLETED"
