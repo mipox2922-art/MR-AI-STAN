@@ -1178,6 +1178,7 @@ function ExecutiveMorningBrief({ system, gmailStatus, tasks = [], agents = [], o
   };
   const recent = Array.isArray(briefing?.recent_activity) ? briefing.recent_activity.slice(0, 5) : [];
   const jobTasks = taskRows ? taskRows.filter(task => String(task?.agent || "").toLowerCase() === "jobs") : null;
+  const jobAutopilot = briefing?.job_autopilot || null;
   const gmailState = String(gmailStatus?.status || system?.services?.gmail || "Haijathibitishwa").replaceAll("_", " ");
   const gmailConnected = gmailStatus?.connected === true;
   const blockers = Array.isArray(briefing?.blockers) ? briefing.blockers : [];
@@ -1201,8 +1202,11 @@ function ExecutiveMorningBrief({ system, gmailStatus, tasks = [], agents = [], o
     const gmailText = gmailConnected
       ? "Gmail imeunganishwa, lakini jumla ya barua na majibu haijathibitishwa hapa."
       : "Hali ya Gmail: " + gmailState + ".";
+    const jobText = jobAutopilot
+      ? `Job Autopilot: nafasi ${jobAutopilot.jobs_found ?? 0} zimehifadhiwa, draft ${jobAutopilot.drafts_ready ?? 0} ziko tayari, ${jobAutopilot.waiting_for_profile ?? 0} zinasubiri profile, na maombi yaliyotumwa na mfumo ${jobAutopilot.applications_submitted_automatically ?? 0}. ${jobAutopilot.auto_submit_available ? "" : "Uwasilishaji wa mwisho haujaunganishwa; hakuna ombi linalodaiwa kuwa limetumwa."}`
+      : "Hali ya Job Autopilot haijathibitishwa kwenye briefing.";
     return ["Karibu Boss Ferisi.", "Huu hapa muhtasari wa MR AI STAN.", tasksText, agentsText,
-      approvalText, failureText, gmailText, "Hatua inayopendekezwa: " + priorityText].join(" ");
+      jobText, approvalText, failureText, gmailText, "Hatua inayopendekezwa: " + priorityText].join(" ");
   }
 
   async function checkAIProviderHealth() {
