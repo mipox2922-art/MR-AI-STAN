@@ -72,20 +72,105 @@ async def run(user_id: int, text: str, db: Session) -> dict:
             "note": "Utafiti wa vyanzo vya umma tu; hakuna maombi ya kazi yaliyotumwa.",
         }
 
-        task = Task(
-            user_id=user_id,
-            title=f"Utafutaji wa kazi: {query}"[:255],
-            description=request[:12000],
-            status=task_status,
-            priority="NORMAL",
-            agent="jobs",
-            source="orchestrator",
-            requested_by="MR AI Job Research",
-            progress=100 if success else 0,
-            result=json.dumps(job_result, ensure_ascii=False, default=str),
-            error=None if success else "Vyanzo vya kazi havikurudisha matokeo yanayoweza kutumika.",
+        # Reuse the matching pending task if the same command was previously
+        # blocked by the old generic approval gate. Avoid leaving the Boss's
+        # already-requested job search stranded as a waiting approval.
+        candidates = (
+            db.query(Task)
+            .filter(
+                Task.user_id == user_id,
+                Task.agent == "orchestrator",
+                Task.status == "WAITING_APPROVAL",
+            )
+            .order_by(Task.id.desc())
+            .all()
         )
-        db.add(task)
+        task = next(
+            (
+                item for item in candidates
+                if (item.description or "").strip().casefold() == request.casefold()
+            ),
+            None,
+        )
+        reused_pending_task = task is not None
+        if task is None:
+            task = Task(
+                user_id=user_id,
+                title=f"Utafutaji wa kazi: {query}"[:255],
+                description=request[:12000],
+                status=task_status,
+                priority="NORMAL",
+                agent="jobs",
+                source="orchestrator",
+                requested_by="MR AI Job Research",
+                progress=100 if success else 0,
+                result=json.dumps(job_result, ensure_ascii=False, default=str),
+                error=None if success else "Vyanzo vya kazi havikurudisha matokeo yanayoweza kutumika.",
+            )
+            db.add(task)
+            db.flush()
+            execution = Execution(
+                user_id=user_id,
+                intent="JOB_RESEARCH",
+                status=task_status,
+                risk="LOW",
+                result=json.dumps({"task_id": task.id, "job_results": job_result}, ensure_ascii=False, default=str),
+                error=None if success else task.error,
+            )
+            db.add(execution)
+        else:
+            # Repeated read-only request: finish that exact task, not a duplicate.
+            db.query(TaskStep).filter(TaskStep.task_id == task.id).delete(synchronize_session=False)
+            task.title = f"Utafutaji wa kazi: {query}"[:255]
+            task.description = request[:12000]
+            task.status = task_status
+            task.priority = "NORMAL"
+            task.agent = "jobs"
+            task.source = "orchestrator"
+            task.requested_by = "MR AI Job Research"
+            task.progress = 100 if success else 0
+            task.result = json.dumps(job_result, ensure_ascii=False, default=str)
+            task.error = None if success else "Vyanzo vya kazi havikurudisha matokeo yanayoweza kutumika."
+
+            # Cancel only approval/execution records tied to the exact task.
+            for approval in db.query(ApprovalRequest).filter(
+                ApprovalRequest.user_id == user_id,
+                ApprovalRequest.status == "PENDING",
+            ).all():
+                try:
+                    approval_payload = json.loads(approval.payload or "{}")
+                except (TypeError, ValueError):
+                    approval_payload = {}
+                if str(approval_payload.get("task_id", "")) == str(task.id):
+                    approval.status = "CANCELLED"
+                    approval.resolved_at = datetime.utcnow()
+
+            execution = None
+            for existing_execution in db.query(Execution).filter(
+                Execution.user_id == user_id,
+                Execution.status == "WAITING_APPROVAL",
+            ).order_by(Execution.id.desc()).all():
+                try:
+                    execution_payload = json.loads(existing_execution.result or "{}")
+                except (TypeError, ValueError):
+                    execution_payload = {}
+                if str(execution_payload.get("task_id", "")) == str(task.id):
+                    execution = existing_execution
+                    break
+            if execution is None:
+                execution = Execution(
+                    user_id=user_id,
+                    intent="JOB_RESEARCH",
+                    status=task_status,
+                    risk="LOW",
+                )
+                db.add(execution)
+            execution.intent = "JOB_RESEARCH"
+            execution.status = task_status
+            execution.risk = "LOW"
+            execution.result = json.dumps({"task_id": task.id, "job_results": job_result}, ensure_ascii=False, default=str)
+            execution.error = None if success else task.error
+
         db.flush()
         db.add(TaskStep(
             task_id=task.id,
@@ -95,19 +180,10 @@ async def run(user_id: int, text: str, db: Session) -> dict:
             evidence=json.dumps(evidence_obj, ensure_ascii=False, default=str),
             verified_at=datetime.now(timezone.utc).replace(tzinfo=None) if success else None,
         ))
-        execution = Execution(
-            user_id=user_id,
-            intent="JOB_RESEARCH",
-            status=task_status,
-            risk="LOW",
-            result=json.dumps({"task_id": task.id, "job_results": job_result}, ensure_ascii=False, default=str),
-            error=None if success else task.error,
-        )
-        db.add(execution)
         db.add(ActivityLog(
             user_id=user_id,
             action="JOB_RESEARCH_AUTO_EXECUTED" if success else "JOB_RESEARCH_FAILED",
-            details=f"task_id={task.id}; status={task_status}; query={query[:180]}; results={evidence_obj['count']}",
+            details=f"task_id={task.id}; reused_pending={reused_pending_task}; status={task_status}; query={query[:180]}; results={evidence_obj['count']}",
         ))
         db.commit()
         db.refresh(task)
