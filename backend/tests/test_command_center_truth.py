@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+import json
 from types import SimpleNamespace
 
 from fastapi import FastAPI
@@ -9,7 +10,7 @@ from sqlalchemy.pool import StaticPool
 
 from app.database import Base, get_db
 from app.dependencies import get_current_user
-from app.models import ApprovalRequest, Task, TaskStep
+from app.models import ApprovalRequest, Execution, Task, TaskStep
 from app.orchestration.briefing import build_executive_briefing
 from app.routers import tasks as task_router
 from app.routers import agents as agents_router
@@ -184,4 +185,58 @@ def test_public_job_research_executes_and_records_verified_evidence(monkeypatch)
     assert step.state == "verified"
     assert "graphic-designer" in (step.evidence or "")
     assert db.query(ApprovalRequest).count() == 0
+
+def test_repeated_job_search_resumes_exact_old_approval_task(monkeypatch):
+    import asyncio
+    import app.routers.jobs as jobs_module
+
+    db = make_db()
+    user = SimpleNamespace(id=1)
+    request = "TAFUTA KAZI SAWA FANYA"
+    task = Task(
+        user_id=1, title=request, description=request, status="WAITING_APPROVAL",
+        priority="NORMAL", agent="orchestrator", source="orchestrator",
+        requested_by="MR AI Orchestrator", progress=0,
+    )
+    db.add(task)
+    db.flush()
+    execution = Execution(
+        user_id=1, intent="WEB_RESEARCH", status="WAITING_APPROVAL", risk="LOW",
+        result='{"task_id": ' + str(task.id) + ', "approval_id": 1, "status": "WAITING_APPROVAL"}',
+    )
+    db.add(execution)
+    approval = ApprovalRequest(
+        user_id=1, action="WEB_RESEARCH",
+        payload=json.dumps({"task_id": task.id, "execution_id": 1, "intent": "WEB_RESEARCH"}),
+        status="PENDING",
+    )
+    db.add(approval)
+    db.add(TaskStep(task_id=task.id, position=1, title="Old web research step", state="pending"))
+    db.commit()
+
+    async def fake_research(query, limit=25):
+        return {
+            "status": "COMPLETED", "query": query, "count": 1,
+            "results": [{
+                "title": "Remote Designer", "company": "Example",
+                "location": "Worldwide", "url": "https://jobs.example.test/one",
+            }],
+            "sources": ["RemoteOK"], "source_warnings": [],
+        }
+
+    monkeypatch.setattr(jobs_module, "research_public_jobs", fake_research)
+    result = asyncio.run(run_orchestration(1, request, db))
+
+    db.refresh(task)
+    db.refresh(approval)
+    db.refresh(execution)
+    assert result["status"] == "COMPLETED"
+    assert result["task_id"] == task.id
+    assert db.query(Task).count() == 1
+    assert task.agent == "jobs"
+    assert task.status == "COMPLETED"
+    assert approval.status == "CANCELLED"
+    assert execution.intent == "JOB_RESEARCH"
+    assert execution.status == "COMPLETED"
+    assert db.query(TaskStep).filter_by(task_id=task.id).one().state == "verified"
 
