@@ -209,7 +209,7 @@ def _build_application_draft(job: dict[str, Any], profile: dict[str, Any]) -> di
 
 
 def _job_url_from_task(task: Task) -> str | None:
-    match = re.search(r"^Job URL:\\s*(https://\\S+)", str(task.description or ""), flags=re.MULTILINE)
+    match = re.search(r"^Job URL:\s*(https://\S+)", str(task.description or ""), flags=re.MULTILINE)
     if match:
         return match.group(1).rstrip(".,)")
     try:
@@ -569,7 +569,7 @@ def update_job_application_profile(
             profile[key] = [str(item).strip()[:100] for item in value if str(item).strip()][:20]
         else:
             profile[key] = str(value or "").strip()[:6000 if key == "resume_text" else 1800]
-    if profile.get("email") and not re.fullmatch(r"[^\\s@]+@[^\\s@]+\\.[^\\s@]+", profile["email"]):
+    if profile.get("email") and not re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", profile["email"]):
         raise HTTPException(400, "Enter a valid email address.")
     if profile.get("portfolio_url") and urlparse(profile["portfolio_url"]).scheme != "https":
         raise HTTPException(400, "Portfolio URL must use HTTPS.")
