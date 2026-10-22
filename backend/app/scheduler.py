@@ -114,12 +114,29 @@ async def run_scheduler_cycle() -> tuple[int, int]:
     try:
         maybe_run_self_audit(db)
         fired = run_due_jobs(db)
+
+        # Job Autopilot is user-scoped and interval-gated. It discovers new
+        # public listings and prepares drafts while never claiming that a
+        # form/email application was submitted.
+        autopilot_summary = {"users_checked": 0, "users_due": 0, "new_jobs": 0, "drafts_ready": 0, "errors": 0}
+        try:
+            from .routers.jobs import run_job_autopilot_cycle
+            autopilot_summary = await run_job_autopilot_cycle(db)
+        except Exception as exc:
+            db.rollback()
+            logger.error("Job Autopilot cycle failed: error_type=%s", type(exc).__name__)
+
         processed = await run_pending_tasks(db, limit=5)
-        if fired or processed:
+        if fired or processed or autopilot_summary.get("users_due"):
             logger.info(
-                "Scheduler cycle complete: triggered=%s processed=%s",
+                "Scheduler cycle complete: triggered=%s processed=%s job_users=%s "
+                "job_candidates=%s application_drafts=%s job_source_errors=%s",
                 fired,
                 processed,
+                autopilot_summary.get("users_due", 0),
+                autopilot_summary.get("new_jobs", 0),
+                autopilot_summary.get("drafts_ready", 0),
+                autopilot_summary.get("errors", 0),
             )
         return fired, processed
     except Exception:
