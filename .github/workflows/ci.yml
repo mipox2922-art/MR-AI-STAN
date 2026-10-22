@@ -242,6 +242,20 @@ jobs:
           if health is None:
               raise SystemExit("FAIL API/database: /health did not confirm a healthy PostgreSQL database")
 
+          # On main pushes, verify the hosted background worker is actually
+          # configured and running, rather than relying on code defaults alone.
+          if require_postgres:
+              worker = health.get("background_scheduler") or {}
+              if worker.get("enabled_by_config") is not True:
+                  raise SystemExit(f"FAIL background scheduler: not enabled by runtime config: {worker}")
+              if worker.get("loop_running") is not True:
+                  raise SystemExit(f"FAIL background scheduler: in-process loop is not running: {worker}")
+              print(
+                  "PASS background scheduler: enabled and running; "
+                  f"last_cycle_status={worker.get('last_cycle_status')}, "
+                  f"last_cycle_at={worker.get('last_cycle_at')}"
+              )
+
           code, body = get(api_url + "/", timeout=20)
           try:
               payload = json.loads(body)
