@@ -14,6 +14,8 @@ from app.orchestration.briefing import build_executive_briefing
 from app.routers import tasks as task_router
 from app.routers import agents as agents_router
 from app.orchestration.executor import execute_mission
+from app.core.intent import classify
+from app.core.orchestrator import run as run_orchestration
 
 
 def make_db():
@@ -135,3 +137,51 @@ def test_briefing_uses_database_counts_and_does_not_call_empty_registry_busy():
     assert security_agent["status"] == "WAITING"
     assert security_agent["current_task"]["status"] == "WAITING_APPROVAL"
     assert report["timezone"] == "Africa/Dar_es_Salaam"
+
+def test_swahi_job_command_routes_to_job_research_not_generic_web_research():
+    intent = classify("TAFUTA KAZI SAWA FANYA")
+    assert intent.name == "JOB_RESEARCH"
+    assert intent.risk == "LOW"
+    assert intent.executable is True
+
+
+def test_public_job_research_executes_and_records_verified_evidence(monkeypatch):
+    import asyncio
+    import app.routers.jobs as jobs_module
+
+    db = make_db()
+    user = SimpleNamespace(id=1)
+
+    async def fake_research(query, limit=25):
+        assert query == "remote jobs"
+        assert limit == 15
+        return {
+            "status": "COMPLETED",
+            "query": query,
+            "count": 1,
+            "results": [{
+                "title": "Remote Graphic Designer",
+                "company": "Example Studio",
+                "location": "Worldwide",
+                "url": "https://jobs.example.test/graphic-designer",
+                "source": "Remotive",
+            }],
+            "sources": ["RemoteOK", "Remotive"],
+            "source_warnings": [],
+            "note": "Public job feeds only.",
+        }
+
+    monkeypatch.setattr(jobs_module, "research_public_jobs", fake_research)
+    result = asyncio.run(run_orchestration(1, "TAFUTA KAZI SAWA FANYA", db))
+
+    task = db.query(Task).one()
+    step = db.query(TaskStep).one()
+    assert result["status"] == "COMPLETED"
+    assert result["job_results"]["count"] == 1
+    assert task.status == "COMPLETED"
+    assert task.progress == 100
+    assert task.agent == "jobs"
+    assert step.state == "verified"
+    assert "graphic-designer" in (step.evidence or "")
+    assert db.query(ApprovalRequest).count() == 0
+
