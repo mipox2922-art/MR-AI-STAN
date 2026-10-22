@@ -33,6 +33,25 @@ def _add_steps_from_plan(db: Session, task_id: int, plan: dict[str, Any]) -> lis
     return rows
 
 
+def _is_safe_for_autonomous_execution(plan: dict[str, Any]) -> bool:
+    """Allow unattended execution only for implemented, read-only operations."""
+    steps = plan.get("steps") or []
+    if not steps:
+        return False
+    for step in steps:
+        agent_id = step.get("agent")
+        tools = set(step.get("tools") or [])
+        # Job research currently queries public feeds only; it never applies.
+        if agent_id == "jobs":
+            continue
+        # Host telemetry is read-only and can be verified by the backend.
+        if agent_id == "orchestrator" and "system_telemetry" in tools:
+            continue
+        # Unknown/unconnected or side-effecting agents require Boss approval.
+        return False
+    return True
+
+
 async def execute_mission(
     request: str,
     user: Any,
@@ -44,20 +63,35 @@ async def execute_mission(
 
     plan = build_plan(request)
     if mission is None:
+        auto_execute = _is_safe_for_autonomous_execution(plan)
         proposed = Task(
             user_id=user.id,
             title=request[:255],
             description=request,
-            status="WAITING_APPROVAL",
+            status="PENDING" if auto_execute else "WAITING_APPROVAL",
             priority="NORMAL",
             agent="orchestrator",
             source="orchestrator",
             requested_by="MR AI Orchestrator",
+            approved_by=user.id if auto_execute else None,
             progress=0,
         )
         db.add(proposed)
         db.flush()
         _add_steps_from_plan(db, proposed.id, plan)
+
+        if auto_execute:
+            db.add(ActivityLog(
+                user_id=user.id,
+                action="MISSION_AUTO_AUTHORIZED",
+                details=f"task_id={proposed.id}; policy=read_only_verified_operations; steps={len(plan.get('steps') or [])}",
+            ))
+            db.commit()
+            db.refresh(proposed)
+            # Re-enter through the same executor path used by approved missions;
+            # only the narrow allowlist above can take this route.
+            return await execute_mission(request, user, db, mission=proposed)
+
         approval = ApprovalRequest(
             user_id=user.id,
             action="MISSION_EXECUTION",
@@ -85,7 +119,7 @@ async def execute_mission(
                 "name": item.get("name", item.get("agent", "Hatua")),
                 "status": "WAITING_APPROVAL",
                 "verified": False,
-                "evidence": {"message": "Imependekezwa na Orchestrator; haijatekelezwa kabla ya idhini ya Boss."},
+                "evidence": {"message": "Imependekezwa na Orchestrator; inasubiri idhini kwa sababu hatua zake si za kusoma tu."},
             } for index, item in enumerate(plan.get("steps") or [], start=1)],
             "next_action": "Boss Ferisi akague mpango kisha aidhinishe. Hakuna kitendo cha nje kilichotekelezwa.",
         }
