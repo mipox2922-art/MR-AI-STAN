@@ -116,6 +116,48 @@ def test_chat_maps_provider_failure_to_gateway_error(tmp_path, monkeypatch):
     assert "AIProviderError" not in response.json()["detail"]
 
 
+def test_job_search_chat_returns_results_without_calling_ai_provider(tmp_path, monkeypatch):
+    client, _ = build_chat_client(tmp_path)
+
+    async def fake_orchestration(_user_id, _text, _db):
+        return {
+            "status": "COMPLETED",
+            "task_id": 42,
+            "job_results": {
+                "status": "COMPLETED",
+                "query": "remote jobs",
+                "count": 1,
+                "results": [{
+                    "title": "Remote Graphic Designer",
+                    "company": "Example Studio",
+                    "location": "Worldwide",
+                    "url": "https://jobs.example.test/graphic-designer",
+                    "source": "Remotive",
+                }],
+                "sources": ["Remotive"],
+                "source_warnings": [],
+            },
+        }
+
+    def provider_must_not_be_called(_name):
+        raise AssertionError("Job search results must not depend on the AI provider")
+
+    monkeypatch.setattr(ai_router, "run_orchestration", fake_orchestration)
+    monkeypatch.setattr(ai_router, "get_provider", provider_must_not_be_called)
+
+    response = client.post(
+        "/ai/chat",
+        json={"message": "TAFUTA KAZI SAWA FANYA", "provider": "openrouter"},
+    )
+
+    assert response.status_code == 200
+    answer = response.json()["response"]
+    assert "Remote Graphic Designer" in answer
+    assert "Example Studio" in answer
+    assert "https://jobs.example.test/graphic-designer" in answer
+    assert "Hakuna maombi" in answer or "Hakuna maombi yaliyotumwa" in answer
+
+
 def test_chat_rejects_unknown_provider(tmp_path, monkeypatch):
     client, _ = build_chat_client(tmp_path)
 
