@@ -97,8 +97,9 @@ function JobAutopilotPanel() {
     setError("");
     const queries = queryText.split(/[\n,;]/).map(item => item.trim()).filter(Boolean);
     if (!queries.length) {
-      setError("Weka angalau aina moja ya kazi ya kutafuta.");
-      return null;
+      const message = "Weka angalau aina moja ya kazi ya kutafuta.";
+      setError(message);
+      throw new Error(message);
     }
     const result = await updateJobAutopilot({
       enabled: config.enabled === true,
