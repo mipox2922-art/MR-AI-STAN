@@ -870,7 +870,7 @@ function App() {
           </div>
           <div className="sidebar-voice-quote">
             <strong>{voiceTranscript ? `"${voiceTranscript}"` : '"Hey Ferisi"'}</strong>
-            <span>{voiceTranscript ? "Command received." : "I’m at your service."}</span>
+            <span>{voiceTranscript ? "Agizo limepokelewa." : "Nipo tayari kukusaidia, Boss Ferisi."}</span>
           </div>
           <VoiceControl
             onTranscript={text => {
