@@ -8,6 +8,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from .config import settings
 from .database import SessionLocal, get_db
 from .dependencies import get_current_user
 from .models import ActivityLog, Notification, ScheduledJob, Task
@@ -20,6 +21,32 @@ router = APIRouter(prefix="/scheduler", tags=["Scheduler"])
 logger = logging.getLogger("mr_ai.scheduler")
 POLL_SECONDS = 5
 _scheduler_task: Optional[asyncio.Task] = None
+_last_cycle_at: Optional[str] = None
+_last_cycle_status = "NOT_RUN"
+_last_cycle_error_type: Optional[str] = None
+_last_cycle_summary: dict[str, int] = {
+    "scheduled_jobs_triggered": 0,
+    "tasks_processed": 0,
+    "autopilot_users_checked": 0,
+    "autopilot_users_due": 0,
+    "new_jobs_found": 0,
+    "application_drafts_ready": 0,
+    "job_source_errors": 0,
+}
+
+
+def scheduler_status() -> dict:
+    """Expose non-sensitive worker health so hosted background execution is observable."""
+    task = _scheduler_task
+    return {
+        "enabled_by_config": bool(settings.scheduler_enabled and not settings.serverless_mode),
+        "loop_running": bool(task and not task.done()),
+        "last_cycle_at": _last_cycle_at,
+        "last_cycle_status": _last_cycle_status,
+        "last_cycle_error_type": _last_cycle_error_type,
+        "last_cycle_summary": dict(_last_cycle_summary),
+        "truth_note": "Worker health does not prove a job application was submitted; task evidence is reported separately.",
+    }
 
 
 def _utcnow() -> datetime:
@@ -110,37 +137,62 @@ def run_due_jobs(db: Session, now: Optional[datetime] = None) -> int:
 
 
 async def run_scheduler_cycle() -> tuple[int, int]:
+    global _last_cycle_at, _last_cycle_status, _last_cycle_error_type, _last_cycle_summary
     db = SessionLocal()
+    _last_cycle_at = datetime.now(timezone.utc).isoformat()
+    _last_cycle_status = "RUNNING"
+    _last_cycle_error_type = None
+    summary = {
+        "scheduled_jobs_triggered": 0,
+        "tasks_processed": 0,
+        "autopilot_users_checked": 0,
+        "autopilot_users_due": 0,
+        "new_jobs_found": 0,
+        "application_drafts_ready": 0,
+        "job_source_errors": 0,
+    }
     try:
         maybe_run_self_audit(db)
         fired = run_due_jobs(db)
+        summary["scheduled_jobs_triggered"] = fired
 
         # Job Autopilot is user-scoped and interval-gated. It discovers new
         # public listings and prepares drafts while never claiming that a
         # form/email application was submitted.
-        autopilot_summary = {"users_checked": 0, "users_due": 0, "new_jobs": 0, "drafts_ready": 0, "errors": 0}
         try:
             from .routers.jobs import run_job_autopilot_cycle
             autopilot_summary = await run_job_autopilot_cycle(db)
+            summary["autopilot_users_checked"] = int(autopilot_summary.get("users_checked") or 0)
+            summary["autopilot_users_due"] = int(autopilot_summary.get("users_due") or 0)
+            summary["new_jobs_found"] = int(autopilot_summary.get("new_jobs") or 0)
+            summary["application_drafts_ready"] = int(autopilot_summary.get("drafts_ready") or 0)
+            summary["job_source_errors"] = int(autopilot_summary.get("errors") or 0)
         except Exception as exc:
             db.rollback()
+            summary["job_source_errors"] += 1
             logger.error("Job Autopilot cycle failed: error_type=%s", type(exc).__name__)
 
         processed = await run_pending_tasks(db, limit=5)
-        if fired or processed or autopilot_summary.get("users_due"):
+        summary["tasks_processed"] = processed
+        _last_cycle_summary = dict(summary)
+        _last_cycle_status = "COMPLETED"
+        if fired or processed or summary["autopilot_users_due"]:
             logger.info(
                 "Scheduler cycle complete: triggered=%s processed=%s job_users=%s "
                 "job_candidates=%s application_drafts=%s job_source_errors=%s",
                 fired,
                 processed,
-                autopilot_summary.get("users_due", 0),
-                autopilot_summary.get("new_jobs", 0),
-                autopilot_summary.get("drafts_ready", 0),
-                autopilot_summary.get("errors", 0),
+                summary["autopilot_users_due"],
+                summary["new_jobs_found"],
+                summary["application_drafts_ready"],
+                summary["job_source_errors"],
             )
         return fired, processed
-    except Exception:
+    except Exception as exc:
         db.rollback()
+        _last_cycle_status = "FAILED"
+        _last_cycle_error_type = type(exc).__name__
+        _last_cycle_summary = dict(summary)
         logger.exception("Scheduled job cycle failed")
         return 0, 0
     finally:
