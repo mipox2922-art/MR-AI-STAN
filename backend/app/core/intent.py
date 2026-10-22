@@ -16,8 +16,15 @@ _RULES: list[tuple[str, tuple[str, ...], str, str, bool]] = [
     ("MEMORY_SEARCH", ("kumbuka", "remember", "memory", "unakumbuka"), "LOW", "LOW", True),
     ("MEMORY_SAVE", ("hifadhi kumbukumbu", "remember this", "kumbuka hii", "save memory"), "LOW", "LOW", True),
     ("TASK_CREATE", ("tengeneza task", "create task", "ongeza task", "add task", "kazi mpya"), "LOW", "LOW", True),
-    ("JOB_RESEARCH", ("job research", "research jobs", "search jobs", "find jobs", "remote jobs", "ajira", "jobs", "job"), "LOW", "LOW", True),
-    ("WEB_RESEARCH", ("tafuta", "search web", "research", "habari za", "jua kuhusu", "web search"), "LOW", "LOW", True),
+    # Job-seeking language must outrank generic "tafuta" web research.
+    # Public job feeds are read-only; this intent never submits applications.
+    ("JOB_RESEARCH", (
+        "nitafutie kazi", "nitafutie ajira", "tafuta kazi", "tafuta ajira",
+        "tafutia kazi", "tafutia ajira", "nafasi za kazi", "kazi remote",
+        "remote jobs", "job research", "research jobs", "search jobs", "find jobs",
+        "ajira", "jobs", "job", "kazi",
+    ), "LOW", "LOW", True),
+    ("WEB_RESEARCH", ("search web", "research", "habari za", "jua kuhusu", "web search", "tafuta"), "LOW", "LOW", True),
     ("GMAIL_SEND", ("tuma email", "send email", "send an email", "tuma barua pepe"), "HIGH", "HIGH", False),
     ("GMAIL_SEARCH", ("tafuta email", "search email", "inbox", "barua pepe zangu"), "MEDIUM", "MEDIUM", False),
     ("BROWSER_NAVIGATE", ("fungua website", "open website", "browser", "navigate", "peruzi"), "MEDIUM", "MEDIUM", False),
