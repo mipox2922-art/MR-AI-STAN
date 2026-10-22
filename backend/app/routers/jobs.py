@@ -3,7 +3,8 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+import re
 from typing import Any
 from urllib.parse import urlparse
 
@@ -13,7 +14,7 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..dependencies import get_current_user
-from ..models import ActivityLog, Task
+from ..models import ActivityLog, Notification, Setting, Task, TaskStep, User
 
 router = APIRouter(prefix="/jobs", tags=["Job Research"])
 logger = logging.getLogger("mr_ai.jobs")
@@ -121,6 +122,486 @@ async def research_jobs(
     current_user=Depends(get_current_user),
 ) -> dict[str, Any]:
     return await research_public_jobs(query, limit)
+
+
+AUTOPILOT_CONFIG_KEY = "job_autopilot_config"
+APPLICATION_PROFILE_KEY = "job_application_profile"
+DEFAULT_AUTOPILOT_CONFIG: dict[str, Any] = {
+    "enabled": True,
+    "queries": ["graphic designer", "AI data annotation", "virtual assistant", "remote customer support"],
+    "interval_hours": 6,
+    "max_new_jobs": 12,
+    "last_run_at": None,
+}
+
+
+def _setting_row(db: Session, user_id: int, key: str) -> Setting | None:
+    return (
+        db.query(Setting)
+        .filter(Setting.user_id == user_id, Setting.key == key)
+        .order_by(Setting.id.desc())
+        .first()
+    )
+
+
+def _read_json_setting(db: Session, user_id: int, key: str, default: dict[str, Any]) -> dict[str, Any]:
+    row = _setting_row(db, user_id, key)
+    if not row or not row.value:
+        return dict(default)
+    try:
+        value = json.loads(row.value)
+    except (TypeError, ValueError):
+        return dict(default)
+    return value if isinstance(value, dict) else dict(default)
+
+
+def _write_json_setting(db: Session, user_id: int, key: str, value: dict[str, Any]) -> None:
+    row = _setting_row(db, user_id, key)
+    encoded = json.dumps(value, ensure_ascii=False, separators=(",", ":"), default=str)
+    if row:
+        row.value = encoded
+    else:
+        db.add(Setting(user_id=user_id, key=key, value=encoded))
+
+
+def _profile_ready(profile: dict[str, Any]) -> bool:
+    return bool(
+        str(profile.get("full_name") or "").strip()
+        and str(profile.get("email") or "").strip()
+        and (
+            profile.get("skills")
+            or str(profile.get("experience_summary") or "").strip()
+        )
+    )
+
+
+def _build_application_draft(job: dict[str, Any], profile: dict[str, Any]) -> dict[str, str] | None:
+    if not _profile_ready(profile):
+        return None
+    name = str(profile.get("full_name") or "").strip()[:120]
+    company = str(job.get("company") or "the hiring team").strip()[:160]
+    title = str(job.get("title") or "the advertised role").strip()[:180]
+    skills = profile.get("skills") or []
+    if isinstance(skills, str):
+        skills = [part.strip() for part in skills.split(",") if part.strip()]
+    skills_text = ", ".join(str(item).strip() for item in skills[:12] if str(item).strip())
+    summary = str(profile.get("experience_summary") or "").strip()[:1500]
+    portfolio = str(profile.get("portfolio_url") or "").strip()
+    paragraphs = [
+        f"Dear {company} Hiring Team,",
+        f"I am applying for the {title} position. My relevant skills include {skills_text}."
+        if skills_text else f"I am applying for the {title} position.",
+    ]
+    if summary:
+        paragraphs.append(summary)
+    paragraphs.append(
+        "I would welcome the opportunity to discuss how my actual skills and experience can support your team. "
+        "I can provide further details or work samples on request."
+    )
+    if portfolio:
+        paragraphs.append(f"Portfolio or work samples: {portfolio}")
+    paragraphs.append(f"Kind regards,\n{name}")
+    return {
+        "subject": f"Application for {title}",
+        "cover_letter": "\n\n".join(paragraphs),
+        "source_note": "Draft generated only from the candidate information saved in MR AI. Review it before sending; no application was submitted.",
+    }
+
+
+def _job_url_from_task(task: Task) -> str | None:
+    match = re.search(r"^Job URL:\\s*(https://\\S+)", str(task.description or ""), flags=re.MULTILINE)
+    if match:
+        return match.group(1).rstrip(".,)")
+    try:
+        result = json.loads(task.result or "{}")
+    except (TypeError, ValueError):
+        result = {}
+    job = result.get("job") if isinstance(result, dict) else {}
+    url = str((job or {}).get("url") or "").strip() if isinstance(job, dict) else ""
+    return url if url.startswith("https://") else None
+
+
+def _match_score(job: dict[str, Any], profile: dict[str, Any]) -> int | None:
+    skills = profile.get("skills") or []
+    if isinstance(skills, str):
+        skills = [part.strip() for part in skills.split(",") if part.strip()]
+    if not skills:
+        return None
+    text = " ".join([
+        str(job.get("title") or ""),
+        str(job.get("description") or ""),
+        str(job.get("company") or ""),
+        " ".join(str(item) for item in (job.get("tags") or [])),
+    ]).casefold()
+    terms = {str(item).strip().casefold() for item in skills if str(item).strip()}
+    matched = sum(1 for term in terms if term and term in text)
+    return min(100, round(100 * matched / max(1, min(5, len(terms)))))
+
+
+async def run_job_autopilot_for_user(
+    db: Session,
+    user_id: int,
+    *,
+    force: bool = False,
+) -> dict[str, Any]:
+    """Find new public job listings and prepare honest application drafts in the background."""
+    config = _read_json_setting(db, user_id, AUTOPILOT_CONFIG_KEY, DEFAULT_AUTOPILOT_CONFIG)
+    profile = _read_json_setting(db, user_id, APPLICATION_PROFILE_KEY, {})
+    if not config.get("enabled", True) and not force:
+        return {"status": "DISABLED", "user_id": user_id, "new_jobs": 0, "drafts_ready": 0}
+
+    interval_hours = max(1, min(168, int(config.get("interval_hours") or 6)))
+    now = datetime.now(timezone.utc)
+    last_run = None
+    try:
+        last_value = config.get("last_run_at")
+        if last_value:
+            last_run = datetime.fromisoformat(str(last_value).replace("Z", "+00:00"))
+            if last_run.tzinfo is None:
+                last_run = last_run.replace(tzinfo=timezone.utc)
+    except (TypeError, ValueError):
+        last_run = None
+    if not force and last_run and now - last_run < timedelta(hours=interval_hours):
+        return {
+            "status": "NOT_DUE",
+            "user_id": user_id,
+            "new_jobs": 0,
+            "drafts_ready": 0,
+            "next_run_at": (last_run + timedelta(hours=interval_hours)).isoformat(),
+        }
+
+    queries = config.get("queries") or DEFAULT_AUTOPILOT_CONFIG["queries"]
+    if isinstance(queries, str):
+        queries = [item.strip() for item in queries.split(",") if item.strip()]
+    queries = list(dict.fromkeys(str(item).strip()[:100] for item in queries if str(item).strip()))[:8]
+    if not queries:
+        queries = list(DEFAULT_AUTOPILOT_CONFIG["queries"])
+    max_new_jobs = max(1, min(30, int(config.get("max_new_jobs") or 12)))
+
+    # Reserve the run before making network calls so simultaneous scheduler
+    # cycles don't duplicate the same set of searches.
+    config["last_run_at"] = now.isoformat()
+    config["enabled"] = bool(config.get("enabled", True))
+    _write_json_setting(db, user_id, AUTOPILOT_CONFIG_KEY, config)
+    db.commit()
+
+    responses = await asyncio.gather(
+        *(research_public_jobs(query, limit=25) for query in queries),
+        return_exceptions=True,
+    )
+    candidates: dict[str, dict[str, Any]] = {}
+    source_errors: list[str] = []
+    for response in responses:
+        if isinstance(response, Exception):
+            source_errors.append(type(response).__name__)
+            continue
+        for job in response.get("results") or []:
+            if not isinstance(job, dict):
+                continue
+            url = str(job.get("url") or "").strip().rstrip("/")
+            if url.startswith("https://"):
+                candidates.setdefault(url.casefold(), job)
+
+    existing_tasks = (
+        db.query(Task)
+        .filter(Task.user_id == user_id, Task.agent == "jobs")
+        .order_by(Task.id.desc())
+        .all()
+    )
+    existing_by_url = {
+        url.casefold(): task
+        for task in existing_tasks
+        if (url := _job_url_from_task(task))
+    }
+    new_jobs = 0
+    drafts_ready = 0
+    waiting_for_profile = 0
+    ready_to_review = 0
+    profile_ready = _profile_ready(profile)
+
+    for url_key, job in sorted(candidates.items(), key=lambda item: str(item[1].get("published_at") or ""), reverse=True):
+        task = existing_by_url.get(url_key)
+        if task is not None:
+            # If the owner has since saved a profile, resume drafts that were
+            # waiting for it instead of creating duplicate applications.
+            if task.status == "WAITING_FOR_PROFILE" and profile_ready:
+                try:
+                    prior = json.loads(task.result or "{}")
+                except (TypeError, ValueError):
+                    prior = {}
+                prior_job = prior.get("job") if isinstance(prior, dict) else None
+                if isinstance(prior_job, dict):
+                    draft = _build_application_draft(prior_job, profile)
+                    if draft:
+                        prior["application_draft"] = draft
+                        prior["status"] = "READY_FOR_REVIEW"
+                        task.result = json.dumps(prior, ensure_ascii=False, default=str)
+                        task.status = "READY_FOR_REVIEW"
+                        task.progress = 50
+                        task.error = "Draft ready. Submission is not connected; review before sending."
+                        step = (
+                            db.query(TaskStep)
+                            .filter(TaskStep.task_id == task.id, TaskStep.position == 2)
+                            .first()
+                        )
+                        if step:
+                            step.title = "Andaa barua ya maombi kutoka taarifa za profile"
+                            step.state = "pending"
+                            step.evidence = json.dumps({"draft_ready": True, "submitted": False}, ensure_ascii=False)
+                        drafts_ready += 1
+                        ready_to_review += 1
+            continue
+
+        job["url"] = str(job.get("url") or "").strip()
+        draft = _build_application_draft(job, profile)
+        task_status = "READY_FOR_REVIEW" if draft else "WAITING_FOR_PROFILE"
+        job_payload = {
+            "workflow": "JOB_APPLICATION",
+            "status": task_status,
+            "job": job,
+            "match_score": _match_score(job, profile),
+            "application_draft": draft,
+            "submission": {
+                "status": "NOT_SUBMITTED",
+                "reason": "No verified form-submission hand is connected to this hosted runtime.",
+            },
+            "updated_at": now.isoformat(),
+        }
+        title = str(job.get("title") or "Nafasi ya kazi").strip()[:180]
+        company = str(job.get("company") or "Company not listed").strip()[:140]
+        url = str(job.get("url") or "")
+        location = str(job.get("location") or "Remote").strip()[:120]
+        desc = str(job.get("description") or "").strip()[:700]
+        task = Task(
+            user_id=user_id,
+            title=f"Application prep: {title} · {company}"[:255],
+            description=(
+                f"Company: {company}\nRole: {title}\nLocation: {location}\n"
+                f"Job URL: {url}\nSource: {job.get('source') or 'public job feed'}\n\n{desc}"
+            )[:12000],
+            status=task_status,
+            priority="NORMAL",
+            agent="jobs",
+            source="autopilot",
+            requested_by="MR AI Job Autopilot",
+            progress=50,
+            result=json.dumps(job_payload, ensure_ascii=False, default=str),
+            error=(
+                "Candidate profile is incomplete. Add name, email, skills and/or experience summary to prepare an application draft."
+                if not draft else
+                "Draft prepared; a connected and verified application-submission hand is not available."
+            ),
+        )
+        db.add(task)
+        db.flush()
+        db.add(TaskStep(
+            task_id=task.id,
+            position=1,
+            title="Nafasi imepatikana kwenye public job feed",
+            state="verified",
+            evidence=json.dumps({
+                "source": job.get("source"),
+                "url": url,
+                "title": title,
+                "found_at": now.isoformat(),
+            }, ensure_ascii=False),
+            verified_at=datetime.now(timezone.utc).replace(tzinfo=None),
+        ))
+        db.add(TaskStep(
+            task_id=task.id,
+            position=2,
+            title="Andaa barua ya maombi na profile",
+            state="pending",
+            evidence=json.dumps({
+                "draft_ready": bool(draft),
+                "submitted": False,
+                "blocker": None if draft else "APPLICATION_PROFILE_INCOMPLETE",
+            }, ensure_ascii=False),
+        ))
+        existing_by_url[url_key] = task
+        new_jobs += 1
+        if draft:
+            drafts_ready += 1
+            ready_to_review += 1
+        else:
+            waiting_for_profile += 1
+        if new_jobs >= max_new_jobs:
+            break
+
+    db.add(ActivityLog(
+        user_id=user_id,
+        action="JOB_AUTOPILOT_CYCLE",
+        details=(
+            f"queries={len(queries)}; candidates={len(candidates)}; new={new_jobs}; "
+            f"drafts={drafts_ready}; waiting_profile={waiting_for_profile}; source_errors={len(source_errors)}"
+        ),
+    ))
+    if new_jobs:
+        db.add(Notification(
+            user_id=user_id,
+            title="MR AI Job Autopilot report",
+            message=(
+                f"Utafutaji wa ajira umekamilika: nafasi mpya {new_jobs}, "
+                f"drafts zilizoandaliwa {drafts_ready}, zinasubiri profile {waiting_for_profile}. "
+                "Hakuna ombi lililotumwa kiotomatiki."
+            ),
+            read=False,
+        ))
+    db.commit()
+    return {
+        "status": "COMPLETED" if not source_errors or candidates else "SOURCE_ERROR",
+        "user_id": user_id,
+        "queries": queries,
+        "candidate_count": len(candidates),
+        "new_jobs": new_jobs,
+        "drafts_ready": drafts_ready,
+        "waiting_for_profile": waiting_for_profile,
+        "ready_to_review": ready_to_review,
+        "applications_submitted": 0,
+        "source_errors": source_errors,
+        "profile_ready": profile_ready,
+        "auto_submit_available": False,
+        "last_run_at": config["last_run_at"],
+    }
+
+
+async def run_job_autopilot_cycle(db: Session) -> dict[str, int]:
+    """Run due, user-scoped job research for every account enabled in settings."""
+    counts = {"users_checked": 0, "users_due": 0, "new_jobs": 0, "drafts_ready": 0, "errors": 0}
+    users = db.query(User).order_by(User.id.asc()).all()
+    for user in users:
+        config_row = _setting_row(db, user.id, AUTOPILOT_CONFIG_KEY)
+        if config_row is None:
+            _write_json_setting(db, user.id, AUTOPILOT_CONFIG_KEY, dict(DEFAULT_AUTOPILOT_CONFIG))
+            db.commit()
+        config = _read_json_setting(db, user.id, AUTOPILOT_CONFIG_KEY, DEFAULT_AUTOPILOT_CONFIG)
+        counts["users_checked"] += 1
+        if not config.get("enabled", True):
+            continue
+        result = await run_job_autopilot_for_user(db, user.id, force=False)
+        if result.get("status") != "NOT_DUE":
+            counts["users_due"] += 1
+            counts["new_jobs"] += int(result.get("new_jobs") or 0)
+            counts["drafts_ready"] += int(result.get("drafts_ready") or 0)
+            counts["errors"] += len(result.get("source_errors") or [])
+    return counts
+
+
+@router.get("/autopilot")
+def get_job_autopilot_status(
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    config = _read_json_setting(db, current_user.id, AUTOPILOT_CONFIG_KEY, DEFAULT_AUTOPILOT_CONFIG)
+    profile = _read_json_setting(db, current_user.id, APPLICATION_PROFILE_KEY, {})
+    rows = (
+        db.query(Task)
+        .filter(Task.user_id == current_user.id, Task.source == "autopilot", Task.agent == "jobs")
+        .all()
+    )
+    return {
+        "config": config,
+        "profile": profile,
+        "profile_ready": _profile_ready(profile),
+        "auto_submit_available": False,
+        "submission_blocker": "Hosted job-feed search and draft preparation are available; actual submission requires a connected, verified form/email execution hand, which is not wired in this release.",
+        "metrics": {
+            "jobs_found": len(rows),
+            "drafts_ready": sum(1 for task in rows if task.status == "READY_FOR_REVIEW"),
+            "waiting_for_profile": sum(1 for task in rows if task.status == "WAITING_FOR_PROFILE"),
+            "applications_submitted_automatically": 0,
+            "failed": sum(1 for task in rows if task.status in {"FAILED", "ERROR"}),
+        },
+    }
+
+
+@router.put("/autopilot")
+def update_job_autopilot_config(
+    payload: dict[str, Any],
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    config = _read_json_setting(db, current_user.id, AUTOPILOT_CONFIG_KEY, DEFAULT_AUTOPILOT_CONFIG)
+    if "enabled" in payload:
+        config["enabled"] = payload["enabled"] is True
+    if "queries" in payload:
+        values = payload["queries"]
+        if isinstance(values, str):
+            values = [part.strip() for part in values.splitlines() if part.strip()]
+        if not isinstance(values, list):
+            raise HTTPException(400, "queries must be a list of role searches.")
+        queries = list(dict.fromkeys(str(value).strip()[:100] for value in values if str(value).strip()))[:8]
+        if not queries:
+            raise HTTPException(400, "Add at least one job-search role.")
+        config["queries"] = queries
+    if "interval_hours" in payload:
+        try:
+            config["interval_hours"] = max(1, min(168, int(payload["interval_hours"])))
+        except (ValueError, TypeError):
+            raise HTTPException(400, "interval_hours must be an integer from 1 to 168.")
+    if "max_new_jobs" in payload:
+        try:
+            config["max_new_jobs"] = max(1, min(30, int(payload["max_new_jobs"])))
+        except (ValueError, TypeError):
+            raise HTTPException(400, "max_new_jobs must be an integer from 1 to 30.")
+    _write_json_setting(db, current_user.id, AUTOPILOT_CONFIG_KEY, config)
+    db.add(ActivityLog(
+        user_id=current_user.id,
+        action="JOB_AUTOPILOT_CONFIG_UPDATED",
+        details=f"enabled={config.get('enabled')}; queries={len(config.get('queries') or [])}; interval_hours={config.get('interval_hours')}",
+    ))
+    db.commit()
+    return {"status": "SAVED", "config": config}
+
+
+@router.put("/autopilot/profile")
+def update_job_application_profile(
+    payload: dict[str, Any],
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    existing = _read_json_setting(db, current_user.id, APPLICATION_PROFILE_KEY, {})
+    allowed = {"full_name", "email", "phone", "location", "skills", "experience_summary", "portfolio_url", "resume_text"}
+    profile = {key: existing.get(key, "") for key in allowed}
+    for key in allowed & payload.keys():
+        value = payload[key]
+        if key == "skills" and isinstance(value, list):
+            profile[key] = [str(item).strip()[:100] for item in value if str(item).strip()][:20]
+        else:
+            profile[key] = str(value or "").strip()[:6000 if key == "resume_text" else 1800]
+    if profile.get("email") and not re.fullmatch(r"[^\\s@]+@[^\\s@]+\\.[^\\s@]+", profile["email"]):
+        raise HTTPException(400, "Enter a valid email address.")
+    if profile.get("portfolio_url") and urlparse(profile["portfolio_url"]).scheme != "https":
+        raise HTTPException(400, "Portfolio URL must use HTTPS.")
+    _write_json_setting(db, current_user.id, APPLICATION_PROFILE_KEY, profile)
+    db.add(ActivityLog(
+        user_id=current_user.id,
+        action="JOB_APPLICATION_PROFILE_UPDATED",
+        details=f"profile_ready={_profile_ready(profile)}; resume_text_present={bool(profile.get('resume_text'))}",
+    ))
+    db.commit()
+    return {
+        "status": "SAVED",
+        "profile_ready": _profile_ready(profile),
+        "message": (
+            "Profile saved. New runs can prepare application drafts from the supplied facts."
+            if _profile_ready(profile) else
+            "Profile saved, but add full name, email and skills or an experience summary before drafts can be prepared."
+        ),
+    }
+
+
+@router.post("/autopilot/run-now")
+async def run_job_autopilot_now(
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    config = _read_json_setting(db, current_user.id, AUTOPILOT_CONFIG_KEY, DEFAULT_AUTOPILOT_CONFIG)
+    config["enabled"] = True
+    config["last_run_at"] = None
+    _write_json_setting(db, current_user.id, AUTOPILOT_CONFIG_KEY, config)
+    db.commit()
+    return await run_job_autopilot_for_user(db, current_user.id, force=True)
 
 
 @router.post("/save")
