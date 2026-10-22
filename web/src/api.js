@@ -435,8 +435,21 @@ export async function browserAction(action, payload = {}) {
         window.setTimeout(() => reject(new Error("MR AI Browser Hands did not respond within 15 seconds.")), 15000);
       })
     ]);
-    if (!message?.ok) throw new Error(message?.error || "Browser action failed");
-    return message.result;
+    if (message?.ok === false) {
+      throw new Error(message?.error || "Browser Hands ilirudisha hitilafu bila maelezo.");
+    }
+
+    // Compatibility with older locally installed Browser Hands builds, which
+    // returned the successful action payload directly instead of { ok, result }.
+    if (message?.ok === true && message.result && typeof message.result === "object") {
+      return message.result;
+    }
+    if (message && typeof message === "object" &&
+        (typeof message.verified === "boolean" || message.page || message.dispatched)) {
+      return message;
+    }
+
+    throw new Error("Browser Hands ilirudisha majibu yasiyotambulika. Reload extension na ujaribu tena.");
   }
 
   async function audit(outcome, result = {}, riskOverride = null) {
