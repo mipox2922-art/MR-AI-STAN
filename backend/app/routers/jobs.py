@@ -208,10 +208,66 @@ def _build_application_draft(job: dict[str, Any], profile: dict[str, Any]) -> di
     }
 
 
+def _refresh_waiting_application_drafts(
+    db: Session,
+    user_id: int,
+    profile: dict[str, Any],
+) -> int:
+    """Resume application drafts as soon as the candidate profile is completed."""
+    if not _profile_ready(profile):
+        return 0
+    refreshed = 0
+    rows = (
+        db.query(Task)
+        .filter(
+            Task.user_id == user_id,
+            Task.agent == "jobs",
+            Task.source == "autopilot",
+            Task.status == "WAITING_FOR_PROFILE",
+        )
+        .order_by(Task.id.asc())
+        .all()
+    )
+    for task in rows:
+        try:
+            packet = json.loads(task.result or "{}")
+        except (TypeError, ValueError):
+            continue
+        job = packet.get("job") if isinstance(packet, dict) else None
+        if not isinstance(job, dict):
+            continue
+        draft = _build_application_draft(job, profile)
+        if not draft:
+            continue
+        packet["application_draft"] = draft
+        packet["status"] = "READY_FOR_REVIEW"
+        packet["match_score"] = _match_score(job, profile)
+        packet["updated_at"] = datetime.now(timezone.utc).isoformat()
+        task.result = json.dumps(packet, ensure_ascii=False, default=str)
+        task.status = "READY_FOR_REVIEW"
+        task.progress = 50
+        task.error = "Draft prepared. Automatic submission is unavailable; review before sending."
+        step = (
+            db.query(TaskStep)
+            .filter(TaskStep.task_id == task.id, TaskStep.position == 2)
+            .first()
+        )
+        if step:
+            step.title = "Andaa barua ya maombi kutoka taarifa za profile"
+            step.state = "pending"
+            step.evidence = json.dumps({
+                "draft_ready": True,
+                "submitted": False,
+                "blocker": "NO_CONNECTED_SUBMISSION_HAND",
+            }, ensure_ascii=False)
+        refreshed += 1
+    return refreshed
+
+
 def _job_url_from_task(task: Task) -> str | None:
     match = re.search(r"^Job URL:\s*(https://\S+)", str(task.description or ""), flags=re.MULTILINE)
     if match:
-        return match.group(1).rstrip(".,)")
+        return match.group(1).rstrip(".,)/")
     try:
         result = json.loads(task.result or "{}")
     except (TypeError, ValueError):
@@ -247,6 +303,9 @@ async def run_job_autopilot_for_user(
     """Find new public job listings and prepare honest application drafts in the background."""
     config = _read_json_setting(db, user_id, AUTOPILOT_CONFIG_KEY, DEFAULT_AUTOPILOT_CONFIG)
     profile = _read_json_setting(db, user_id, APPLICATION_PROFILE_KEY, {})
+    refreshed_before_search = _refresh_waiting_application_drafts(db, user_id, profile)
+    if refreshed_before_search:
+        db.commit()
     if not config.get("enabled", True) and not force:
         return {"status": "DISABLED", "user_id": user_id, "new_jobs": 0, "drafts_ready": 0}
 
@@ -325,31 +384,10 @@ async def run_job_autopilot_for_user(
             # If the owner has since saved a profile, resume drafts that were
             # waiting for it instead of creating duplicate applications.
             if task.status == "WAITING_FOR_PROFILE" and profile_ready:
-                try:
-                    prior = json.loads(task.result or "{}")
-                except (TypeError, ValueError):
-                    prior = {}
-                prior_job = prior.get("job") if isinstance(prior, dict) else None
-                if isinstance(prior_job, dict):
-                    draft = _build_application_draft(prior_job, profile)
-                    if draft:
-                        prior["application_draft"] = draft
-                        prior["status"] = "READY_FOR_REVIEW"
-                        task.result = json.dumps(prior, ensure_ascii=False, default=str)
-                        task.status = "READY_FOR_REVIEW"
-                        task.progress = 50
-                        task.error = "Draft ready. Submission is not connected; review before sending."
-                        step = (
-                            db.query(TaskStep)
-                            .filter(TaskStep.task_id == task.id, TaskStep.position == 2)
-                            .first()
-                        )
-                        if step:
-                            step.title = "Andaa barua ya maombi kutoka taarifa za profile"
-                            step.state = "pending"
-                            step.evidence = json.dumps({"draft_ready": True, "submitted": False}, ensure_ascii=False)
-                        drafts_ready += 1
-                        ready_to_review += 1
+                refreshed_now = _refresh_waiting_application_drafts(db, user_id, profile)
+                if refreshed_now:
+                    drafts_ready += refreshed_now
+                    ready_to_review += refreshed_now
             continue
 
         job["url"] = str(job.get("url") or "").strip()
@@ -574,6 +612,7 @@ def update_job_application_profile(
     if profile.get("portfolio_url") and urlparse(profile["portfolio_url"]).scheme != "https":
         raise HTTPException(400, "Portfolio URL must use HTTPS.")
     _write_json_setting(db, current_user.id, APPLICATION_PROFILE_KEY, profile)
+    refreshed_drafts = _refresh_waiting_application_drafts(db, current_user.id, profile)
     db.add(ActivityLog(
         user_id=current_user.id,
         action="JOB_APPLICATION_PROFILE_UPDATED",
