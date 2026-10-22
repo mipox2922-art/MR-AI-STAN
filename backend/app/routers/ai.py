@@ -558,7 +558,7 @@ async def chat(data: ChatRequest, current_user: User = Depends(get_current_user)
                 )
         else:
             answer, provider_name = await generate_reply_with_fallback(
-                data.provider, build_model_prompt(db, conversation.id, data.message, context), timeout=10
+                data.provider, build_model_prompt(db, conversation.id, data.message, context), timeout=40
             )
         try:
             save_messages_and_log(db, conversation.id, current_user.id, data.message, answer, provider_name)
@@ -654,7 +654,7 @@ async def health_check(
             instance.generate("Reply with exactly the word LIVE.", system_instruction="Return only the word LIVE."),
             timeout=25,
         )
-        normalized_probe = str(result or "").strip().strip("`*# ").upper().rstrip(".! \\t\\r\\n")
+        normalized_probe = str(result or "").strip().strip("`*# ").upper().rstrip(".! \t\r\n")
         if normalized_probe != "LIVE":
             raise RuntimeError("Provider did not return the expected LIVE probe response.")
         return {"status": "LIVE", "provider": selected,
