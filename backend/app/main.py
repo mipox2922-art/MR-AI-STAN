@@ -13,7 +13,7 @@ from .migrations import run_schema_migrations
 from .models import User
 from .audit import record_safe_error
 from .realtime import manager
-from .scheduler import run_scheduler_cycle, start_scheduler, stop_scheduler
+from .scheduler import run_scheduler_cycle, scheduler_status, start_scheduler, stop_scheduler
 from .security import decode_access_token
 
 from .routers import (
@@ -83,8 +83,14 @@ app.add_api_route("/api/ai/health", ai.health_check, methods=["GET"], include_in
 @app.on_event("startup")
 async def startup_scheduler():
     if settings.serverless_mode or not settings.scheduler_enabled:
+        logger.warning(
+            "Background scheduler disabled by runtime config: scheduler_enabled=%s serverless_mode=%s",
+            settings.scheduler_enabled,
+            settings.serverless_mode,
+        )
         return
     start_scheduler()
+    logger.info("Background scheduler startup requested: %s", scheduler_status())
 
 
 @app.on_event("shutdown")
@@ -118,6 +124,7 @@ async def health():
         "status": "healthy",
         "database": "reachable",
         "database_engine": engine.dialect.name,
+        "background_scheduler": scheduler_status(),
     }
 
 @app.post("/internal/cloudflare/scheduler-cycle", include_in_schema=False)
