@@ -653,6 +653,31 @@ export function researchJobs(query, limit = 25) {
   return request("/jobs/research?" + params.toString(), {}, TOOL_API_TIMEOUT_MS);
 }
 
+export function getJobAutopilot() {
+  return request("/jobs/autopilot", {}, TOOL_API_TIMEOUT_MS);
+}
+
+export function updateJobAutopilot(config) {
+  return request("/jobs/autopilot", {
+    method: "PUT",
+    body: JSON.stringify(config),
+  }, TOOL_API_TIMEOUT_MS);
+}
+
+export function saveJobApplicationProfile(profile) {
+  return request("/jobs/autopilot/profile", {
+    method: "PUT",
+    body: JSON.stringify(profile),
+  }, TOOL_API_TIMEOUT_MS);
+}
+
+export function runJobAutopilotNow() {
+  return request("/jobs/autopilot/run-now", {
+    method: "POST",
+    body: JSON.stringify({}),
+  }, TOOL_API_TIMEOUT_MS);
+}
+
 export function saveJob(job) {
   return request("/jobs/save", {
     method: "POST",
