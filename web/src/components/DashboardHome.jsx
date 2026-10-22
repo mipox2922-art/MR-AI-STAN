@@ -1179,8 +1179,12 @@ function ExecutiveMorningBrief({ system, gmailStatus, tasks = [], agents = [], o
   const recent = Array.isArray(briefing?.recent_activity) ? briefing.recent_activity.slice(0, 5) : [];
   const jobTasks = taskRows ? taskRows.filter(task => String(task?.agent || "").toLowerCase() === "jobs") : null;
   const jobAutopilot = briefing?.job_autopilot || null;
-  const gmailState = String(gmailStatus?.status || system?.services?.gmail || "Haijathibitishwa").replaceAll("_", " ");
   const gmailConnected = gmailStatus?.connected === true;
+  const gmailState = gmailConnected
+    ? "CONNECTED"
+    : gmailStatus?.configured === true
+      ? "AUTHORIZATION REQUIRED"
+      : String(gmailStatus?.status || system?.services?.gmail || "Haijathibitishwa").replaceAll("_", " ");
   const blockers = Array.isArray(briefing?.blockers) ? briefing.blockers : [];
   const waitingApprovalTasks = taskRows?.filter(task => task.status === "WAITING_APPROVAL") || [];
   const failedTasks = taskRows?.filter(task => ["FAILED", "ERROR"].includes(String(task.status || "").toUpperCase())) || [];
