@@ -264,8 +264,13 @@ export default function JobResearch() {
           if (task?.agent !== "jobs") continue;
           const url = jobUrlFromTask(task);
           if (!url || restored[url]) continue;
-          const tracking = parseTracking(task.result);
-          const savedStatus = tracking.status || "SAVED";
+          const resultPacket = parseTracking(task.result);
+          const tracking = resultPacket.tracking && typeof resultPacket.tracking === "object"
+            ? resultPacket.tracking
+            : resultPacket;
+          const savedStatus = TRACKING_STATUSES.some(([value]) => value === tracking.status)
+            ? tracking.status
+            : "SAVED";
           restored[url] = {
             state: "SAVED",
             taskId: task.id,
