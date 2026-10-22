@@ -93,6 +93,15 @@ chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => 
     return false;
   }
 
+  if (message?.type === "MR_AI_PING") {
+    sendResponse({
+      ok: true,
+      type: "MR_AI_PONG",
+      version: chrome.runtime.getManifest().version
+    });
+    return false;
+  }
+
   if (message?.type === "MR_AI_AUTH_TOKEN") {
     const token = typeof message.token === "string" ? message.token.trim() : "";
     if (token.length > 8192) {
