@@ -102,6 +102,44 @@ async def gmail_message(
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
+@router.post("/gmail/messages/send")
+async def gmail_send(
+    payload: dict[str, str],
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Send a plain-text Gmail message after explicit confirmation in the UI."""
+    try:
+        return await send_message(
+            db,
+            current_user.id,
+            to=payload.get("to", ""),
+            subject=payload.get("subject", ""),
+            body=payload.get("body", ""),
+        )
+    except GmailConnectorError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@router.post("/gmail/messages/{message_id}/reply")
+async def gmail_reply(
+    message_id: str,
+    payload: dict[str, str],
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Reply to a Gmail message after explicit confirmation in the UI."""
+    try:
+        return await reply_to_message(
+            db,
+            current_user.id,
+            message_id,
+            body=payload.get("body", ""),
+        )
+    except GmailConnectorError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
 @router.delete("/gmail")
 def gmail_disconnect(
     current_user=Depends(get_current_user),
