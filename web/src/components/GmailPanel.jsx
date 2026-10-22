@@ -177,7 +177,7 @@ export default function GmailPanel() {
           <span className="eyebrow">COMMUNICATION</span>
           <h2>Gmail Command Channel</h2>
         </div>
-        <StatusBadge value={status?.status} />
+        <StatusBadge value={connected ? "CONNECTED" : status?.configured ? "AUTHORIZATION REQUIRED" : status?.status} />
       </div>
 
       <div className="gmail-control-bar">
