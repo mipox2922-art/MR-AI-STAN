@@ -4,6 +4,8 @@ import {
   getGmailMessage,
   getGmailStatus,
   searchGmail,
+  sendGmailMessage,
+  replyToGmailMessage,
   startGmailConnect,
 } from "../api";
 
@@ -18,6 +20,11 @@ export default function GmailPanel() {
   const [selected, setSelected] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [composeTo, setComposeTo] = useState("");
+  const [composeSubject, setComposeSubject] = useState("");
+  const [composeBody, setComposeBody] = useState("");
+  const [replyToId, setReplyToId] = useState("");
 
   async function refreshStatus() {
     try {
@@ -98,7 +105,70 @@ export default function GmailPanel() {
     }
   }
 
+
   const connected = status?.connected === true;
+
+  function beginReply() {
+    if (!selected?.id) return;
+    setReplyToId(selected.id);
+    setComposeTo("");
+    setComposeSubject("");
+    setComposeBody("");
+    setNotice(`Jibu limeandaliwa kwa: ${selected.subject || "barua iliyochaguliwa"}`);
+    setError("");
+  }
+
+  function clearComposer() {
+    setReplyToId("");
+    setComposeTo("");
+    setComposeSubject("");
+    setComposeBody("");
+    setNotice("");
+    setError("");
+  }
+
+  async function sendComposedMessage() {
+    if (!connected || busy) return;
+    setError("");
+    setNotice("");
+
+    if (!composeBody.trim()) {
+      setError("Andika ujumbe kabla ya kutuma.");
+      return;
+    }
+    if (!replyToId && (!composeTo.trim() || !composeSubject.trim())) {
+      setError("Weka email ya mpokeaji na subject.");
+      return;
+    }
+    const target = replyToId
+      ? (selected?.subject ? `jibu la "${selected.subject}"` : "jibu la barua iliyochaguliwa")
+      : composeTo.trim();
+    if (!window.confirm(`BOSS FERISI: Unathibitisha kutuma ${target}?\n\nUjumbe utatumwa kupitia Gmail yako.`)) {
+      return;
+    }
+
+    setBusy(true);
+    try {
+      const result = replyToId
+        ? await replyToGmailMessage(replyToId, composeBody.trim())
+        : await sendGmailMessage({
+            to: composeTo.trim(),
+            subject: composeSubject.trim(),
+            body: composeBody.trim(),
+          });
+      setNotice(result.status === "SENT"
+        ? "Email imetumwa; Gmail imerudisha uthibitisho."
+        : "Jibu limetumwa.");
+      setComposeTo("");
+      setComposeSubject("");
+      setComposeBody("");
+      setReplyToId("");
+    } catch (err) {
+      setError(err.message || "Email haikuweza kutumwa.");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   return (
     <section className="panel large-panel gmail-panel">
@@ -151,6 +221,42 @@ export default function GmailPanel() {
 
       {error && <div className="auth-error">{error}</div>}
 
+      <section className="gmail-composer" style={{ marginTop: 16, marginBottom: 16, padding: 14, border: "1px solid var(--border, rgba(255,255,255,.15))", borderRadius: 10 }}>
+        <div className="gmail-section-title">
+          {replyToId ? "REPLY TO SELECTED MESSAGE" : "COMPOSE EMAIL"}
+        </div>
+        {!connected && <p className="empty">Unganisha Gmail kwanza ili kuandika na kutuma barua.</p>}
+        {replyToId && selected && (
+          <p className="empty">Unajibu: {selected.subject || "(no subject)"} · {selected.from || "sender unknown"}</p>
+        )}
+        {!replyToId && (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 10, marginTop: 10 }}>
+            <label style={{ display: "grid", gap: 5 }}>
+              <span className="eyebrow">TO</span>
+              <input type="email" value={composeTo} onChange={event => setComposeTo(event.target.value)} placeholder="recipient@example.com" disabled={!connected || busy} />
+            </label>
+            <label style={{ display: "grid", gap: 5 }}>
+              <span className="eyebrow">SUBJECT</span>
+              <input value={composeSubject} onChange={event => setComposeSubject(event.target.value)} placeholder="Subject" disabled={!connected || busy} />
+            </label>
+          </div>
+        )}
+        <label style={{ display: "grid", gap: 5, marginTop: 10 }}>
+          <span className="eyebrow">MESSAGE</span>
+          <textarea rows={5} value={composeBody} onChange={event => setComposeBody(event.target.value)} placeholder="Andika barua yako hapa..." disabled={!connected || busy} />
+        </label>
+        <div className="gmail-actions" style={{ marginTop: 10, display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <button className="primary-button" onClick={sendComposedMessage} disabled={!connected || busy || !composeBody.trim()}>
+            {busy ? "INATUMA..." : replyToId ? "SEND REPLY" : "SEND EMAIL"}
+          </button>
+          <button className="ghost-button" onClick={clearComposer} disabled={busy}>CLEAR</button>
+        </div>
+        {notice && <p className="tool-status" role="status" aria-live="polite">{notice}</p>}
+        <small style={{ display: "block", marginTop: 8, opacity: 0.78 }}>
+          Kutuma barua kunahitaji Gmail OAuth yenye send permission. Kila barua hapa inahitaji uthibitisho wako kwa kubonyeza kitufe.
+        </small>
+      </section>
+
       <div className="gmail-layout">
         <div className="gmail-message-list">
           <div className="gmail-section-title">
@@ -186,6 +292,9 @@ export default function GmailPanel() {
                 <small>TO {selected.to || "--"}</small>
               </div>
               <pre>{selected.body_text || selected.snippet || "No readable text body."}</pre>
+              <div style={{ marginTop: 10 }}>
+                <button className="primary-button" type="button" onClick={beginReply} disabled={busy || !connected}>REPLY TO THIS MESSAGE</button>
+              </div>
             </>
           ) : (
             <div className="empty">Select a message to read its verified content.</div>
