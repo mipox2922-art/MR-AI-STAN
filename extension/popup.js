@@ -52,8 +52,16 @@ async function getPage() {
   };
 }
 
+const MAX_CHAT_MESSAGE_LENGTH = 5400;
+
 async function askMR(promptText) {
   const token = await chrome.storage.local.get("mr_ai_token");
+  const originalMessage = String(promptText || "");
+  const messageWasTrimmed = originalMessage.length > MAX_CHAT_MESSAGE_LENGTH;
+  const boundedMessage = messageWasTrimmed
+    ? originalMessage.slice(0, MAX_CHAT_MESSAGE_LENGTH - 80) +
+      "\\n\\n[Maudhui yamepunguzwa ili yasizidi kikomo cha MR AI.]"
+    : originalMessage;
 
   const apiUrl = await getApiUrl();
   const response = await fetch(
@@ -65,19 +73,26 @@ async function askMR(promptText) {
         Authorization: `Bearer ${token.mr_ai_token || ""}`
       },
       body: JSON.stringify({
-        message: promptText,
+        message: boundedMessage,
         provider: "gemini"
       })
     }
   );
 
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(data.detail || "Backend error");
+  let data = {};
+  try {
+    data = await response.json();
+  } catch {
+    throw new Error("MR AI backend imerudisha jibu lisilosomeka.");
   }
 
-  return data.response;
+  if (!response.ok) {
+    throw new Error(data.detail || `Backend error (HTTP ${response.status})`);
+  }
+
+  return messageWasTrimmed
+    ? `${data.response || ""}\\n\\n[Maelezo: sehemu ya mwisho ya ukurasa ilipunguzwa ili kuendana na kikomo cha ujumbe cha MR AI.]`
+    : data.response;
 }
 
 document.getElementById("analyze").onclick =
