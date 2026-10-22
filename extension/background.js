@@ -182,8 +182,30 @@ chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => 
     }
 
     const payload = { type: "MR_AI_BROWSER_ACTION", requestId: message.requestId, action: message.action, ...message };
-    const response = await chrome.tabs.sendMessage(tabId, payload);
-    if (!response?.ok) throw new Error(response?.error || "Browser action failed.");
+    let response;
+    try {
+      response = await chrome.tabs.sendMessage(tabId, payload);
+    } catch (firstError) {
+      const detail = firstError instanceof Error ? firstError.message : String(firstError);
+      const noReceiver = /receiving end does not exist|could not establish connection|message port closed/i.test(detail);
+      if (!noReceiver) throw firstError;
+
+      // The user may have reloaded the extension while the approved tab was
+      // already open, so Chrome did not inject the content script into it.
+      try {
+        await chrome.scripting.executeScript({
+          target: { tabId },
+          files: ["content.js"]
+        });
+        response = await chrome.tabs.sendMessage(tabId, payload);
+      } catch (retryError) {
+        const retryDetail = retryError instanceof Error ? retryError.message : String(retryError);
+        throw new Error(
+          `Browser Hands haikuweza kuwasiliana na tab ${currentHost}. Refresh ukurasa wa tovuti hiyo, kisha ujaribu tena. Maelezo: ${retryDetail.slice(0, 240)}`
+        );
+      }
+    }
+    if (!response?.ok) throw new Error(response?.error || "Content script imerudisha hitilafu bila maelezo.");
     // Unwrap content-script response; don't let a nested {ok,result} look like verified success.
     return { ...response.result, targetHost: currentHost, targetUrl: target.url || null, targetTitle: target.title || null };
   })()
