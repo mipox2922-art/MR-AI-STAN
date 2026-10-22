@@ -320,13 +320,15 @@ async def run_job_autopilot_for_user(
                 last_run = last_run.replace(tzinfo=timezone.utc)
     except (TypeError, ValueError):
         last_run = None
-    if not force and last_run and now - last_run < timedelta(hours=interval_hours):
+    last_run_status = str(config.get("last_run_status") or "").upper()
+    retry_minutes = 30 if last_run_status in {"SOURCE_ERROR", "RUNNING"} else interval_hours * 60
+    if not force and last_run and now - last_run < timedelta(minutes=retry_minutes):
         return {
             "status": "NOT_DUE",
             "user_id": user_id,
             "new_jobs": 0,
             "drafts_ready": 0,
-            "next_run_at": (last_run + timedelta(hours=interval_hours)).isoformat(),
+            "next_run_at": (last_run + timedelta(minutes=retry_minutes)).isoformat(),
         }
 
     queries = config.get("queries") or DEFAULT_AUTOPILOT_CONFIG["queries"]
@@ -340,6 +342,8 @@ async def run_job_autopilot_for_user(
     # Reserve the run before making network calls so simultaneous scheduler
     # cycles don't duplicate the same set of searches.
     config["last_run_at"] = now.isoformat()
+    config["last_run_status"] = "RUNNING"
+    config["last_run_error_count"] = 0
     config["enabled"] = bool(config.get("enabled", True))
     _write_json_setting(db, user_id, AUTOPILOT_CONFIG_KEY, config)
     db.commit()
@@ -360,6 +364,11 @@ async def run_job_autopilot_for_user(
             url = str(job.get("url") or "").strip().rstrip("/")
             if url.startswith("https://"):
                 candidates.setdefault(url.casefold(), job)
+
+    cycle_status = "SOURCE_ERROR" if source_errors and not candidates else "COMPLETED"
+    config["last_run_status"] = cycle_status
+    config["last_run_error_count"] = len(source_errors)
+    _write_json_setting(db, user_id, AUTOPILOT_CONFIG_KEY, config)
 
     existing_tasks = (
         db.query(Task)
@@ -474,15 +483,18 @@ async def run_job_autopilot_for_user(
             f"drafts={drafts_ready}; waiting_profile={waiting_for_profile}; source_errors={len(source_errors)}"
         ),
     ))
-    if new_jobs:
+    if new_jobs or (source_errors and not candidates):
+        report_message = (
+            f"Utafutaji umekamilika: nafasi mpya {new_jobs}, drafts {drafts_ready}, "
+            f"zinasubiri profile {waiting_for_profile}. Hakuna ombi lililotumwa kiotomatiki."
+            if new_jobs or candidates else
+            "Vyanzo vya ajira havikujibu. MR AI itajaribu tena baada ya dakika 30. "
+            "Hakuna nafasi ya kubuniwa wala ombi lililotumwa."
+        )
         db.add(Notification(
             user_id=user_id,
             title="MR AI Job Autopilot report",
-            message=(
-                f"Utafutaji wa ajira umekamilika: nafasi mpya {new_jobs}, "
-                f"drafts zilizoandaliwa {drafts_ready}, zinasubiri profile {waiting_for_profile}. "
-                "Hakuna ombi lililotumwa kiotomatiki."
-            ),
+            message=report_message,
             read=False,
         ))
     db.commit()
@@ -500,6 +512,8 @@ async def run_job_autopilot_for_user(
         "profile_ready": profile_ready,
         "auto_submit_available": False,
         "last_run_at": config["last_run_at"],
+        "last_run_status": config.get("last_run_status", cycle_status),
+        "retry_after_minutes": 30 if cycle_status == "SOURCE_ERROR" else None,
     }
 
 
