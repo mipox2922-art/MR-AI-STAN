@@ -126,7 +126,9 @@ try {
     null,
     { timeout: 20000 }
   );
-  await dashboard.waitForSelector("#cc-mission-request", { state: "visible", timeout: 30000 });
+  // Mission Planner lives in the existing Agents view, not the dashboard home.
+  await dashboard.locator(".sidebar nav button").filter({ hasText: "Agents" }).click();
+  await dashboard.locator(".agent-planner-form input").waitFor({ state: "visible", timeout: 30000 });
 
   // Create an actual local web page in the same Chromium session. It is the
   // only non-dashboard domain added to Browser Hands' extension-local allowlist.
@@ -135,8 +137,8 @@ try {
   await fixture.getByText(MARKER, { exact: true }).waitFor({ state: "visible" });
   await dashboard.bringToFront();
 
-  await dashboard.locator("#cc-mission-request").fill("soma ukurasa");
-  await dashboard.getByRole("button", { name: "ANZA KAZI" }).click();
+  await dashboard.locator(".agent-planner-form input").fill("soma ukurasa");
+  await dashboard.locator(".agent-planner-form").getByRole("button", { name: "ANZA KAZI" }).click();
 
   const persisted = await waitUntil(async () => {
     const rows = await jsonRequest(API_URL + "/tasks", { token });
@@ -180,11 +182,11 @@ try {
   // The normal React Mission Planner must render the status returned from the
   // persisted backend task, not from a mocked API response.
   await dashboard.waitForFunction(() => {
-    const text = document.querySelector(".cc-mission-result")?.innerText || "";
+    const text = document.querySelector(".agent-result-run")?.innerText || "";
     return text.includes("IMEKAMILIKA") && text.includes("100%");
   }, null, { timeout: 15000 });
 
-  const uiResult = await dashboard.locator(".cc-mission-result").innerText();
+  const uiResult = await dashboard.locator(".agent-result-run").innerText();
   assert.match(uiResult, /IMEKAMILIKA/);
   assert.match(uiResult, /100%/);
 
