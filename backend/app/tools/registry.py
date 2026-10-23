@@ -157,6 +157,15 @@ def get_tool_registry() -> list[dict[str, Any]]:
             "description": "Secondary AI provider. Availability depends on the configured API account.",
         },
         {
+            "id": "business_broker",
+            "name": "Business Broker Pipeline",
+            "category": "BUSINESS",
+            "status": "AVAILABLE",
+            "mode": "BACKEND",
+            "free": True,
+            "description": "Owner-scoped opportunity research, source evidence, transparent rule-based ranking, editable outreach drafts and persistent follow-up tasks. Search availability depends on configured public sources.",
+        },
+        {
             "id": "searxng",
             "name": "SearXNG Search",
             "category": "RESEARCH",
