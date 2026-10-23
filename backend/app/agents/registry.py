@@ -27,9 +27,9 @@ AGENTS: tuple[AgentDefinition, ...] = (
     ),
     AgentDefinition(
         "research", "Research Agent",
-        "Collects and summarizes authorized web research and produces source-aware notes.",
-        ("web_search", "page_read", "summarize", "source_capture"),
-        ("searxng", "browser_hands"),
+        "Collects authorized web research, ranks source-backed business opportunities and tracks evidence for the brokerage pipeline.",
+        ("web_search", "page_read", "summarize", "source_capture", "lead_research", "opportunity_scoring"),
+        ("searxng", "browser_hands", "business_broker"),
         "LOW",
     ),
     AgentDefinition(
