@@ -1152,9 +1152,7 @@ function ExecutiveMorningBrief({ system, gmailStatus, tasks = [], agents = [], o
 
   useEffect(() => {
     loadBriefing();
-    // On dashboard entry, verify the selected free AI provider once and clear
-    // stale persisted ERROR state only if this live check succeeds.
-    onCheckAIProviderHealth();
+    // DashboardHome checks the provider selected in the shared Chat control.
     const timer = window.setInterval(() => {
       if (document.visibilityState === "visible") loadBriefing();
     }, 30000);
@@ -1478,12 +1476,14 @@ export default function DashboardHome({
   coreState = "IDLE",
   coreStatus = "IDLE",
   mode = "normal",
+  aiProvider = null,
   working = false,
   onRefresh,
   telemetryHistory = [],
   onState,
   onModToggle,
   onPowerCommand,
+  onAIProviderChange,
   onOpenMap,
   onOpenAgents,
   onOpenTasks,
@@ -1501,26 +1501,37 @@ export default function DashboardHome({
   const [missionSnapshot, setMissionSnapshot] = useState(null);
   const [providerHealth, setProviderHealth] = useState(null);
 
-  async function checkAIProviderHealth() {
-    setProviderHealth({ status: "CHECKING", provider: "openrouter" });
+  async function checkAIProviderHealth(providerOverride = null) {
+    const targetProvider = String(providerOverride || aiProvider || system?.ai?.provider || "").trim().toLowerCase();
+    if (!targetProvider) return;
+    setProviderHealth({ status: "CHECKING", provider: targetProvider });
     try {
-      const result = await getAIHealth("openrouter");
+      const result = await getAIHealth(targetProvider);
       setProviderHealth(result);
-      // Only a successful live provider probe clears a stale persisted AI error.
+      // Only a successful live probe for this provider clears the stale AI error.
       if (result?.status === "LIVE") {
         await setAIState("IDLE").catch(() => {});
       }
     } catch (err) {
-      setProviderHealth({ status: "ERROR", provider: "openrouter", reason: err?.message || "Health check failed." });
+      setProviderHealth({ status: "ERROR", provider: targetProvider, reason: err?.message || "Health check failed." });
     }
   }
+
+  // Keep runtime status tied to the same provider the Chat control is using.
+  useEffect(() => {
+    const targetProvider = aiProvider || system?.ai?.provider;
+    if (!targetProvider || providerHealth?.provider === targetProvider) return;
+    void checkAIProviderHealth(targetProvider);
+  }, [aiProvider, system?.ai?.provider, providerHealth?.provider]);
 
   function handleMissionUpdate(snapshot) {
     setMissionSnapshot(snapshot);
     if (snapshot?.mission) onRefresh?.();
   }
 
-  const aiLiveTested = providerHealth?.status === "LIVE" || system?.ai?.ready === true;
+  const selectedProvider = aiProvider || system?.ai?.provider;
+  const aiLiveTested = providerHealth?.status === "LIVE"
+    && providerHealth?.provider === selectedProvider;
   const topReadout = useMemo(() => ({
     model: system?.ai?.model || "N/A",
     tier: system?.ai?.tier || "N/A",
@@ -1613,6 +1624,8 @@ export default function DashboardHome({
             onPowerCommand={onPowerCommand}
             mode={mode}
             coreStatus={coreStatus}
+            provider={aiProvider || system?.ai?.provider || "openrouter"}
+            onProviderChange={onAIProviderChange}
             tasks={tasks}
             tasksAvailable={tasksAvailable}
             telemetry={telemetry}
