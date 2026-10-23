@@ -11,6 +11,8 @@ const SECRET_PATTERNS = [
 export function sanitizeAssistantMessage(value) {
   let safe = String(value ?? "");
   for (const [pattern, replacement] of SECRET_PATTERNS) safe = safe.replace(pattern, replacement);
+  // Provider moderation/debug metadata is not an answer for the user.
+  safe = safe.replace(/^\s*(?:user\s+)?safety\s*:\s*(?:safe|unsafe|unknown|allowed|blocked)\s*$/gim, "").trim();
   // Do not block normal prose, uppercase headings, status labels, or short replies.
-  return safe.trim() || "Jibu halina maandishi yanayoonekana. Jaribu tena.";
+  return safe || "Jibu la AI halikuwa na maudhui ya kuonyesha. Jaribu tena.";
 }
