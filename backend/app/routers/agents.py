@@ -1,4 +1,5 @@
 import json
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
@@ -72,8 +73,14 @@ async def start_approved_mission(
     ).first()
     if not mission:
         raise HTTPException(404, "Mission not found")
-    if mission.approved_by != current_user.id or mission.status != "PENDING":
-        raise HTTPException(403, "Boss approval is required before this mission can execute")
+    resumable_states = {"WAITING", "WAITING_FOR_HAND", "WAITING_FOR_VERIFICATION", "FAILED"}
+    if mission.status in {"RUNNING", "IN_PROGRESS"}:
+        updated_at = mission.updated_at
+        if updated_at and (datetime.utcnow() - updated_at.replace(tzinfo=None)).total_seconds() < 900:
+            raise HTTPException(409, "Mission is still marked as running; do not start a duplicate execution.")
+        resumable_states.update({"RUNNING", "IN_PROGRESS"})
+    if mission.approved_by != current_user.id or mission.status not in ({"PENDING"} | resumable_states):
+        raise HTTPException(403, "Owner approval is required before starting or resuming this mission")
     return await execute_mission(mission.description or mission.title, current_user, db, mission=mission)
 
 
