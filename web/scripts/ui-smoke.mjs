@@ -447,6 +447,7 @@ async function main() {
     await new Promise(resolve => setTimeout(resolve, 100));
   }
   assert.ok(providerHealthRequests.includes("gemini"), "Dashboard must probe Gemini after Gemini is selected in Chat.");
+  await page.locator(".cc-ai-health-state").getByText("GEMINI PROVIDER: LIVE", { exact: true }).waitFor({ state: "visible", timeout: 7000 });
   completedChecks.push("Dashboard AI health probe follows the shared Chat provider selection");
 
   const modeButton = page.locator(".sidebar-footer button").first();
