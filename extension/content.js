@@ -280,10 +280,57 @@
     return true;
   });
 
-  // Expose the extension ID to the MR AI web app through shared DOM state.
-  // The web app only uses this value to initiate externally_connectable messaging.
+  // Expose the extension ID only as a locator; commands still go through this
+  // isolated-world bridge and the authenticated background service worker.
   const root = document.documentElement;
   if (root && !root.dataset.mrAiExtensionId) {
     root.dataset.mrAiExtensionId = chrome.runtime.id;
   }
+
+  function isAuthorizedControllerOrigin(rawOrigin) {
+    try {
+      const url = new URL(rawOrigin);
+      if (url.protocol === "http:" && ["localhost", "127.0.0.1"].includes(url.hostname) && url.port === "5173") return true;
+      if (url.protocol === "https:" && url.hostname === "mr-ai-stan-web.onrender.com") return true;
+      return url.protocol === "https:" && /^[a-z0-9-]+\.app\.github\.dev$/i.test(url.hostname);
+    } catch {
+      return false;
+    }
+  }
+
+  window.addEventListener("message", event => {
+    if (event.source !== window || event.origin !== window.location.origin) return;
+    if (!isAuthorizedControllerOrigin(event.origin)) return;
+
+    const request = event.data;
+    if (
+      request?.type !== "MR_AI_EXTENSION_REQUEST" ||
+      request?.source !== "mr-ai-web" ||
+      request?.extensionId !== chrome.runtime.id ||
+      typeof request.requestId !== "string" ||
+      request.requestId.length > 120 ||
+      !request.message ||
+      typeof request.message !== "object"
+    ) return;
+
+    const requestType = String(request.message.type || "");
+    if (!["MR_AI_PING", "MR_AI_AUTH_TOKEN", "MR_AI_POLL_NOW", "MR_AI_BROWSER_ACTION"].includes(requestType)) return;
+
+    chrome.runtime.sendMessage({
+      type: "MR_AI_WEB_BRIDGE_REQUEST",
+      requestId: request.requestId,
+      message: request.message
+    }, response => {
+      const lastError = chrome.runtime.lastError;
+      const payload = lastError
+        ? { ok: false, error: "MR AI extension worker is unavailable. Reload Browser Hands and retry." }
+        : (response || { ok: false, error: "MR AI extension worker returned no response." });
+      window.postMessage({
+        type: "MR_AI_EXTENSION_RESPONSE",
+        source: "mr-ai-extension",
+        requestId: request.requestId,
+        response: payload
+      }, event.origin);
+    });
+  });
 })();
