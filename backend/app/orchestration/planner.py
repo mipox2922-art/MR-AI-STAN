@@ -64,7 +64,7 @@ def select_agents(text: str) -> list[str]:
     # Recognize explicit compound missions such as "Tafuta kazi na soma email".
     # Only command clauses are routed; arbitrary keywords inside a payload are
     # not treated as new work requests.
-    clauses = re.split(r"\s+(?:na|kisha|halafu|and\s+then|then)\s+", value)
+    clauses = re.split(r"\s+(?:na|kisha|halafu|and\s+then|and|then)\s+", value)
     selected: list[str] = []
     for clause in clauses:
         for agent_id, patterns in _COMMAND_ROUTES:
