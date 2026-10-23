@@ -30,6 +30,7 @@ from .routers import (
     jobs,
     scheduler,
     notifications,
+    business_broker,
 )
 
 logger = logging.getLogger("mr_ai")
@@ -75,6 +76,7 @@ app.include_router(integrations.router)
 app.include_router(jobs.router)
 app.include_router(scheduler.router)
 app.include_router(notifications.router)
+app.include_router(business_broker.router)
 
 # API-prefixed alias for clients and proxies that expose /api/* paths.
 app.add_api_route("/api/ai/health", ai.health_check, methods=["GET"], include_in_schema=False)
