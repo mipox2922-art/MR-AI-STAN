@@ -78,6 +78,34 @@ def _service_status() -> dict:
     }
 
 @router.get('/status')
+def _default_ai_provider() -> tuple[str | None, str | None, str | None]:
+    """Prefer explicitly free AI routes before any provider that may incur charges."""
+    openrouter_key = settings.openrouter_api_key.strip()
+    openrouter_model = settings.openrouter_model.strip()
+    normalized_model = openrouter_model.lower()
+    openrouter_free = bool(openrouter_key) and (
+        normalized_model == "openrouter/free" or normalized_model.endswith(":free")
+    )
+    gemini_key = settings.gemini_api_key.strip()
+    gemini_free = bool(gemini_key) and settings.gemini_tier.strip().upper() == "FREE"
+
+    if openrouter_free:
+        return "openrouter", openrouter_model, "OPENROUTER_FREE"
+    if gemini_free:
+        return "gemini", settings.gemini_model, "FREE"
+    if openrouter_key:
+        return "openrouter", openrouter_model, "OPENROUTER_CONFIGURED"
+    if settings.mistral_api_key.strip():
+        return "mistral", settings.mistral_model, "MISTRAL_CONFIGURED"
+    if settings.xai_api_key.strip():
+        return "grok", settings.grok_model, "GROK_CONFIGURED"
+    if gemini_key:
+        return "gemini", settings.gemini_model, settings.gemini_tier
+    if settings.kimi_api_key.strip():
+        return "kimi", settings.kimi_model, "KIMI_CONFIGURED"
+    return None, None, None
+
+
 def system_status(current_user=Depends(get_current_user)):
     if psutil is None:
         telemetry = {
@@ -106,18 +134,7 @@ def system_status(current_user=Depends(get_current_user)):
             "uptime_seconds": max(0, int(time.time() - psutil.boot_time())),
             "source": "host_runtime",
         }
-    if settings.openrouter_api_key:
-        selected_provider, selected_model, selected_tier = "openrouter", settings.openrouter_model, ("OPENROUTER_FREE" if settings.openrouter_model == "openrouter/free" else "OPENROUTER_CONFIGURED")
-    elif settings.mistral_api_key:
-        selected_provider, selected_model, selected_tier = "mistral", settings.mistral_model, "MISTRAL_CONFIGURED"
-    elif settings.xai_api_key:
-        selected_provider, selected_model, selected_tier = "grok", settings.grok_model, "GROK_CONFIGURED"
-    elif settings.gemini_api_key:
-        selected_provider, selected_model, selected_tier = "gemini", settings.gemini_model, settings.gemini_tier
-    elif settings.kimi_api_key:
-        selected_provider, selected_model, selected_tier = "kimi", settings.kimi_model, "KIMI_CONFIGURED"
-    else:
-        selected_provider, selected_model, selected_tier = None, None, None
+    selected_provider, selected_model, selected_tier = _default_ai_provider()
 
     return {
         "organization": {
