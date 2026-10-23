@@ -100,9 +100,12 @@ def _is_safe_for_autonomous_execution(
         # Read-only source reviews may run without approval; mutations remain approval-gated.
         if agent_id == "coding" and _is_read_only_coding_review(request):
             continue
-        # Research is automatic only if an actual search backend is configured.
-        if agent_id == "research" and "searxng" in tools and settings.searxng_url:
-            continue
+        # Business brokerage is read-only discovery plus owner-scoped record/draft/task creation.
+        # The broker returns NOT_CONNECTED when the selected source is not configured; it never fabricates leads.
+        if agent_id == "research" and "searxng" in tools:
+            from ..routers.business_broker import is_business_broker_request
+            if is_business_broker_request(request) or settings.searxng_url:
+                continue
         # Gmail reads are automatic only when OAuth is currently connected.
         if agent_id == "gmail" and _is_read_only_gmail_request(request):
             try:
@@ -410,6 +413,79 @@ async def execute_mission(
             continue
 
         if agent_id == "research" and "searxng" in step.get("tools", []):
+            from ..routers.business_broker import (
+                infer_opportunity_type,
+                is_business_broker_request,
+                research_business_opportunities,
+            )
+
+            if is_business_broker_request(request):
+                try:
+                    result = await research_business_opportunities(
+                        db=db,
+                        user_id=user.id,
+                        goal=request,
+                        opportunity_type=infer_opportunity_type(request),
+                        max_results=15,
+                        prepare_workflow=True,
+                    )
+                    result_status = str(result.get("status") or "FAILED").upper()
+                    if result_status in {"COMPLETED", "NO_RESULTS"}:
+                        evidence = {
+                            "message": result.get("message", "Broker research finished."),
+                            "query": result.get("query"),
+                            "opportunity_type": result.get("opportunity_type"),
+                            "source_names": result.get("source_names") or [],
+                            "source_warnings": result.get("source_warnings") or [],
+                            "saved_count": result.get("saved_count", 0),
+                            "new_count": result.get("new_count", 0),
+                            "updated_count": result.get("updated_count", 0),
+                            "workflow": result.get("workflow") or [],
+                            "opportunities": [
+                                {
+                                    "id": row.get("id"),
+                                    "title": row.get("title"),
+                                    "organization": row.get("organization"),
+                                    "source_name": row.get("source_name"),
+                                    "source_url": row.get("source_url"),
+                                    "fit_score": row.get("fit_score"),
+                                    "risk_level": row.get("risk_level"),
+                                    "status": row.get("status"),
+                                    "gross_margin_amount": row.get("gross_margin_amount"),
+                                    "net_margin_amount": row.get("net_margin_amount"),
+                                }
+                                for row in (result.get("opportunities") or [])[:8]
+                            ],
+                            "message_sent": False,
+                            "note": "Source results are not proof of identity or guaranteed profit. Outreach is a saved draft only.",
+                        }
+                        steps.append({
+                            "step": index, "agent": agent_id, "name": step_name,
+                            "tool": "business_broker", "status": "COMPLETED", "verified": True,
+                            "evidence": evidence,
+                        })
+                    else:
+                        steps.append({
+                            "step": index, "agent": agent_id, "name": step_name,
+                            "tool": "business_broker", "status": result_status, "verified": False,
+                            "evidence": {
+                                "message": result.get("message") or "Broker research was not executed by a connected source.",
+                                "query": result.get("query"),
+                                "opportunity_type": result.get("opportunity_type"),
+                                "source_names": result.get("source_names") or [],
+                                "source_warnings": result.get("source_warnings") or [],
+                                "saved_count": 0,
+                            },
+                        })
+                except Exception as exc:
+                    steps.append({
+                        "step": index, "agent": agent_id, "name": step_name,
+                        "tool": "business_broker", "status": "FAILED", "verified": False,
+                        "evidence": {"message": f"Business broker execution failed: {type(exc).__name__}."},
+                    })
+                _persist_step_progress(db, mission, steps)
+                continue
+
             if not settings.searxng_url:
                 steps.append({"step": index, "agent": agent_id, "name": step_name,
                     "tool": "searxng", "status": "NOT_CONNECTED", "verified": False,
