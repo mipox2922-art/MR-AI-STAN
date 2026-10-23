@@ -34,6 +34,8 @@ const MONEY_FIELDS = [
   ["fees_taxes", "Known fees / taxes"],
   ["commission", "Commission income"],
   ["required_capital", "Capital required"],
+  ["actual_revenue", "Actual revenue / deal income"],
+  ["actual_cost", "Actual completed-deal cost"],
 ];
 
 function formatDate(value) {
