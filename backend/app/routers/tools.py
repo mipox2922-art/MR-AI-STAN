@@ -187,6 +187,22 @@ async def dispatch_tool(
         return route
 
     tool_id = route["tool"]
+    if tool_id == "coding":
+        workspace = coding_workspace_status()
+        if not workspace.get("configured"):
+            return {
+                "status": "NOT_CONNECTED",
+                "route": route,
+                "workspace": workspace,
+                "message": "Coding Agent imesimamishwa kwa sababu GitHub workspace credential haijawekwa. Hakuna file iliyobadilishwa.",
+            }
+        return {
+            "status": "WAITING_FOR_PARAMETERS",
+            "route": route,
+            "workspace": workspace,
+            "message": "GitHub Coding Workspace imeunganishwa. Toa file path/content yenyewe kwa endpoint ya /tools/coding/files/{path}; test/build status itachukuliwa kutoka GitHub Actions, si kubuniwa na agent.",
+        }
+
     if tool_id == "system_telemetry":
         result = system_status(current_user)
         db.add(ActivityLog(
