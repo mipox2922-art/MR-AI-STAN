@@ -231,3 +231,39 @@ class ApprovalRequest(Base):
     expires_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     resolved_at = Column(DateTime, nullable=True)
+
+
+class BusinessOpportunity(Base):
+    """Owner-scoped, evidence-backed brokerage pipeline record."""
+
+    __tablename__ = "business_opportunities"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, nullable=False, index=True)
+    opportunity_type = Column(String(40), nullable=False, default="GENERAL", index=True)
+    title = Column(String(255), nullable=False)
+    organization = Column(String(255), nullable=True)
+    summary = Column(Text, nullable=False, default="")
+    source_name = Column(String(120), nullable=False)
+    source_url = Column(Text, nullable=False)
+    source_checked_at = Column(DateTime, nullable=True)
+    evidence = Column(Text, nullable=True)
+    status = Column(String(40), nullable=False, default="RESEARCHED", index=True)
+    fit_score = Column(Integer, nullable=False, default=0)
+    fit_rationale = Column(Text, nullable=True)
+    risk_level = Column(String(20), nullable=False, default="MEDIUM")
+    currency = Column(String(12), nullable=True)
+    selling_price = Column(Float, nullable=True)
+    supplier_cost = Column(Float, nullable=True)
+    shipping_cost = Column(Float, nullable=True)
+    fees_taxes = Column(Float, nullable=True)
+    commission = Column(Float, nullable=True)
+    required_capital = Column(Float, nullable=True)
+    actual_revenue = Column(Float, nullable=True)
+    actual_cost = Column(Float, nullable=True)
+    outreach_subject = Column(Text, nullable=True)
+    outreach_body = Column(Text, nullable=True)
+    follow_up_at = Column(DateTime, nullable=True)
+    follow_up_task_id = Column(Integer, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
