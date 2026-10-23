@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { dispatchTool, searchToolWeb, planAgentWork, executeMission, chat, getExecutiveBriefing, getAIHealth, setAIState, approveTask, startApprovedMission, browserNavigate, browserClick, browserType, browserScroll, browserDrag, getCurrentPage, reportMissionHandoff } from "../api";
+import { dispatchTool, searchToolWeb, planAgentWork, executeMission, chat, getExecutiveBriefing, getAIHealth, approveTask, startApprovedMission, browserNavigate, browserClick, browserType, browserScroll, browserDrag, getCurrentPage, reportMissionHandoff } from "../api";
 import HudOrb from "./HudOrb";
 import Chat from "./Chat";
 import { sanitizeAssistantMessage } from "../utils/chatSafety";
@@ -1506,24 +1506,12 @@ export default function DashboardHome({
     if (!targetProvider) return;
     setProviderHealth({ status: "CHECKING", provider: targetProvider });
     try {
+      // This probe checks provider reachability only. It must never clear or
+      // overwrite the actual chat/task lifecycle state.
       const result = await getAIHealth(targetProvider);
       setProviderHealth(result);
-      // Keep the visible and persisted runtime state aligned with the same
-      // provider that was tested; a healthy backend alone is not enough.
-      if (result?.status === "LIVE") {
-        const savedState = await setAIState("IDLE").catch(() => null);
-        onState?.(savedState?.state || "IDLE");
-        onRefresh?.();
-      } else if (result?.status === "ERROR") {
-        const savedState = await setAIState("ERROR").catch(() => null);
-        onState?.(savedState?.state || "ERROR");
-        onRefresh?.();
-      }
     } catch (err) {
       setProviderHealth({ status: "ERROR", provider: targetProvider, reason: err?.message || "Health check failed." });
-      const savedState = await setAIState("ERROR").catch(() => null);
-      onState?.(savedState?.state || "ERROR");
-      onRefresh?.();
     }
   }
 
@@ -1545,15 +1533,29 @@ export default function DashboardHome({
   const aiProviderTestFailed = selectedProviderHealthMatches && providerHealth?.status === "ERROR";
   const aiProviderTestInProgress = selectedProviderHealthMatches && providerHealth?.status === "CHECKING";
   const selectionMatchesConfiguredProvider = selectedProvider === system?.ai?.provider;
+  const runtimeStatus = String(coreStatus || coreState || "IDLE").trim().toUpperCase();
+  const runtimeBusy = ["THINKING", "SPEAKING", "WORKING"].includes(runtimeStatus);
+  const runtimeError = runtimeStatus === "ERROR";
+  const runtimeLabel = runtimeError
+    ? (aiLiveTested ? "CHAT ERROR · PROVIDER REACHABLE" : "CHAT ERROR")
+    : aiProviderTestFailed
+      ? "PROVIDER TEST FAILED · " + runtimeStatus
+      : aiProviderTestInProgress
+        ? "TESTING PROVIDER..."
+        : aiLiveTested
+          ? "PROVIDER LIVE · CORE " + runtimeStatus
+          : system?.ai?.configured
+            ? "CONFIGURED · CORE " + runtimeStatus
+            : "NOT CONFIGURED";
   const topReadout = useMemo(() => ({
     model: selectionMatchesConfiguredProvider
       ? (system?.ai?.model || "N/A")
       : (selectedProvider ? selectedProvider.toUpperCase() + " · MODEL NOT REPORTED" : "N/A"),
     tier: selectionMatchesConfiguredProvider ? (system?.ai?.tier || "N/A") : "NOT REPORTED",
-    status: aiLiveTested ? "LIVE" : aiProviderTestFailed ? "ERROR" : aiProviderTestInProgress ? "TESTING" : (services.ai_core || "NOT_CONFIGURED"),
+    status: runtimeError ? "ERROR" : runtimeBusy ? runtimeStatus : aiProviderTestInProgress ? "TESTING" : aiProviderTestFailed ? "PROVIDER ERROR" : runtimeStatus,
     uptime,
     active: activeCount,
-  }), [system, services.ai_core, uptime, activeCount, aiLiveTested, aiProviderTestFailed, aiProviderTestInProgress, selectionMatchesConfiguredProvider, selectedProvider]);
+  }), [system, uptime, activeCount, runtimeStatus, runtimeBusy, runtimeError, aiProviderTestFailed, aiProviderTestInProgress, selectionMatchesConfiguredProvider, selectedProvider]);
 
   return (
     <div className={`command-center-reference ${working ? "cc-working" : "cc-normal"}`}>
@@ -1609,7 +1611,7 @@ export default function DashboardHome({
             <div className="cc-core-readout">
               <div><span>AI MODEL</span><strong>{topReadout.model}</strong></div>
               <div><span>AI TIER</span><strong>{topReadout.tier}</strong></div>
-              <div><span>AI RUNTIME</span><strong>{aiLiveTested ? "LIVE-TESTED" : aiProviderTestFailed ? "ERROR · TEST FAILED" : aiProviderTestInProgress ? "TESTING PROVIDER..." : system?.ai?.configured ? "CONFIGURED · NOT TESTED" : "NOT CONFIGURED"}</strong></div>
+              <div><span>AI RUNTIME</span><strong>{runtimeLabel}</strong></div>
               <div><span>UPTIME</span><strong>{topReadout.uptime}</strong></div>
               <div><span>HALI</span><strong>{topReadout.status}</strong></div>
               <div><span>KAZI HAI</span><strong>{topReadout.active}</strong></div>

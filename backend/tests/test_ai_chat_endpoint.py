@@ -145,6 +145,21 @@ def test_chat_maps_provider_failure_to_gateway_error(tmp_path, monkeypatch):
     assert "TEST AI PROVIDER" in history[1]["content"]
 
 
+def test_prompt_repeats_verified_evidence_boundaries(tmp_path):
+    _, session_factory = build_chat_client(tmp_path)
+    with session_factory() as db:
+        conversation = ai_router.get_or_create_conversation(
+            db, user_id=1, title="Prompt boundary", session_id="prompt-boundary"
+        )
+        db.commit()
+        prompt = ai_router.build_model_prompt(
+            db, conversation.id, "summarize current work",
+            {"available_task_list": [{"status": "WAITING_FOR_PROFILE"}]},
+        )
+    assert "WAITING_FOR_PROFILE means a profile/draft prerequisite is missing" in prompt
+    assert "A provider health probe returning LIVE" in prompt
+
+
 def test_job_search_chat_returns_results_without_calling_ai_provider(tmp_path, monkeypatch):
     client, _ = build_chat_client(tmp_path)
 
