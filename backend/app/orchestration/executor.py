@@ -69,6 +69,11 @@ def _is_safe_for_autonomous_execution(
         # Host telemetry is read-only and executed by this backend.
         if agent_id == "orchestrator" and "system_telemetry" in tools:
             continue
+        # Internal database memory search/save has an actual backend execution path.
+        if agent_id == "memory":
+            from ..core.intent import classify
+            if classify(request).name in {"MEMORY_SEARCH", "MEMORY_SAVE"}:
+                continue
         # Research is automatic only if an actual search backend is configured.
         if agent_id == "research" and "searxng" in tools and settings.searxng_url:
             continue
@@ -153,7 +158,7 @@ def _persist_step_progress(db: Session, mission: Task, steps: list[dict[str, Any
     mission.result = json.dumps({
         "steps": steps,
         "verified_steps": verified_total,
-        "total_steps": len(steps),
+        "total_steps": len(existing),
     }, ensure_ascii=False, default=str)
     db.commit()
     db.refresh(mission)
@@ -251,7 +256,7 @@ async def execute_mission(
 
     if mission.user_id != user.id or mission.agent != "orchestrator":
         return {"status": "REJECTED", "reason": "Mission owner/agent did not match."}
-    resumable_states = {"WAITING", "WAITING_FOR_HAND", "WAITING_FOR_VERIFICATION", "FAILED"}
+    resumable_states = {"WAITING", "WAITING_FOR_HAND", "WAITING_FOR_VERIFICATION", "FAILED", "RUNNING", "IN_PROGRESS"}
     if mission.approved_by != user.id or mission.status not in ({"PENDING"} | resumable_states):
         return {"status": "WAITING_APPROVAL", "mission": _task_payload(mission),
                 "next_action": "Boss approval is required before any mission step executes."}
@@ -308,6 +313,41 @@ async def execute_mission(
                 steps.append({"step": index, "agent": agent_id, "name": step_name, "tool": "public_job_feeds",
                     "status": "FAILED", "verified": False,
                     "evidence": {"message": f"Utafutaji umeshindwa: {type(exc).__name__}.", "query": query}})
+            _persist_step_progress(db, mission, steps)
+            continue
+
+        if agent_id == "memory" and "memory" in step.get("tools", []):
+            from dataclasses import replace
+            from ..core.intent import classify
+            from ..core.gateway import execute as execute_gateway
+
+            classified = classify(request)
+            if classified.name not in {"MEMORY_SEARCH", "MEMORY_SAVE"}:
+                steps.append({"step": index, "agent": agent_id, "name": step_name, "tool": "memory",
+                    "status": "WAITING_FOR_HAND", "verified": False,
+                    "evidence": {"message": "The memory request could not be safely classified as a search or save action."}})
+            else:
+                query = request.strip()
+                query = re.sub(
+                    r"^(?:hifadhi\s+kumbukumbu|remember\s+this|kumbuka\s+hii|save\s+memory|kumbuka|remember|sahau|forget)\s*[:,-]?\s*",
+                    "",
+                    query,
+                    flags=re.IGNORECASE,
+                ).strip()
+                intent = replace(classified, parameters={**classified.parameters, "query": query})
+                try:
+                    result = await execute_gateway(intent, user.id, db)
+                    successful = str(result.get("status", "")).upper() == "COMPLETED"
+                    steps.append({"step": index, "agent": agent_id, "name": step_name, "tool": "memory",
+                        "status": "COMPLETED" if successful else str(result.get("status", "FAILED")).upper(),
+                        "verified": successful, "evidence": {
+                            "operation": classified.name, "result": result,
+                            "message": "Memory action executed against the database." if successful else result.get("reason", "Memory action did not complete."),
+                        }})
+                except Exception as exc:
+                    steps.append({"step": index, "agent": agent_id, "name": step_name, "tool": "memory",
+                        "status": "FAILED", "verified": False,
+                        "evidence": {"message": f"Memory operation failed: {type(exc).__name__}."}})
             _persist_step_progress(db, mission, steps)
             continue
 
