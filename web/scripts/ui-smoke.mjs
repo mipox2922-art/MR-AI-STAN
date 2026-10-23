@@ -389,6 +389,28 @@ async function main() {
     const footer = document.querySelector(".cc-system-footer")?.textContent || "";
     return footer.includes("ONLINE") && !footer.includes("WAITING");
   }, undefined, { timeout: 7000 });
+
+  const desktopViewportFit = await page.evaluate(() => {
+    const root = document.querySelector(".app-shell.dashboard-canvas-shell");
+    if (!root) return null;
+    const rect = root.getBoundingClientRect();
+    return {
+      viewportWidth: window.innerWidth,
+      viewportHeight: window.innerHeight,
+      left: rect.left,
+      top: rect.top,
+      width: rect.width,
+      height: rect.height,
+    };
+  });
+  assert.ok(desktopViewportFit, "Desktop dashboard must use the adaptive canvas layout.");
+  assert.ok(Math.abs(desktopViewportFit.left) <= 2 && Math.abs(desktopViewportFit.top) <= 2,
+    `Dashboard canvas should start at the viewport origin: ${JSON.stringify(desktopViewportFit)}`);
+  assert.ok(Math.abs(desktopViewportFit.width - desktopViewportFit.viewportWidth) <= 2,
+    `Dashboard canvas should use the current viewport width: ${JSON.stringify(desktopViewportFit)}`);
+  assert.ok(Math.abs(desktopViewportFit.height - desktopViewportFit.viewportHeight) <= 2,
+    `Dashboard canvas should use the current viewport height: ${JSON.stringify(desktopViewportFit)}`);
+  completedChecks.push("desktop dashboard canvas fills the active viewport without side or bottom gaps");
   const executiveDetails = page.locator(".cc-executive-details");
   await executiveDetails.locator("summary").click();
   await executiveDetails.locator(".cc-exec-agent-crew").waitFor({ state: "visible", timeout: 7000 });
