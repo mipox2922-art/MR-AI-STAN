@@ -16,6 +16,7 @@ let rebootRequests = 0;
 let radarScanRequests = 0;
 let delayedChatRequests = 0;
 let delayedChatRequestBodies = [];
+const providerHealthRequests = [];
 let mockJobAutopilot = {
   config: {
     enabled: true,
@@ -157,7 +158,11 @@ async function apiMock(route) {
   if (method === "GET" && path === "/ai/history") return sendJson(route, { messages: [], session_id: url.searchParams.get("session_id") });
   if (method === "GET" && path === "/ai/state") return sendJson(route, { state: "IDLE", verified: true, updated_at: new Date().toISOString() });
   if (method === "POST" && path === "/ai/state") return sendJson(route, { state: body.state, verified: true, updated_at: new Date().toISOString() });
-  if (method === "GET" && path === "/ai/health") return sendJson(route, { status: "LIVE", provider: url.searchParams.get("provider") || "openrouter", latency_ms: 23, tested_at: new Date().toISOString(), reason: null });
+  if (method === "GET" && path === "/ai/health") {
+    const requestedProvider = url.searchParams.get("provider") || "openrouter";
+    providerHealthRequests.push(requestedProvider);
+    return sendJson(route, { status: "LIVE", provider: requestedProvider, latency_ms: 23, tested_at: new Date().toISOString(), reason: null });
+  }
   if (method === "POST" && path === "/ai/chat") {
     delayedChatRequestBodies.push({ message: body.message, at: Date.now() });
     if (body.message === "Timeout regression test") {
@@ -435,6 +440,14 @@ async function main() {
   await dashboardChatInput.fill("Nisaidie kwa smoke test");
   await page.locator(".cc-chat-panel .chat-input > button").last().click();
   await page.locator(".cc-chat-panel .messages").getByText("E2E response from mocked API", { exact: true }).waitFor({ state: "visible", timeout: 7000 });
+
+  // Dashboard status must probe the exact provider selected in Chat.
+  await page.locator(".cc-chat-panel .chat-header select").selectOption("gemini");
+  for (let attempt = 0; attempt < 80 && !providerHealthRequests.includes("gemini"); attempt += 1) {
+    await new Promise(resolve => setTimeout(resolve, 100));
+  }
+  assert.ok(providerHealthRequests.includes("gemini"), "Dashboard must probe Gemini after Gemini is selected in Chat.");
+  completedChecks.push("Dashboard AI health probe follows the shared Chat provider selection");
 
   const modeButton = page.locator(".sidebar-footer button").first();
   await modeButton.click();
