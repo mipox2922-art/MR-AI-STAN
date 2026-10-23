@@ -21,6 +21,9 @@ router = APIRouter(prefix="/scheduler", tags=["Scheduler"])
 logger = logging.getLogger("mr_ai.scheduler")
 POLL_SECONDS = 5
 _scheduler_task: Optional[asyncio.Task] = None
+# The in-process poller and GitHub OIDC wake-up share this process and cycle.
+# Serialize them so they cannot claim the same pending task concurrently.
+_scheduler_cycle_lock = asyncio.Lock()
 _last_cycle_at: Optional[str] = None
 _last_cycle_status = "NOT_RUN"
 _last_cycle_error_type: Optional[str] = None
@@ -137,6 +140,20 @@ def run_due_jobs(db: Session, now: Optional[datetime] = None) -> int:
 
 
 async def run_scheduler_cycle() -> tuple[int, int]:
+    """Run one scheduler cycle at a time across poller and external wake-ups.
+
+    The in-process polling loop and authenticated GitHub OIDC endpoint both call
+    this function. Do not let a second invocation select and execute the same
+    pending tasks while the current cycle is still working.
+    """
+    if _scheduler_cycle_lock.locked():
+        logger.info("Scheduler cycle skipped: another cycle is already running")
+        return 0, 0
+    async with _scheduler_cycle_lock:
+        return await _run_scheduler_cycle_once()
+
+
+async def _run_scheduler_cycle_once() -> tuple[int, int]:
     global _last_cycle_at, _last_cycle_status, _last_cycle_error_type, _last_cycle_summary
     db = SessionLocal()
     _last_cycle_at = datetime.now(timezone.utc).isoformat()
