@@ -300,7 +300,8 @@ async function pollBrowserCommands() {
       const result = await executeBrowserAction({
         requestId: command.request_id,
         action: command.action,
-        ...(command.payload || {})
+        ...(command.payload || {}),
+        ...(command.boss_approved === true ? { boss_approved: true } : {})
       });
       report = { result };
     } catch (error) {
