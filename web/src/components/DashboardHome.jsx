@@ -1530,18 +1530,20 @@ export default function DashboardHome({
   }
 
   const selectedProvider = aiProvider || system?.ai?.provider;
-  const aiLiveTested = providerHealth?.status === "LIVE"
-    && providerHealth?.provider === selectedProvider;
+  const selectedProviderHealthMatches = providerHealth?.provider === selectedProvider;
+  const aiLiveTested = selectedProviderHealthMatches && providerHealth?.status === "LIVE";
+  const aiProviderTestFailed = selectedProviderHealthMatches && providerHealth?.status === "ERROR";
+  const aiProviderTestInProgress = selectedProviderHealthMatches && providerHealth?.status === "CHECKING";
   const selectionMatchesConfiguredProvider = selectedProvider === system?.ai?.provider;
   const topReadout = useMemo(() => ({
     model: selectionMatchesConfiguredProvider
       ? (system?.ai?.model || "N/A")
       : (selectedProvider ? selectedProvider.toUpperCase() + " · MODEL NOT REPORTED" : "N/A"),
     tier: selectionMatchesConfiguredProvider ? (system?.ai?.tier || "N/A") : "NOT REPORTED",
-    status: aiLiveTested ? "LIVE" : (services.ai_core || "NOT_CONFIGURED"),
+    status: aiLiveTested ? "LIVE" : aiProviderTestFailed ? "ERROR" : aiProviderTestInProgress ? "TESTING" : (services.ai_core || "NOT_CONFIGURED"),
     uptime,
     active: activeCount,
-  }), [system, services.ai_core, uptime, activeCount, aiLiveTested, selectionMatchesConfiguredProvider, selectedProvider]);
+  }), [system, services.ai_core, uptime, activeCount, aiLiveTested, aiProviderTestFailed, aiProviderTestInProgress, selectionMatchesConfiguredProvider, selectedProvider]);
 
   return (
     <div className={`command-center-reference ${working ? "cc-working" : "cc-normal"}`}>
@@ -1597,7 +1599,7 @@ export default function DashboardHome({
             <div className="cc-core-readout">
               <div><span>AI MODEL</span><strong>{topReadout.model}</strong></div>
               <div><span>AI TIER</span><strong>{topReadout.tier}</strong></div>
-              <div><span>AI RUNTIME</span><strong>{aiLiveTested ? "LIVE-TESTED" : system?.ai?.configured ? "CONFIGURED · NOT TESTED" : "NOT CONFIGURED"}</strong></div>
+              <div><span>AI RUNTIME</span><strong>{aiLiveTested ? "LIVE-TESTED" : aiProviderTestFailed ? "ERROR · TEST FAILED" : aiProviderTestInProgress ? "TESTING PROVIDER..." : system?.ai?.configured ? "CONFIGURED · NOT TESTED" : "NOT CONFIGURED"}</strong></div>
               <div><span>UPTIME</span><strong>{topReadout.uptime}</strong></div>
               <div><span>HALI</span><strong>{topReadout.status}</strong></div>
               <div><span>KAZI HAI</span><strong>{topReadout.active}</strong></div>
