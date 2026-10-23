@@ -101,6 +101,29 @@ def test_chat_rejects_empty_and_oversized_messages(tmp_path, monkeypatch):
     assert "6000" in oversized.json()["detail"]
 
 
+def test_fallback_chain_uses_one_total_timeout_budget(monkeypatch):
+    import asyncio
+    import time
+
+    monkeypatch.setattr(ai_router, "_eligible_fallbacks", lambda _primary: ["fallback"])
+
+    class SlowProvider:
+        async def generate(self, prompt, system_instruction=None):
+            await asyncio.sleep(0.5)
+            return "too late"
+
+    monkeypatch.setattr(ai_router, "get_provider", lambda _name: SlowProvider())
+    started = time.monotonic()
+    try:
+        asyncio.run(ai_router.generate_reply_with_fallback("primary", "prompt", timeout=0.05))
+    except AIProviderError:
+        pass
+    else:
+        raise AssertionError("Slow provider should exceed the single shared timeout budget")
+
+    assert time.monotonic() - started < 0.2
+
+
 def test_chat_maps_provider_failure_to_gateway_error(tmp_path, monkeypatch):
     client, _ = build_chat_client(tmp_path)
     monkeypatch.setattr(ai_router, "get_provider", lambda _: FailingProvider())
@@ -114,6 +137,12 @@ def test_chat_maps_provider_failure_to_gateway_error(tmp_path, monkeypatch):
     assert "AI provider returned empty or invalid response" in response.json()["detail"]
     assert "provider unavailable" in response.json()["detail"]
     assert "AIProviderError" not in response.json()["detail"]
+
+    # Failed turns must survive reload instead of leaving only an old greeting in history.
+    history = client.get("/ai/history").json()["messages"]
+    assert [item["role"] for item in history] == ["user", "assistant"]
+    assert history[0]["content"] == "Tell me a short story"
+    assert "TEST AI PROVIDER" in history[1]["content"]
 
 
 def test_job_search_chat_returns_results_without_calling_ai_provider(tmp_path, monkeypatch):

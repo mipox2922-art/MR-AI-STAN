@@ -234,6 +234,39 @@ def save_messages_and_log(
         )
         raise
 
+def save_failed_chat_turn(
+    db: Session,
+    conversation_id: int,
+    user_id: int,
+    user_message: str,
+    provider: str,
+) -> None:
+    """Persist a failed exchange so it remains visible after a page reload."""
+    provider_label = str(provider or "").strip().lower()
+    if provider_label not in {"openrouter", "gemini", "kimi", "mistral", "grok", "orchestrator", "job_research"}:
+        provider_label = "unknown"
+
+    assistant_message = (
+        "Samahani Boss Ferisi, ombi halijakamilika. "
+        f"Provider ya AI ({provider_label}) haikurudisha jibu linaloweza kutumika. "
+        "Tumia TEST AI PROVIDER kabla ya kujaribu tena."
+    )
+    try:
+        db.add_all([
+            Message(conversation_id=conversation_id, role="user", content=user_message),
+            Message(conversation_id=conversation_id, role="assistant", content=assistant_message),
+            ActivityLog(
+                user_id=user_id,
+                action="AI_CHAT_FAILED",
+                details=f"Provider: {provider_label} | AI reply was not returned.",
+            ),
+        ])
+        db.commit()
+    except SQLAlchemyError as exc:
+        db.rollback()
+        logger.warning("Failed to persist unsuccessful chat turn: error_type=%s", type(exc).__name__)
+
+
 # ==============================================================================
 # AI CONTEXT ASSEMBLY
 # ==============================================================================
@@ -323,12 +356,24 @@ def _eligible_fallbacks(primary: str) -> list[str]:
 
 
 async def generate_reply_with_fallback(primary: str, prompt: str, timeout: int = 40) -> tuple[str, str]:
+    """Try eligible providers inside one total deadline, not timeout per provider."""
     names = [primary] + _eligible_fallbacks(primary)
     errors: list[str] = []
+    deadline = time.monotonic() + max(0.01, float(timeout))
+
     for index, name in enumerate(names):
+        remaining = deadline - time.monotonic()
+        if remaining <= 0.02:
+            errors.append("remaining providers skipped: total AI time budget exhausted")
+            break
         try:
             provider = get_provider(name)
-            answer = await generate_with_timeout(provider, prompt, timeout=timeout, max_retries=0)
+            answer = await generate_with_timeout(
+                provider,
+                prompt,
+                timeout=max(0.01, min(25.0, remaining)),
+                max_retries=0,
+            )
             return answer, name
         except ValueError:
             if index == 0:
@@ -526,6 +571,7 @@ async def chat(data: ChatRequest, current_user: User = Depends(get_current_user)
         record_safe_error(db, current_user.id, "ai.chat", "CONVERSATION_DB_ERROR", type(exc).__name__)
         raise HTTPException(status_code=500, detail=DATABASE_ERROR_MSG) from exc
 
+    messages_saved = False
     await _set_ai_state(db, current_user.id, "THINKING", request_id, "MR AI inachambua ombi.")
     try:
         intent = classify(data.message)
@@ -566,6 +612,7 @@ async def chat(data: ChatRequest, current_user: User = Depends(get_current_user)
             record_safe_error(db, current_user.id, "ai.chat", "SAVE_MESSAGES_FAILED", type(exc).__name__)
             await _set_ai_state(db, current_user.id, "ERROR", request_id, "Ujumbe haukuweza kuhifadhiwa.")
             raise HTTPException(status_code=500, detail=DATABASE_ERROR_MSG) from exc
+        messages_saved = True
         await _set_ai_state(db, current_user.id, "SPEAKING", request_id, "Jibu limetayarishwa.")
         asyncio.create_task(notify_realtime_safe("NEW_MESSAGE", {
             "provider": provider_name, "user_id": current_user.id, "conversation_id": conversation.id,
@@ -576,12 +623,16 @@ async def chat(data: ChatRequest, current_user: User = Depends(get_current_user)
     except HTTPException as exc:
         record_safe_error(db, current_user.id, "ai.chat", f"HTTP_{exc.status_code}", "AI chat request returned an HTTP error; user content and request details were omitted.")
         await _set_ai_state(db, current_user.id, "ERROR", request_id, "Ombi la AI limeshindwa; kagua error log.")
+        if not messages_saved and exc.status_code < 500:
+            save_failed_chat_turn(db, conversation.id, current_user.id, data.message, data.provider)
         raise
     except Exception as exc:
         logger.warning("AI request failed: request_id=%s error_type=%s", request_id, type(exc).__name__)
         record_safe_error(db, current_user.id, "ai.chat", type(exc).__name__, "AI request failed; user message and provider payload omitted from logs.")
         await _set_ai_state(db, current_user.id, "ERROR", request_id, "Mtoa huduma wa AI ameshindwa kujibu.")
         if isinstance(exc, ValueError) and "unknown" in str(exc).lower() and "provider" in str(exc).lower():
+            if not messages_saved:
+                save_failed_chat_turn(db, conversation.id, current_user.id, data.message, data.provider)
             raise HTTPException(status_code=400, detail=f"Unknown provider: {data.provider}") from exc
         safe_detail = redact_sensitive_text(
             str(getattr(exc, "detail", "") or str(exc) or type(exc).__name__), 450
@@ -593,6 +644,8 @@ async def chat(data: ChatRequest, current_user: User = Depends(get_current_user)
             safe_detail = "Provider imekataa API key. Hakiki key kwenye Render Environment."
         elif "429" in detail_lower or "quota" in detail_lower or "rate limit" in detail_lower:
             safe_detail = "Provider imezuia ombi kwa sababu ya quota au rate limit. Jaribu fallback ya bure au subiri quota irejee."
+        if not messages_saved:
+            save_failed_chat_turn(db, conversation.id, current_user.id, data.message, data.provider)
         raise HTTPException(
             status_code=502,
             detail=f"{PROVIDER_ERROR_MSG}: {safe_detail or type(exc).__name__}",

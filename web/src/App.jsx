@@ -492,6 +492,8 @@ function App() {
   const [mode, setMode] = useState("normal");
   const [coreState, setCoreState] = useState("IDLE");
   const [system, setSystem] = useState(null);
+  const [aiProvider, setAIProvider] = useState(null);
+  const [aiProviderManuallySelected, setAIProviderManuallySelected] = useState(false);
   const [diagnostics, setDiagnostics] = useState(null);
   const [diagnosticsBusy, setDiagnosticsBusy] = useState(false);
   const [diagnosticsError, setDiagnosticsError] = useState("");
@@ -522,6 +524,23 @@ function App() {
   const [connectionState, setConnectionState] = useState("CONNECTING");
   const [lastRefreshAt, setLastRefreshAt] = useState(null);
   const refreshInFlight = useRef(false);
+
+  const setSelectedAIProvider = useCallback((value) => {
+    const nextProvider = String(value || "").trim().toLowerCase();
+    if (!["openrouter", "gemini", "kimi", "mistral", "grok"].includes(nextProvider)) return;
+    setAIProviderManuallySelected(true);
+    setAIProvider(nextProvider);
+  }, []);
+
+  useEffect(() => {
+    if (aiProviderManuallySelected) return;
+    const configuredProvider = String(system?.ai?.provider || "").trim().toLowerCase();
+    if (["openrouter", "gemini", "kimi", "mistral", "grok"].includes(configuredProvider)) {
+      setAIProvider(configuredProvider);
+    } else {
+      setAIProvider(null);
+    }
+  }, [system?.ai?.provider, aiProviderManuallySelected]);
 
   const authenticated = Boolean(token);
   const [isMobileViewport, setIsMobileViewport] = useState(() =>
@@ -950,6 +969,8 @@ function App() {
           {active === "dashboard" && (
             <DashboardHome
               system={system}
+              aiProvider={aiProvider}
+              onAIProviderChange={setSelectedAIProvider}
               connectionState={connectionState}
               lastRefreshAt={lastRefreshAt}
               telemetryHistory={telemetryHistory}
@@ -1002,6 +1023,8 @@ function App() {
                 onPowerCommand={handlePowerCommand}
                 mode={normalizedMode}
                 coreStatus={coreStatus}
+                provider={aiProvider || system?.ai?.provider || "openrouter"}
+                onProviderChange={setSelectedAIProvider}
                 tasks={tasks}
                 tasksAvailable={taskListAvailable}
                 telemetry={system?.telemetry || null}

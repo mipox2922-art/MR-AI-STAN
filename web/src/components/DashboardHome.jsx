@@ -1152,9 +1152,7 @@ function ExecutiveMorningBrief({ system, gmailStatus, tasks = [], agents = [], o
 
   useEffect(() => {
     loadBriefing();
-    // On dashboard entry, verify the selected free AI provider once and clear
-    // stale persisted ERROR state only if this live check succeeds.
-    onCheckAIProviderHealth();
+    // DashboardHome checks the provider selected in the shared Chat control.
     const timer = window.setInterval(() => {
       if (document.visibilityState === "visible") loadBriefing();
     }, 30000);
@@ -1310,7 +1308,7 @@ function ExecutiveMorningBrief({ system, gmailStatus, tasks = [], agents = [], o
         </div>
         {providerHealth && (
           <div className={"cc-ai-health-state " + (providerHealth.status === "LIVE" ? "is-live" : providerHealth.status === "ERROR" ? "is-error" : "is-checking")} role="status" aria-live="polite">
-            <strong>OPENROUTER PROVIDER: {providerHealth.status}</strong>
+            <strong>{String(providerHealth.provider || "AI").toUpperCase()} PROVIDER: {providerHealth.status}</strong>
             {Number.isFinite(providerHealth.latency_ms) && <span>Latency {providerHealth.latency_ms} ms</span>}
             {providerHealth.reason && <p>{providerHealth.reason}</p>}
             {providerHealth.tested_at && <small>Checked {timeLabel(providerHealth.tested_at)} · Africa/Dar_es_Salaam</small>}
@@ -1478,12 +1476,14 @@ export default function DashboardHome({
   coreState = "IDLE",
   coreStatus = "IDLE",
   mode = "normal",
+  aiProvider = null,
   working = false,
   onRefresh,
   telemetryHistory = [],
   onState,
   onModToggle,
   onPowerCommand,
+  onAIProviderChange,
   onOpenMap,
   onOpenAgents,
   onOpenTasks,
@@ -1501,33 +1501,59 @@ export default function DashboardHome({
   const [missionSnapshot, setMissionSnapshot] = useState(null);
   const [providerHealth, setProviderHealth] = useState(null);
 
-  async function checkAIProviderHealth() {
-    setProviderHealth({ status: "CHECKING", provider: "openrouter" });
+  async function checkAIProviderHealth(providerOverride = null) {
+    const targetProvider = String(providerOverride || aiProvider || system?.ai?.provider || "openrouter").trim().toLowerCase();
+    if (!targetProvider) return;
+    setProviderHealth({ status: "CHECKING", provider: targetProvider });
     try {
-      const result = await getAIHealth("openrouter");
+      const result = await getAIHealth(targetProvider);
       setProviderHealth(result);
-      // Only a successful live provider probe clears a stale persisted AI error.
+      // Keep the visible and persisted runtime state aligned with the same
+      // provider that was tested; a healthy backend alone is not enough.
       if (result?.status === "LIVE") {
-        await setAIState("IDLE").catch(() => {});
+        const savedState = await setAIState("IDLE").catch(() => null);
+        onState?.(savedState?.state || "IDLE");
+        onRefresh?.();
+      } else if (result?.status === "ERROR") {
+        const savedState = await setAIState("ERROR").catch(() => null);
+        onState?.(savedState?.state || "ERROR");
+        onRefresh?.();
       }
     } catch (err) {
-      setProviderHealth({ status: "ERROR", provider: "openrouter", reason: err?.message || "Health check failed." });
+      setProviderHealth({ status: "ERROR", provider: targetProvider, reason: err?.message || "Health check failed." });
+      const savedState = await setAIState("ERROR").catch(() => null);
+      onState?.(savedState?.state || "ERROR");
+      onRefresh?.();
     }
   }
+
+  // Keep runtime status tied to the same provider the Chat control is using.
+  useEffect(() => {
+    const targetProvider = aiProvider || system?.ai?.provider || "openrouter";
+    if (!targetProvider || providerHealth?.provider === targetProvider) return;
+    void checkAIProviderHealth(targetProvider);
+  }, [aiProvider, system?.ai?.provider, providerHealth?.provider]);
 
   function handleMissionUpdate(snapshot) {
     setMissionSnapshot(snapshot);
     if (snapshot?.mission) onRefresh?.();
   }
 
-  const aiLiveTested = providerHealth?.status === "LIVE" || system?.ai?.ready === true;
+  const selectedProvider = aiProvider || system?.ai?.provider || "openrouter";
+  const selectedProviderHealthMatches = providerHealth?.provider === selectedProvider;
+  const aiLiveTested = selectedProviderHealthMatches && providerHealth?.status === "LIVE";
+  const aiProviderTestFailed = selectedProviderHealthMatches && providerHealth?.status === "ERROR";
+  const aiProviderTestInProgress = selectedProviderHealthMatches && providerHealth?.status === "CHECKING";
+  const selectionMatchesConfiguredProvider = selectedProvider === system?.ai?.provider;
   const topReadout = useMemo(() => ({
-    model: system?.ai?.model || "N/A",
-    tier: system?.ai?.tier || "N/A",
-    status: aiLiveTested ? "LIVE" : (services.ai_core || "NOT_CONFIGURED"),
+    model: selectionMatchesConfiguredProvider
+      ? (system?.ai?.model || "N/A")
+      : (selectedProvider ? selectedProvider.toUpperCase() + " · MODEL NOT REPORTED" : "N/A"),
+    tier: selectionMatchesConfiguredProvider ? (system?.ai?.tier || "N/A") : "NOT REPORTED",
+    status: aiLiveTested ? "LIVE" : aiProviderTestFailed ? "ERROR" : aiProviderTestInProgress ? "TESTING" : (services.ai_core || "NOT_CONFIGURED"),
     uptime,
     active: activeCount,
-  }), [system, services.ai_core, uptime, activeCount, aiLiveTested]);
+  }), [system, services.ai_core, uptime, activeCount, aiLiveTested, aiProviderTestFailed, aiProviderTestInProgress, selectionMatchesConfiguredProvider, selectedProvider]);
 
   return (
     <div className={`command-center-reference ${working ? "cc-working" : "cc-normal"}`}>
@@ -1583,7 +1609,7 @@ export default function DashboardHome({
             <div className="cc-core-readout">
               <div><span>AI MODEL</span><strong>{topReadout.model}</strong></div>
               <div><span>AI TIER</span><strong>{topReadout.tier}</strong></div>
-              <div><span>AI RUNTIME</span><strong>{aiLiveTested ? "LIVE-TESTED" : system?.ai?.configured ? "CONFIGURED · NOT TESTED" : "NOT CONFIGURED"}</strong></div>
+              <div><span>AI RUNTIME</span><strong>{aiLiveTested ? "LIVE-TESTED" : aiProviderTestFailed ? "ERROR · TEST FAILED" : aiProviderTestInProgress ? "TESTING PROVIDER..." : system?.ai?.configured ? "CONFIGURED · NOT TESTED" : "NOT CONFIGURED"}</strong></div>
               <div><span>UPTIME</span><strong>{topReadout.uptime}</strong></div>
               <div><span>HALI</span><strong>{topReadout.status}</strong></div>
               <div><span>KAZI HAI</span><strong>{topReadout.active}</strong></div>
@@ -1613,6 +1639,8 @@ export default function DashboardHome({
             onPowerCommand={onPowerCommand}
             mode={mode}
             coreStatus={coreStatus}
+            provider={aiProvider || system?.ai?.provider || "openrouter"}
+            onProviderChange={onAIProviderChange}
             tasks={tasks}
             tasksAvailable={tasksAvailable}
             telemetry={telemetry}
