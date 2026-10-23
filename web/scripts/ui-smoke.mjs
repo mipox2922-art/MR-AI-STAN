@@ -17,6 +17,14 @@ let radarScanRequests = 0;
 let delayedChatRequests = 0;
 let delayedChatRequestBodies = [];
 let mockAIState = "IDLE";
+let mockGmailConnection = { status: "AVAILABLE", configured: true, connected: false, scope: ["gmail.readonly"] };
+const mockGmailMessages = [{
+  id: "smoke-email-1", thread_id: "smoke-thread-1",
+  subject: "E2E Gmail smoke message", from: "qa@example.test",
+  to: "owner@example.test", date: "Fri, 23 Oct 2026 09:30:00 +0300",
+  snippet: "A safe fixture used to test direct Gmail reading.",
+  labels: ["INBOX"], body_text: "Maudhui ya barua ya majaribio. Hii ni data ya mock tu."
+}];
 const providerHealthRequests = [];
 let mockJobAutopilot = {
   config: {
@@ -154,7 +162,25 @@ async function apiMock(route) {
     return sendJson(route, { status: "RECORDED", event_id: 1, action: body.action, outcome: body.outcome });
   }
   if (method === "GET" && path === "/integrations/gmail/status") {
-    return sendJson(route, { status: "NOT_CONFIGURED", configured: false, connected: false, scope: [] });
+    return sendJson(route, mockGmailConnection);
+  }
+  if (method === "GET" && path === "/integrations/gmail/messages") {
+    if (!mockGmailConnection.connected) return sendJson(route, { detail: "Gmail authorization required" }, 409);
+    const messages = mockGmailMessages.map(({ body_text, ...summary }) => summary);
+    return sendJson(route, {
+      status: "COMPLETED",
+      query: url.searchParams.get("q") || "",
+      result_size_estimate: messages.length,
+      messages,
+    });
+  }
+  if (method === "GET" && path.startsWith("/integrations/gmail/messages/")) {
+    if (!mockGmailConnection.connected) return sendJson(route, { detail: "Gmail authorization required" }, 409);
+    const messageId = path.split("/").pop();
+    const message = mockGmailMessages.find(item => item.id === messageId);
+    return message
+      ? sendJson(route, { status: "COMPLETED", message })
+      : sendJson(route, { detail: "Message not found" }, 404);
   }
   if (method === "GET" && path === "/ai/history") return sendJson(route, { messages: [], session_id: url.searchParams.get("session_id") });
   if (method === "GET" && path === "/ai/state") return sendJson(route, { state: mockAIState, verified: true, updated_at: new Date().toISOString() });
@@ -169,6 +195,9 @@ async function apiMock(route) {
   }
   if (method === "POST" && path === "/ai/chat") {
     delayedChatRequestBodies.push({ message: body.message, at: Date.now() });
+    if (body.message === "Simulate safety metadata leakage") {
+      return sendJson(route, { response: "User Safety: safe\\nJibu lenye maana." });
+    }
     if (body.message === "Simulate provider quota failure") {
       return sendJson(route, { detail: "AI provider returned empty or invalid response: API error 429 quota exceeded" }, 502);
     }
@@ -488,6 +517,33 @@ async function main() {
   assert.equal(mockAIState, "ERROR", "A successful health probe must not erase the last failed chat state.");
   completedChecks.push("Provider reachability stays separate from chat status; quota failures explain the next step");
 
+  const aiCallsBeforeMetadataTest = delayedChatRequestBodies.length;
+  await dashboardChatInput.fill("Simulate safety metadata leakage");
+  await page.locator(".cc-chat-panel .chat-input > button").last().click();
+  await page.locator(".cc-chat-panel .messages").getByText("Jibu lenye maana.", { exact: true }).waitFor({ state: "visible", timeout: 7000 });
+  assert.equal(await page.locator(".cc-chat-panel .messages").getByText("User Safety: safe", { exact: true }).count(), 0,
+    "Internal moderation labels must not leak into the visible assistant message.");
+  completedChecks.push("assistant moderation metadata is removed before display");
+
+  const callsBeforeGmailCommand = delayedChatRequestBodies.length;
+  await dashboardChatInput.fill("soma email");
+  await page.locator(".cc-chat-panel .chat-input > button").last().click();
+  await page.locator(".cc-chat-panel .messages").getByText(/Gmail OAuth imewekwa kwenye server lakini akaunti bado haijaidhinisha MR AI/i).waitFor({ state: "visible", timeout: 7000 });
+  assert.equal(delayedChatRequestBodies.length, callsBeforeGmailCommand,
+    "Gmail read commands must never be sent to the AI provider.");
+  assert.equal(delayedChatRequestBodies.length, aiCallsBeforeMetadataTest + 1,
+    "Only the explicit safety metadata test should have called /ai/chat.");
+
+  mockGmailConnection = { status: "CONNECTED", configured: true, connected: true, scope: ["gmail.readonly"] };
+  await dashboardChatInput.fill("soma email");
+  await page.locator(".cc-chat-panel .chat-input > button").last().click();
+  await page.locator(".cc-chat-panel .messages").getByText("E2E Gmail smoke message", { exact: false }).waitFor({ state: "visible", timeout: 7000 });
+  await page.locator(".cc-chat-panel .messages").getByText(/Maudhui ya barua ya majaribio/i).waitFor({ state: "visible", timeout: 7000 });
+  assert.equal(delayedChatRequestBodies.length, callsBeforeGmailCommand,
+    "Reading connected Gmail must not forward email contents to the AI provider.");
+  mockGmailConnection = { status: "NOT_CONFIGURED", configured: false, connected: false, scope: [] };
+  completedChecks.push("Gmail read command: authorization guidance when disconnected and direct inbox reading when connected, without forwarding mail to AI");
+
   const modeButton = page.locator(".sidebar-footer button").first();
   await modeButton.click();
   await page.locator(".sidebar-footer button").first().getByText("NORMAL MODE", { exact: true }).waitFor({ state: "visible" });
@@ -733,6 +789,7 @@ async function main() {
   await page.getByText("EVIDENCE LINK NOT CHECKED", { exact: true }).waitFor({ state: "visible", timeout: 7000 });
   completedChecks.push("Job Research task persistence, reload restoration, and honest evidence labeling");
 
+  mockGmailConnection = { status: "NOT_CONFIGURED", configured: false, connected: false, scope: [] };
   await goTo("Gmail");
   await page.getByRole("button", { name: "CONNECT GMAIL", exact: true }).waitFor({ state: "visible" });
   assert.equal(await page.getByRole("button", { name: "CONNECT GMAIL", exact: true }).isDisabled(), true, "Gmail connect must remain disabled when OAuth is not configured.");
