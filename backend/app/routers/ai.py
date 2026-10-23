@@ -359,7 +359,7 @@ async def generate_reply_with_fallback(primary: str, prompt: str, timeout: int =
     """Try eligible providers inside one total deadline, not timeout per provider."""
     names = [primary] + _eligible_fallbacks(primary)
     errors: list[str] = []
-    deadline = time.monotonic() + max(1.0, float(timeout))
+    deadline = time.monotonic() + max(0.01, float(timeout))
 
     for index, name in enumerate(names):
         remaining = deadline - time.monotonic()
