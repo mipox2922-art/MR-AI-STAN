@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MR AI Browser Fixture</title>
+</head>
+<body>
+  <main>
+    <h1>MR AI Browser Fixture</h1>
+    <p>Browser Hands end-to-end marker</p>
+    <button id="fixture-safe-button" type="button">Safe local fixture button</button>
+    <output id="fixture-state">ready</output>
+    <script>
+      document.getElementById("fixture-safe-button").addEventListener("click", () => {
+        document.getElementById("fixture-state").textContent = "clicked";
+      });
+    </script>
+  </main>
+</body>
+</html>
