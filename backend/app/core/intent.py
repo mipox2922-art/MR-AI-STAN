@@ -26,7 +26,7 @@ _RULES: list[tuple[str, tuple[str, ...], str, str, bool]] = [
     ), "LOW", "LOW", True),
     ("WEB_RESEARCH", ("search web", "research", "habari za", "jua kuhusu", "web search", "tafuta"), "LOW", "LOW", True),
     ("GMAIL_SEND", ("tuma email", "send email", "send an email", "tuma barua pepe"), "HIGH", "HIGH", False),
-    ("GMAIL_SEARCH", ("tafuta email", "search email", "inbox", "barua pepe zangu"), "MEDIUM", "MEDIUM", False),
+    ("GMAIL_SEARCH", ("tafuta email", "search email", "inbox", "barua pepe zangu", "soma email", "soma barua pepe", "read email", "read emails", "email zangu", "soma inbox", "angalia inbox", "check inbox", "read inbox"), "MEDIUM", "MEDIUM", False),
     ("BROWSER_NAVIGATE", ("fungua website", "open website", "browser", "navigate", "peruzi"), "MEDIUM", "MEDIUM", False),
     ("FILE_DELETE", ("futa file", "delete file", "remove file"), "HIGH", "HIGH", False),
     ("SYSTEM_SHUTDOWN", ("zima computer", "shutdown", "restart computer", "reboot computer"), "HIGH", "HIGH", False),
