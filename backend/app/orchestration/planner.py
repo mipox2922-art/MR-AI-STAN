@@ -14,7 +14,7 @@ _COMMAND_ROUTES: tuple[tuple[str, tuple[str, ...]], ...] = (
         r"^(?:hifadhi\s+kumbukumbu|remember\s+this|remember\s+that|save\s+memory|kumbuka(?:\s+hii|\s+kwamba)?|unakumbuka|remember|sahau|forget|tafuta\s+kumbukumbu)\b",
     )),
     ("orchestrator", (
-        r"^(?:system\s+(?:health|status|info|telemetry)|(?:cpu|ram|storage|disk|network|uptime)\b)",
+        r"^(?:system\s+(?:health|status|info|telemetry)|system\b.*\b(?:cpu|ram|storage|disk|network|uptime)|(?:cpu|ram|storage|disk|network|uptime)\b)",
         r"^(?:kagua|check|scan|show|onyesha|nipe)\b.*\b(?:afya\s+ya\s+mfumo|system\s+(?:health|status|info)|cpu|ram|storage|disk|network|uptime|hali\s+ya\s+pc)\b",
     )),
     ("jobs", (
