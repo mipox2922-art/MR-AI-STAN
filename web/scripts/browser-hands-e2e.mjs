@@ -123,6 +123,7 @@ try {
   await dashboard.reload({ waitUntil: "domcontentloaded" });
   await dashboard.waitForFunction(
     () => Boolean(document.documentElement?.dataset?.mrAiExtensionId),
+    null,
     { timeout: 20000 }
   );
   await dashboard.waitForSelector("#cc-mission-request", { state: "visible", timeout: 30000 });
@@ -181,7 +182,7 @@ try {
   await dashboard.waitForFunction(() => {
     const text = document.querySelector(".cc-mission-result")?.innerText || "";
     return text.includes("IMEKAMILIKA") && text.includes("100%");
-  }, { timeout: 15000 });
+  }, null, { timeout: 15000 });
 
   const uiResult = await dashboard.locator(".cc-mission-result").innerText();
   assert.match(uiResult, /IMEKAMILIKA/);
