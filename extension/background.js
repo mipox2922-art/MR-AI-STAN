@@ -332,52 +332,74 @@ chrome.runtime.onStartup.addListener(() => {
   startBrowserPolling();
 });
 
-chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => {
-  if (!isControllerPage(sender.url || "")) {
-    sendResponse({ ok: false, error: "MR AI controller origin is not authorized." });
-    return false;
+async function handleControllerMessage(message, senderUrl) {
+  if (!isControllerPage(senderUrl || "")) {
+    return { ok: false, error: "MR AI controller origin is not authorized." };
   }
 
   if (message?.type === "MR_AI_PING") {
-    sendResponse({ ok: true, type: "MR_AI_PONG", version: chrome.runtime.getManifest().version });
     pollBrowserCommands().catch(() => {});
-    return false;
+    return {
+      ok: true,
+      type: "MR_AI_PONG",
+      version: chrome.runtime.getManifest().version
+    };
   }
 
   if (message?.type === "MR_AI_AUTH_TOKEN") {
     const token = typeof message.token === "string" ? message.token.trim() : "";
     if (token.length > 8192) {
-      sendResponse({ ok: false, error: "Authentication token is too long." });
-      return false;
+      return { ok: false, error: "Authentication token is too long." };
     }
-    const operation = token
-      ? chrome.storage.local.set({ mr_ai_token: token })
-      : chrome.storage.local.remove("mr_ai_token");
-    operation
-      .then(() => {
-        sendResponse({ ok: true });
-        if (token) pollBrowserCommands().catch(() => {});
-      })
-      .catch(() => sendResponse({ ok: false, error: "Could not sync MR AI authentication." }));
-    return true;
+    if (token) {
+      await chrome.storage.local.set({ mr_ai_token: token });
+      pollBrowserCommands().catch(() => {});
+    } else {
+      await chrome.storage.local.remove("mr_ai_token");
+    }
+    return { ok: true };
   }
 
   if (message?.type === "MR_AI_POLL_NOW") {
     pollBrowserCommands().catch(() => {});
-    sendResponse({ ok: true, scheduled: true });
+    return { ok: true, scheduled: true };
+  }
+
+  if (message?.type === "MR_AI_BROWSER_ACTION") {
+    const result = await executeBrowserAction(message);
+    return { ok: true, result };
+  }
+
+  return { ok: false, error: "Unsupported external message." };
+}
+
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message?.type !== "MR_AI_WEB_BRIDGE_REQUEST") return false;
+  if (!isControllerPage(sender.url || "")) {
+    sendResponse({ ok: false, error: "MR AI controller origin is not authorized." });
+    return false;
+  }
+  const requestId = String(message.requestId || "");
+  if (!requestId || requestId.length > 120) {
+    sendResponse({ ok: false, error: "Invalid extension bridge request ID." });
     return false;
   }
 
-  if (message?.type !== "MR_AI_BROWSER_ACTION") {
-    sendResponse({ ok: false, error: "Unsupported external message." });
-    return false;
-  }
-
-  executeBrowserAction(message)
-    .then(result => sendResponse({ ok: true, result }))
+  handleControllerMessage(message.message, sender.url || "")
+    .then(sendResponse)
     .catch(error => sendResponse({
       ok: false,
-      error: error instanceof Error ? error.message : String(error)
+      error: error instanceof Error ? error.message : "Browser Hands request failed."
+    }));
+  return true;
+});
+
+chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => {
+  handleControllerMessage(message, sender.url || "")
+    .then(sendResponse)
+    .catch(error => sendResponse({
+      ok: false,
+      error: error instanceof Error ? error.message : "Browser Hands request failed."
     }));
   return true;
 });
