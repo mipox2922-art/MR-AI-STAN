@@ -1502,7 +1502,7 @@ export default function DashboardHome({
   const [providerHealth, setProviderHealth] = useState(null);
 
   async function checkAIProviderHealth(providerOverride = null) {
-    const targetProvider = String(providerOverride || aiProvider || system?.ai?.provider || "").trim().toLowerCase();
+    const targetProvider = String(providerOverride || aiProvider || system?.ai?.provider || "openrouter").trim().toLowerCase();
     if (!targetProvider) return;
     setProviderHealth({ status: "CHECKING", provider: targetProvider });
     try {
@@ -1529,7 +1529,7 @@ export default function DashboardHome({
 
   // Keep runtime status tied to the same provider the Chat control is using.
   useEffect(() => {
-    const targetProvider = aiProvider || system?.ai?.provider;
+    const targetProvider = aiProvider || system?.ai?.provider || "openrouter";
     if (!targetProvider || providerHealth?.provider === targetProvider) return;
     void checkAIProviderHealth(targetProvider);
   }, [aiProvider, system?.ai?.provider, providerHealth?.provider]);
@@ -1539,7 +1539,7 @@ export default function DashboardHome({
     if (snapshot?.mission) onRefresh?.();
   }
 
-  const selectedProvider = aiProvider || system?.ai?.provider;
+  const selectedProvider = aiProvider || system?.ai?.provider || "openrouter";
   const selectedProviderHealthMatches = providerHealth?.provider === selectedProvider;
   const aiLiveTested = selectedProviderHealthMatches && providerHealth?.status === "LIVE";
   const aiProviderTestFailed = selectedProviderHealthMatches && providerHealth?.status === "ERROR";
