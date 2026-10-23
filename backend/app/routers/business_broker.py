@@ -262,10 +262,10 @@ async def _fetch_broker_sources(goal: str, opportunity_type: OpportunityType, li
 
 def _remote_query(goal: str) -> str:
     value = str(goal or "").strip()
-    value = re.sub(r"^(?:tafuta|nitafutie|tafutia|find(?: me)?|search(?: for)?|research|look for)\\s+", "", value, flags=re.IGNORECASE)
+    value = re.sub(r"^(?:tafuta|nitafutie|tafutia|find(?: me)?|search(?: for)?|research|look for)\s+", "", value, flags=re.IGNORECASE)
     niche_patterns = (
-        r"graphic\\s+design(?:er|ers)?", r"web\\s+design(?:er|ers)?", r"web\\s+developer",
-        r"data\\s+annotation", r"virtual\\s+assistant", r"customer\\s+support",
+        r"graphic\s+design(?:er|ers)?", r"web\s+design(?:er|ers)?", r"web\s+developer",
+        r"data\s+annotation", r"virtual\s+assistant", r"customer\s+support",
         r"print(?:ing)?", r"garden(?:ing)?", r"cleaning", r"painting",
     )
     matched = []
@@ -301,31 +301,31 @@ def _draft_outreach(row: BusinessOpportunity, offer: str | None) -> tuple[str, s
     if row.opportunity_type == "SUPPLIER":
         subject = f"Supplier information request: {subject_title}"
         body = (
-            f"Hello {company} team,\\n\\n"
+            f"Hello {company} team,\n\n"
             f"I am researching possible supply options related to {subject_title}. Could you confirm your current catalogue, "
             "unit price and currency, minimum order quantity, delivery options and cost to Tanzania, lead time, applicable taxes/fees, "
-            "sample policy, and the business documents available for due diligence?\\n\\n"
-            "This is an information request only, not an order or a commitment to purchase.\\n\\n"
-            "Kind regards,\\nBoss Ferisi"
+            "sample policy, and the business documents available for due diligence?\n\n"
+            "This is an information request only, not an order or a commitment to purchase.\n\n"
+            "Kind regards,\nBoss Ferisi"
         )
     elif row.opportunity_type == "REMOTE_WORK":
         subject = f"Question about opportunity: {subject_title}"
         body = (
-            f"Hello {company} hiring team,\\n\\n"
+            f"Hello {company} hiring team,\n\n"
             f"I found the public listing for {subject_title} through {row.source_name}. Could you confirm whether the role is still open, "
             "whether applicants based in Tanzania are eligible, and the official application steps? I will review the stated requirements "
-            "and provide accurate information about my relevant skills in any application.\\n\\n"
-            "Kind regards,\\nBoss Ferisi"
+            "and provide accurate information about my relevant skills in any application.\n\n"
+            "Kind regards,\nBoss Ferisi"
         )
     else:
         offered = (offer or "[specific service you want to offer]").strip()
         subject = f"Question about {subject_title}"
         body = (
-            f"Hello {company} team,\\n\\n"
+            f"Hello {company} team,\n\n"
             f"I found your public listing about {subject_title} ({row.source_url}). I am checking whether you are currently open to support with "
             f"{offered}. If this is relevant, I can prepare a short scope and quotation after learning your requirements, timeline and budget. "
-            "I have not assumed any of those details.\\n\\n"
-            "Kind regards,\\nBoss Ferisi"
+            "I have not assumed any of those details.\n\n"
+            "Kind regards,\nBoss Ferisi"
         )
     return subject, body
 
@@ -579,9 +579,8 @@ def create_opportunity(
         currency=payload.currency.strip().upper()[:12] if payload.currency else None,
         **{field: getattr(payload, field) for field in MONEY_FIELDS if field not in {"actual_revenue", "actual_cost"}},
     )
-    score, rationale = _score(row.title, row.title, row.summary, row.organization, row.source_url)
-    row.fit_score = score
-    row.fit_rationale = rationale
+    row.fit_score = 35
+    row.fit_rationale = "Owner-submitted record; fit is provisional until matched to a specific goal and the source is checked."
     db.add(row)
     db.add(ActivityLog(user_id=current_user.id, action="BUSINESS_OPPORTUNITY_CREATED", details="owner_submitted_unverified"))
     db.commit()
