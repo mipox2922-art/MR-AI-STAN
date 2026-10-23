@@ -49,7 +49,8 @@ _COMMAND_ROUTES: tuple[tuple[str, tuple[str, ...]], ...] = (
         r"^(?:schedule|ratiba|remind|kumbusha|set\s+(?:a\s+)?reminder|create\s+(?:a\s+)?schedule)\b",
     )),
     ("research", (
-        r"^(?:find|search|research|look\s+for|tafuta|nitafutie|tafutia|chunguza)\b.*\b(?:business(?:es)?\s+that\s+need|business\s+opportunit(?:y|ies)|client\s+leads?|potential\s+clients?|clients?|customers?|suppliers?|manufacturers?|wholesale|affiliate|referral|prospects?|fursa|wateja|wasambazaji|bidhaa|mapato\s+mtandaoni)\b",
+        r"^(?:find|search|research|look\s+for|tafuta|nitafutie|tafutia|chunguza)\b.*\bbusiness(?:es)?\s+that\s+need\b",
+        r"^(?:find|search|research|look\s+for|tafuta|nitafutie|tafutia|chunguza)\b.*\b(?:business\s+opportunit(?:y|ies)|client\s+leads?|potential\s+clients?|clients?|customers?|suppliers?|manufacturers?|wholesale|affiliate|referral|prospects?|fursa|wateja|wasambazaji|bidhaa|mapato\s+mtandaoni)\b",
         r"^(?:tafuta(?:\s+mtandaoni)?|search(?:\s+(?:the\s+web|online|for))?|research|jua\s+kuhusu|nipe\s+taarifa(?:\s+kuhusu)?|onyesha)\b",
     )),
 )
