@@ -26,6 +26,7 @@ _COMMAND_ROUTES: tuple[tuple[str, tuple[str, ...]], ...] = (
         r"^(?:soma|read|show|check|angalia|tafuta|search|find|onyesha|nipe|jibu|reply|draft|send|tuma|sambaza|forward)\b.*\b(?:email|emails|mail|gmail|inbox|barua\s+pepe)\b",
     )),
     ("browser", (
+        r"^(?:soma\s+ukurasa|read\s+(?:the\s+)?page|show\s+(?:the\s+)?page|angalia\s+ukurasa)\b",
         r"^(?:open|visit|navigate|fungua|nenda|tembelea|click|bonyeza|type|andika|weka|jaza|scroll|sogeza|drag)\b",
     )),
     ("creative", (
