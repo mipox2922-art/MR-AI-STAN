@@ -101,6 +101,29 @@ def test_chat_rejects_empty_and_oversized_messages(tmp_path, monkeypatch):
     assert "6000" in oversized.json()["detail"]
 
 
+def test_fallback_chain_uses_one_total_timeout_budget(monkeypatch):
+    import asyncio
+    import time
+
+    monkeypatch.setattr(ai_router, "_eligible_fallbacks", lambda _primary: ["fallback"])
+
+    class SlowProvider:
+        async def generate(self, prompt, system_instruction=None):
+            await asyncio.sleep(0.5)
+            return "too late"
+
+    monkeypatch.setattr(ai_router, "get_provider", lambda _name: SlowProvider())
+    started = time.monotonic()
+    try:
+        asyncio.run(ai_router.generate_reply_with_fallback("primary", "prompt", timeout=0.05))
+    except AIProviderError:
+        pass
+    else:
+        raise AssertionError("Slow provider should exceed the single shared timeout budget")
+
+    assert time.monotonic() - started < 0.2
+
+
 def test_chat_maps_provider_failure_to_gateway_error(tmp_path, monkeypatch):
     client, _ = build_chat_client(tmp_path)
     monkeypatch.setattr(ai_router, "get_provider", lambda _: FailingProvider())
