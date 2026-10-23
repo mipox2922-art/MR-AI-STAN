@@ -115,6 +115,12 @@ def test_chat_maps_provider_failure_to_gateway_error(tmp_path, monkeypatch):
     assert "provider unavailable" in response.json()["detail"]
     assert "AIProviderError" not in response.json()["detail"]
 
+    # Failed turns must survive reload instead of leaving only an old greeting in history.
+    history = client.get("/ai/history").json()["messages"]
+    assert [item["role"] for item in history] == ["user", "assistant"]
+    assert history[0]["content"] == "Tell me a short story"
+    assert "TEST AI PROVIDER" in history[1]["content"]
+
 
 def test_job_search_chat_returns_results_without_calling_ai_provider(tmp_path, monkeypatch):
     client, _ = build_chat_client(tmp_path)
