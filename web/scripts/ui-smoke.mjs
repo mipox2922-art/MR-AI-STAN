@@ -192,6 +192,16 @@ async function apiMock(route) {
   }
   if (method === "POST" && path === "/tools/route") return sendJson(route, { status: "ROUTED", route: { agent: "research", tool: "searxng" }, result: { status: "COMPLETED", results: [] }, message: "Mock tool routing only." });
   if (method === "POST" && path === "/tools/dispatch") return sendJson(route, { status: "COMPLETED", route: { agent: "orchestrator", tool: "system_telemetry" }, result: systemStatus });
+  if (method === "GET" && path === "/broker/status") return sendJson(route, {
+    status: "AVAILABLE",
+    owner_scoped_pipeline: true,
+    public_job_feeds: ["RemoteOK", "Remotive"],
+    business_supplier_search: "NOT_CONNECTED",
+    automatic_outreach: false,
+    payments_and_orders: false,
+    message: "UI test fixture only; no live business source is claimed.",
+  });
+  if (method === "GET" && path === "/broker/opportunities") return sendJson(route, []);
   if (method === "GET" && path === "/jobs/autopilot") return sendJson(route, mockJobAutopilot);
   if (method === "PUT" && path === "/jobs/autopilot") {
     mockJobAutopilot.config = { ...mockJobAutopilot.config, ...body };
