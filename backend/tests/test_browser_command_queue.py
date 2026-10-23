@@ -210,3 +210,29 @@ def test_unverified_navigation_response_does_not_mark_a_mission_completed():
         assert mission.progress == 0
         assert mission.status != "COMPLETED"
     db.close()
+
+
+def test_resuming_a_waiting_mission_does_not_enqueue_a_duplicate_browser_action():
+    db = make_db()
+    user = SimpleNamespace(id=907)
+
+    first = asyncio.run(execute_mission("soma ukurasa", user, db))
+    mission = db.query(Task).filter_by(user_id=user.id, agent="orchestrator").one()
+    original = db.query(Task).filter_by(
+        user_id=user.id, agent="browser", source="browser_hands"
+    ).one()
+
+    resumed = asyncio.run(execute_mission("soma ukurasa", user, db, mission=mission))
+
+    commands = db.query(Task).filter_by(
+        user_id=user.id,
+        agent="browser",
+        source="browser_hands",
+        requested_by=f"mission:{mission.id}",
+    ).all()
+    assert first["status"] == "WAITING_FOR_HAND"
+    assert resumed["status"] == "WAITING_FOR_HAND"
+    assert len(commands) == 1
+    assert commands[0].id == original.id
+    assert commands[0].status == "QUEUED"
+    db.close()
