@@ -1,3 +1,4 @@
+import hashlib
 import json
 import secrets
 from datetime import datetime, timedelta, timezone
@@ -162,7 +163,9 @@ def _reconcile_browser_command(
     try:
         prior = json.loads(command.result or "{}")
         if isinstance(prior, dict):
-            claim_record = {"claim_token": prior.get("claim_token")}
+            claim_hash = str(prior.get("claim_token_hash") or "")
+            if claim_hash:
+                claim_record = {"claim_token_hash": claim_hash}
     except (TypeError, ValueError):
         pass
     stored_payload.update(claim_record)
@@ -349,7 +352,7 @@ def claim_browser_command(
             Task.approved_by == current_user.id,
         )
         .values(status="RUNNING", result=json.dumps({
-            "claim_token": claim_token,
+            "claim_token_hash": hashlib.sha256(claim_token.encode("utf-8")).hexdigest(),
             "claimed_at": datetime.utcnow().isoformat() + "Z",
         }), updated_at=datetime.utcnow())
     )
@@ -406,8 +409,10 @@ def report_browser_command_result(
 
     request_id = str(payload.get("request_id") or "")
     claim_token = str(payload.get("claim_token") or "")
-    if request_id != command_data.get("request_id") or not secrets.compare_digest(
-        str(prior.get("claim_token") or ""), claim_token
+    expected_claim_hash = str(prior.get("claim_token_hash") or "")
+    supplied_claim_hash = hashlib.sha256(claim_token.encode("utf-8")).hexdigest() if claim_token else ""
+    if request_id != command_data.get("request_id") or not expected_claim_hash or not secrets.compare_digest(
+        expected_claim_hash, supplied_claim_hash
     ):
         raise HTTPException(409, "Browser result correlation or claim token did not match.")
 
