@@ -21,6 +21,30 @@ def _utc_iso(value: datetime | None) -> str | None:
 def _step_verified(step: TaskStep) -> bool:
     return str(step.state or "").lower() == "verified" and bool(str(step.evidence or "").strip())
 
+def _agent_runtime_status(agent_id: str, user: Any, db: Session, tool_status: dict[str, str]) -> str:
+    """Report execution capability, not a decorative online badge."""
+    if agent_id in {"orchestrator", "jobs", "memory"}:
+        # These paths execute through backend code and persist their results.
+        return "READY"
+    if agent_id == "gmail":
+        try:
+            from ..connectors.gmail import connection_status
+            state = connection_status(db, user.id)
+            if state.get("connected") is True:
+                return "CONNECTED"
+            return "NOT_CONNECTED" if state.get("configured") else "NOT_CONFIGURED"
+        except Exception:
+            return "NOT_CONNECTED"
+    if agent_id == "research":
+        return "CONFIGURED" if tool_status.get("searxng") == "CONNECTED" else "NOT_CONNECTED"
+    if agent_id == "scheduler":
+        return "AVAILABLE"
+    # Registered does not imply a live execution connection.
+    if agent_id in {"browser", "coding", "creative", "device", "security"}:
+        return "WAITING_FOR_HAND"
+    return "NOT_CONFIGURED"
+
+
 def _safe_task(db: Session, task: Task) -> dict[str, Any]:
     steps = db.query(TaskStep).filter(TaskStep.task_id == task.id).order_by(TaskStep.position.asc()).all()
     verified = sum(_step_verified(step) for step in steps)
@@ -62,23 +86,35 @@ def build_executive_briefing(user: Any, db: Session) -> dict[str, Any]:
     for row in task_rows:
         agent_id = str(row.get("agent") or "").strip().lower()
         if agent_id != "haijathibitishwa": assignments.setdefault(agent_id, []).append(row)
+    tool_snapshot = registry_summary()
+    tool_status = {
+        str(item.get("id") or ""): str(item.get("status") or "")
+        for item in tool_snapshot.get("tools", [])
+    }
     fleet = []
     for definition in AGENTS:
         rows = assignments.get(definition.id, [])
-        current = next((r for r in rows if r["status"] in ACTIVE_TASK_STATES), None)
-        if current: state = "WORKING"
+        runtime_state = _agent_runtime_status(definition.id, user, db, tool_status)
+        active_task = next((r for r in rows if r["status"] in ACTIVE_TASK_STATES), None)
+        waiting_task = next((r for r in rows if r["status"] in WAITING_TASK_STATES), None)
+        failed_task = next((r for r in rows if r["status"] in FAILED_TASK_STATES), None)
+        current = active_task or waiting_task or failed_task
+        if active_task:
+            state = "WORKING"
+        elif waiting_task:
+            state = "WAITING"
+        elif failed_task:
+            state = "FAILED"
         else:
-            current = next((r for r in rows if r["status"] in WAITING_TASK_STATES), None)
-            if current: state = "WAITING"
-            elif any(r["status"] in {"COMPLETED", "DONE"} for r in rows): state = "IDLE"
-            else: state = "READY"
+            state = runtime_state
         done = [r for r in rows if r["status"] in {"COMPLETED", "DONE"}]
         fleet.append({
             "id": definition.id, "name": definition.name, "description": definition.description,
-            "status": state, "risk": definition.risk, "tools": list(definition.tools),
+            "status": state, "runtime_status": runtime_state,
+            "risk": definition.risk, "tools": list(definition.tools),
             "capability_count": len(definition.tools),
             "current_task": ({"id": current["id"], "title": current["title"], "status": current["status"],
-                "progress": current["progress"], "waiting_for": current["next_action"] if state == "WAITING" else None,
+                "progress": current["progress"], "waiting_for": current["next_action"] if waiting_task else None,
                 "error": current["error"]} if current else None),
             "completed_tasks": [{"id": r["id"], "title": r["title"], "verified_steps": r["verified_steps"],
                 "step_count": r["step_count"], "updated_at": r["updated_at"]} for r in done[:3]],
@@ -149,7 +185,8 @@ def build_executive_briefing(user: Any, db: Session) -> dict[str, Any]:
         "status": "COMPLETED", "generated_at": now.isoformat().replace("+00:00", "Z"),
         "timezone": "Africa/Dar_es_Salaam", "system": system,
         "agents": {"total": len(fleet), "working": sum(x["status"] == "WORKING" for x in fleet),
-            "waiting": sum(x["status"] == "WAITING" for x in fleet), "fleet": fleet},
+            "waiting": sum(x["status"] in {"WAITING", "WAITING_FOR_HAND", "NOT_CONNECTED", "NOT_CONFIGURED", "FAILED"} for x in fleet),
+            "fleet": fleet},
         "tasks": {"total": len(task_rows), "completed": completed, "working": active, "waiting": waiting,
             "failed": failed, "counts": dict(counts), "items": task_rows, "pending_approval": approvals},
         "recent_activity": recent_activity, "errors": errors, "tools": tools,
