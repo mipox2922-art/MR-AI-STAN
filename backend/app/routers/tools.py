@@ -6,6 +6,13 @@ import httpx
 from fastapi import APIRouter, Depends, HTTPException
 
 from ..config import settings
+from ..connectors.coding_workspace import (
+    CodingWorkspaceError,
+    coding_workspace_status,
+    get_commit_checks,
+    inspect_files,
+    write_file,
+)
 from ..dependencies import get_current_user
 from ..tools.registry import registry_summary
 from ..tools.router import route_command
@@ -61,6 +68,61 @@ async def search_web(payload: dict[str, Any], current_user=Depends(get_current_u
         "results": results,
         "source": "configured_searxng",
     }
+
+
+@router.get("/coding/status")
+def coding_status(current_user=Depends(get_current_user)) -> dict[str, Any]:
+    """Report the actual configured Coding Agent workspace, never a guessed READY state."""
+    return coding_workspace_status()
+
+
+@router.post("/coding/inspect")
+async def coding_inspect(
+    payload: dict[str, Any],
+    current_user=Depends(get_current_user),
+) -> dict[str, Any]:
+    paths = payload.get("paths")
+    branch = payload.get("branch")
+    try:
+        return await inspect_files(paths, branch=branch)
+    except CodingWorkspaceError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+
+
+@router.put("/coding/files/{file_path:path}")
+async def coding_write_file(
+    file_path: str,
+    payload: dict[str, Any],
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    content = payload.get("content")
+    message = payload.get("message")
+    if not isinstance(content, str) or not isinstance(message, str):
+        raise HTTPException(status_code=422, detail="content and message must both be strings.")
+    try:
+        result = await write_file(file_path, content, message)
+    except CodingWorkspaceError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+
+    db.add(ActivityLog(
+        user_id=current_user.id,
+        action="CODING_WORKSPACE_FILE_COMMITTED",
+        details=f"repo={result['repository']}; branch={result['branch']}; path={result['path']}; commit={result['commit_sha']}",
+    ))
+    db.commit()
+    return result
+
+
+@router.get("/coding/checks/{commit_sha}")
+async def coding_commit_checks(
+    commit_sha: str,
+    current_user=Depends(get_current_user),
+) -> dict[str, Any]:
+    try:
+        return await get_commit_checks(commit_sha)
+    except CodingWorkspaceError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
 
 
 @router.post("/route")
