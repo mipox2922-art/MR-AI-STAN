@@ -562,7 +562,7 @@ function App() {
     if (!root || active !== "dashboard" || !authenticated || isMobileViewport) return undefined;
 
     const updateCanvasScale = () => {
-      const scale = Math.min(window.innerWidth / 1536, window.innerHeight / 1024);
+      const scale = Math.min(window.innerWidth / 1536, window.innerHeight / 864);
       root.style.setProperty("--dashboard-canvas-scale", String(scale));
     };
 
