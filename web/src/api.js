@@ -385,13 +385,10 @@ export function flashFirmware({ serial, partition, image_path, sha256, confirm }
 
 function notifyExtensionBrowserPoll() {
   const extensionId = getBrowserExtensionId();
-  if (!extensionId || typeof globalThis.chrome?.runtime?.sendMessage !== "function") return;
-  try {
-    const pending = globalThis.chrome.runtime.sendMessage(extensionId, { type: "MR_AI_POLL_NOW" });
-    pending?.catch?.(() => {});
-  } catch {
-    // Extension absence is surfaced by Browser Hands status; chat itself remains usable.
-  }
+  if (!extensionId) return;
+  sendExtensionMessage(extensionId, { type: "MR_AI_POLL_NOW" }, 3000).catch(() => {
+    // The periodic background alarm is the recovery path if the bridge is unavailable.
+  });
 }
 
 function sendExtensionMessage(extensionId, message, timeoutMs = 15000) {
