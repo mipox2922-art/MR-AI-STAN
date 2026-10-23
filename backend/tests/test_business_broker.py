@@ -1,3 +1,4 @@
+import asyncio
 import json
 from types import SimpleNamespace
 
@@ -10,7 +11,8 @@ from sqlalchemy.pool import StaticPool
 from app.config import settings
 from app.database import Base, get_db
 from app.dependencies import get_current_user
-from app.models import BusinessOpportunity, Task
+from app.models import BusinessOpportunity, Task, TaskStep
+from app.orchestration.executor import execute_mission
 from app.routers import business_broker
 
 
@@ -213,3 +215,47 @@ def test_manual_opportunity_rejects_non_https_source():
         "source_url": "http://example.test/supplier",
     })
     assert response.status_code == 422
+
+
+def test_command_center_mission_executes_broker_and_persists_verified_step(monkeypatch):
+    _client, factory, actor = build_client()
+
+    async def fake_sources(goal, opportunity_type, limit):
+        return {
+            "status": "COMPLETED",
+            "query": "isolated test query",
+            "source_names": ["Test Search"],
+            "source_warnings": [],
+            "items": [{
+                "title": "Design service request",
+                "organization": "Example Company",
+                "summary": "A fixture record for testing a design service opportunity pipeline.",
+                "source_name": "Test Search",
+                "source_url": "https://example.test/design-request",
+                "evidence": {"fixture": True},
+            }],
+        }
+
+    monkeypatch.setattr(business_broker, "_fetch_broker_sources", fake_sources)
+    with factory() as db:
+        result = asyncio.run(execute_mission(
+            "Find businesses that need graphic design",
+            actor[0],
+            db,
+        ))
+        mission = db.query(Task).filter(
+            Task.user_id == actor[0].id,
+            Task.agent == "orchestrator",
+        ).one()
+        step = db.query(TaskStep).filter_by(task_id=mission.id).one()
+        packet = json.loads(mission.result or "{}")
+        pipeline = db.query(BusinessOpportunity).filter_by(user_id=actor[0].id).one()
+
+        assert result["status"] == "COMPLETED"
+        assert mission.status == "COMPLETED"
+        assert mission.progress == 100
+        assert step.state == "verified"
+        assert packet["verified_steps"] == 1
+        assert packet["steps"][0]["tool"] == "business_broker"
+        assert packet["steps"][0]["evidence"]["saved_count"] == 1
+        assert pipeline.follow_up_task_id is not None
