@@ -13,6 +13,7 @@ from app.models import ApprovalRequest, Task, TaskStep
 from app.orchestration.executor import execute_mission
 from app.orchestration.planner import select_agents
 from app.routers.agents import claim_browser_command, report_browser_command_result
+from app.routers.tasks import task_payload
 
 
 def make_db():
@@ -104,6 +105,14 @@ def test_extension_claim_result_verifies_and_persists_the_parent_mission():
     assert saved["request_id"] == command["request_id"]
     assert saved["verified"] is True
     assert saved["result"]["page"]["text"].startswith("fixture ready")
+    # GET /tasks must preserve a verified browser receipt instead of demoting it
+    # because the child execution record previously had zero TaskStep rows.
+    child_payload = task_payload(db, browser_task)
+    assert child_payload["status"] == "COMPLETED"
+    assert child_payload["progress"] == 100
+    child_step = db.query(TaskStep).filter_by(task_id=browser_task.id, position=1).one()
+    assert child_step.state == "verified"
+    assert child_step.verified_at is not None
     assert parent_packet["verified_steps"] == 1
     assert parent_packet["steps"][0]["status"] == "COMPLETED"
     assert parent_packet["steps"][0]["command_task_id"] == browser_task.id
