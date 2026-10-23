@@ -316,6 +316,8 @@ def build_model_prompt(
         "- When asked what work has been done, summarize only task records and outcomes present in VERIFIED RUNTIME EVIDENCE. Distinguish completed, pending, waiting for profile, waiting for approval, and failed work.\n"
         "- A provider health probe returning LIVE proves only that the small probe request succeeded; it does not prove the last chat or any task succeeded.\n"
         "- When something is unavailable or unverified, state it plainly.\n"
+        "- Never emit internal classifier or moderation metadata such as 'User Safety: safe'; answer the request in ordinary conversational language.\n"
+        "- A tool marked ROUTED is not proof the tool executed. Only report results actually present in tool execution evidence.\n"
         "- Do not repeat a generic greeting when the user asks a substantive question.\n"
         "- Respond naturally in the user's language, preferably concise Swahili for Swahili input.\n"
     )
