@@ -154,8 +154,8 @@ export async function login(username, password) {
   return data;
 }
 
-export function chat(message, provider = "gemini", toolContext = null, sessionId = null) {
-  return request("/ai/chat", {
+export async function chat(message, provider = "gemini", toolContext = null, sessionId = null) {
+  const result = await request("/ai/chat", {
     method: "POST",
     body: JSON.stringify({
       message,
@@ -164,6 +164,8 @@ export function chat(message, provider = "gemini", toolContext = null, sessionId
       tool_context: toolContext
     })
   }, CHAT_API_TIMEOUT_MS);
+  notifyExtensionBrowserPoll();
+  return result;
 }
 
 
@@ -385,6 +387,17 @@ export function flashFirmware({ serial, partition, image_path, sha256, confirm }
 
 
 
+function notifyExtensionBrowserPoll() {
+  const extensionId = getBrowserExtensionId();
+  if (!extensionId || typeof globalThis.chrome?.runtime?.sendMessage !== "function") return;
+  try {
+    const pending = globalThis.chrome.runtime.sendMessage(extensionId, { type: "MR_AI_POLL_NOW" });
+    pending?.catch?.(() => {});
+  } catch {
+    // Extension absence is surfaced by Browser Hands status; chat itself remains usable.
+  }
+}
+
 function getBrowserExtensionId() {
   const configured = import.meta.env.VITE_MR_AI_EXTENSION_ID;
   if (configured) return configured;
@@ -603,11 +616,13 @@ export function planAgentWork(requestText) {
 }
 
 
-export function executeMission(requestText) {
-  return request("/agents/mission", {
+export async function executeMission(requestText) {
+  const result = await request("/agents/mission", {
     method: "POST",
     body: JSON.stringify({ request: requestText }),
   }, TOOL_API_TIMEOUT_MS);
+  notifyExtensionBrowserPoll();
+  return result;
 }
 
 export function reportMissionHandoff(missionId, status, evidence) {
@@ -677,11 +692,13 @@ export function getExecutiveBriefing() {
 }
 
 
-export function runOrchestrator(message) {
-  return request("/orchestrator/run", {
+export async function runOrchestrator(message) {
+  const result = await request("/orchestrator/run", {
     method: "POST",
     body: JSON.stringify({ message }),
   }, TOOL_API_TIMEOUT_MS);
+  notifyExtensionBrowserPoll();
+  return result;
 }
 
 export function getOrchestratorExecutions() {
