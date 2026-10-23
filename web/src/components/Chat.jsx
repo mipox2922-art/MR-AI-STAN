@@ -95,6 +95,41 @@ function finalizeAssistantReply(value, priorMessages, mode) {
   return content;
 }
 
+function explainChatFailure(rawMessage) {
+  const message = String(rawMessage || "").trim();
+  const lower = message.toLowerCase();
+
+  if (/\b429\b|quota|rate.?limit|too many requests/.test(lower)) {
+    return "Provider imezuia ombi kwa sababu ya quota au rate limit. Jaribu tena baadaye, au chagua provider nyingine iliyoidhinishwa kwenye Chat. TEST AI PROVIDER huthibitisha probe fupi tu, si quota ya kila chat.";
+  }
+  if (/\b401\b|invalid api key|unauthorized|api key.*(missing|not configured|haipo)/.test(lower)) {
+    return "Provider imekataa au haijapokea API key sahihi. Hakiki jina na thamani ya key kwenye Render Environment bila kuiweka kwenye chat.";
+  }
+  if (/\b403\b|forbidden|model.*(access|permission)|access denied/.test(lower)) {
+    return "Provider imekataa ufikiaji wa model iliyochaguliwa. Hakiki model/route inayopatikana kwa akaunti hiyo, kisha ujaribu provider nyingine.";
+  }
+  if (/\b404\b|model.*(not found|unavailable)|no endpoints|no eligible provider|no available provider/.test(lower)) {
+    return "Model au endpoint ya provider haipatikani kwa ombi hili. Chagua model/route nyingine ya bure inayopatikana, kisha ujaribu tena.";
+  }
+  if (/empty content|empty or invalid response|invalid response|provider returned empty|model refused/.test(lower)) {
+    return "Provider ilijibu jaribio la afya, lakini haikutoa jibu linaloweza kutumika kwa chat hii. Hali ya provider kuwa LIVE haithibitishi kuwa kila ombi la chat litafaulu. Kagua quota/model route au ujaribu provider nyingine.";
+  }
+  if (/timed out|timeout|request aborted|aborterror/.test(lower)) {
+    return "Ombi la chat limezidi muda wa kusubiri. Jaribu tena; fallback itatumia muda wake wa pamoja, si sekunde za ziada kwa kila provider.";
+  }
+  if (/cannot reach mr ai backend|connection failed|failed to fetch|networkerror/.test(lower)) {
+    return "Dashboard haiwezi kufikia backend ya MR AI. Angalia muunganisho wa mtandao na hali ya https://mr-ai-stan.onrender.com/health.";
+  }
+  if (/unknown provider/.test(lower)) {
+    return "Provider iliyochaguliwa haitambuliki na backend hii. Chagua OpenRouter, Gemini, Kimi, Mistral au Grok kwenye menyu ya Chat.";
+  }
+  if (!message) {
+    return "Ombi halijakamilika kwa sababu isiyojulikana. Angalia Hitilafu Zilizorekodiwa kwenye Executive Briefing.";
+  }
+  return "Ombi halijakamilika. " + sanitizeAssistantMessage(message).slice(0, 180)
+    + " Kagua Hitilafu Zilizorekodiwa kwenye Executive Briefing.";
+}
+
 function readableRoutingStatus(value) {
   const raw = String(value || "").trim();
   const upper = raw.toUpperCase();
@@ -391,12 +426,7 @@ export default function Chat({
       // already returned data, tell the Boss what failed without pretending the
       // requested operation succeeded.
       const rawError = String(error?.message || "");
-      const providerFailure = /AIProviderError|empty or invalid response|provider.*failed|model.*unavailable|rate.?limit/i.test(rawError);
-      const readableError = providerFailure
-        ? "Samahani Boss, huduma ya AI haijatoa jibu linaloweza kutumika. Sijathibitisha kuwa ombi limekamilika. Kagua AI Core na ufanye TEST AI PROVIDER kabla ya kujaribu tena."
-        : rawError
-          ? "Samahani Boss, ombi halijakamilika: " + rawError.slice(0, 220)
-          : "Samahani Boss, ombi halijakamilika kwa sababu isiyojulikana.";
+      const readableError = "Samahani Boss. " + explainChatFailure(rawError);
       setMessages(prev => [
         ...prev,
         {
