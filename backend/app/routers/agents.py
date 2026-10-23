@@ -300,6 +300,33 @@ def claim_browser_command(
     db: Session = Depends(get_db),
 ):
     """Atomically claim one persisted browser command for this authenticated user."""
+    stale_cutoff = datetime.utcnow() - timedelta(seconds=BROWSER_COMMAND_TTL_SECONDS)
+    stale_commands = db.query(Task).filter(
+        Task.user_id == current_user.id,
+        Task.agent == "browser",
+        Task.source == "browser_hands",
+        Task.status == "RUNNING",
+        Task.updated_at < stale_cutoff,
+    ).order_by(Task.id.asc()).limit(10).all()
+    for stale in stale_commands:
+        try:
+            command_data = _parse_browser_command(stale)
+        except HTTPException:
+            stale.status = "FAILED"
+            stale.error = "Invalid browser command; it was not retried."
+            stale.updated_at = datetime.utcnow()
+            db.commit()
+            continue
+        _reconcile_browser_command(
+            db,
+            stale,
+            command_data,
+            None,
+            "Browser extension did not return a result before the command timeout. The action was not automatically replayed.",
+            verified=False,
+            terminal_status="FAILED",
+        )
+
     command = db.query(Task).filter(
         Task.user_id == current_user.id,
         Task.agent == "browser",
@@ -347,6 +374,7 @@ def claim_browser_command(
             "step_position": data.get("step_position"),
             "action": data["action"],
             "payload": data.get("payload") or {},
+            "boss_approved": data.get("boss_approved") is True,
             "timeout_seconds": 20,
         },
     }
@@ -453,7 +481,7 @@ async def start_approved_mission(
     ).first()
     if not mission:
         raise HTTPException(404, "Mission not found")
-    resumable_states = {"WAITING", "WAITING_FOR_HAND", "WAITING_FOR_VERIFICATION", "FAILED"}
+    resumable_states = {"WAITING", "WAITING_FOR_HAND", "WAITING_FOR_VERIFICATION", "FAILED", "BLOCKED"}
     if mission.status in {"RUNNING", "IN_PROGRESS"}:
         updated_at = mission.updated_at
         if updated_at and (datetime.utcnow() - updated_at.replace(tzinfo=None)).total_seconds() < 900:
