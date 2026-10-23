@@ -8,7 +8,6 @@ from sqlalchemy.orm import Session
 from ..models import Execution, ActivityLog, ApprovalRequest, Task, TaskStep
 from ..audit import record_safe_error
 from .intent import classify
-from .permissions import check_permission, create_approval
 
 
 async def run(user_id: int, text: str, db: Session) -> dict:
@@ -227,92 +226,66 @@ async def run(user_id: int, text: str, db: Session) -> dict:
             ),
         }
 
-    decision = check_permission(db, user_id, intent.name, intent.risk)
 
-    execution = Execution(
-        user_id=user_id,
-        intent=intent.name,
-        status="WAITING_APPROVAL",
-        risk=intent.risk,
-    )
-    db.add(execution)
-    db.flush()
+    # The chat endpoint must use the same execution engine as the Agents panel.
+    # Creating an approval-only shell here used to strand every non-job command.
+    from types import SimpleNamespace
+    from ..orchestration.executor import execute_mission
 
-    mission = Task(
-        user_id=user_id,
-        title=request[:255],
-        description=request[:12000],
-        status="WAITING_APPROVAL",
-        priority="HIGH" if intent.risk in {"HIGH", "CRITICAL"} else "NORMAL",
-        agent="orchestrator",
-        source="orchestrator",
-        requested_by="MR AI Orchestrator",
-        progress=0,
-    )
-    db.add(mission)
-    db.flush()
-
-    # Use the actual planner registry. Planned steps stay pending until Boss approves.
-    from ..orchestration.planner import build_plan
-    plan = build_plan(request)
-    for index, plan_step in enumerate(plan.get("steps") or [], start=1):
-        db.add(TaskStep(
-            task_id=mission.id,
-            position=index,
-            title=str(plan_step.get("name") or plan_step.get("agent") or f"Hatua {index}")[:255],
-            state="pending",
-            evidence=None,
+    try:
+        result = await execute_mission(request, SimpleNamespace(id=user_id), db)
+        mission = result.get("mission") if isinstance(result, dict) else {}
+        mission = mission if isinstance(mission, dict) else {}
+        status = str(result.get("status", "FAILED")).upper()
+        execution = Execution(
+            user_id=user_id,
+            intent=intent.name,
+            status=status,
+            risk=intent.risk,
+            result=json.dumps({
+                "task_id": mission.get("id"),
+                "mission_status": status,
+                "execution_started": status not in {"WAITING_APPROVAL", "REJECTED"},
+                "mission_result": result,
+            }, ensure_ascii=False, default=str),
+            error=str(result.get("reason") or "")[:2000] or None,
+        )
+        db.add(execution)
+        db.commit()
+        db.refresh(execution)
+        result["execution_id"] = execution.id
+        result["task_id"] = mission.get("id")
+        result["intent"] = intent.name
+        result["risk"] = intent.risk
+        result["execution_started"] = status not in {"WAITING_APPROVAL", "REJECTED"}
+        return result
+    except Exception as exc:
+        db.rollback()
+        failure = Execution(
+            user_id=user_id,
+            intent=intent.name,
+            status="FAILED",
+            risk=intent.risk,
+            error=f"Mission execution failed: {type(exc).__name__}",
+            result=json.dumps({
+                "status": "FAILED",
+                "intent": intent.name,
+                "reason": f"Execution raised {type(exc).__name__}; no success is claimed.",
+            }, ensure_ascii=False),
+        )
+        db.add(failure)
+        db.add(ActivityLog(
+            user_id=user_id,
+            action="ORCHESTRATION_FAILED",
+            details=f"intent={intent.name}; error_type={type(exc).__name__}",
         ))
-
-    approval_payload = {
-        "task_id": mission.id,
-        "execution_id": execution.id,
-        "intent": intent.name,
-        "parameters": intent.parameters,
-    }
-    approval = ApprovalRequest(
-        user_id=user_id,
-        action=intent.name,
-        payload=json.dumps(approval_payload, ensure_ascii=False, default=str),
-        status="PENDING",
-        expires_at=datetime.now(timezone.utc) + timedelta(minutes=15),
-    )
-    db.add(approval)
-    execution.error = decision.reason if decision.requires_approval else "Owner approval is mandatory for every orchestrator-created task."
-    execution.result = json.dumps({
-        "task_id": mission.id,
-        "approval_id": None,
-        "status": "WAITING_APPROVAL",
-        "execution_started": False,
-    }, ensure_ascii=False)
-    db.add(ActivityLog(
-        user_id=user_id,
-        action="ORCHESTRATION_PROPOSED",
-        details=f"task_id={mission.id}; execution_id={execution.id}; intent={intent.name}; risk={intent.risk}",
-    ))
-    db.commit()
-    db.refresh(execution)
-    db.refresh(mission)
-    db.refresh(approval)
-
-    execution.result = json.dumps({
-        "task_id": mission.id,
-        "approval_id": approval.id,
-        "status": "WAITING_APPROVAL",
-        "execution_started": False,
-    }, ensure_ascii=False)
-    db.commit()
-
-    return {
-        "status": "WAITING_APPROVAL",
-        "execution_id": execution.id,
-        "task_id": mission.id,
-        "approval_id": approval.id,
-        "intent": intent.name,
-        "confidence": intent.confidence,
-        "risk": intent.risk,
-        "reason": "Boss Ferisi lazima aidhinishe kabla ya hatua yoyote kutekelezwa.",
-        "execution_started": False,
-        "plan": plan,
-        "elapsed_ms": int((time.perf_counter() - started) * 1000),
-    }
+        db.commit()
+        db.refresh(failure)
+        return {
+            "status": "FAILED",
+            "execution_id": failure.id,
+            "intent": intent.name,
+            "risk": intent.risk,
+            "execution_started": False,
+            "reason": f"Mission execution failed: {type(exc).__name__}",
+        }

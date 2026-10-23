@@ -21,13 +21,7 @@ import {
   getMemories,
   getActivity,
   getGmailStatus,
-  reportMissionHandoff,
   getCurrentPage,
-  browserNavigate,
-  browserClick,
-  browserType,
-  browserScroll,
-  browserDrag,
 } from "./api";
 import {
   getActiveTaskForAgent,
@@ -56,6 +50,7 @@ import JobResearch from "./components/JobResearch";
 import TaskCenter from "./components/TaskCenter";
 import MemoryCenter from "./components/MemoryCenter";
 import VoiceControl from "./components/VoiceControl";
+import BusinessBroker from "./components/BusinessBroker";
 
 const BUILD_ID = import.meta.env.VITE_BUILD_ID || "MR-AI-STAN";
 
@@ -64,6 +59,7 @@ const NAV = [
   ["core", "◉", "AI Core"],
   ["agents", "◆", "Agents"],
   ["jobs", "⌕", "Job Research"],
+  ["broker", "⇄", "Business Broker"],
   ["browser", "↗", "Browser Hands"],
   ["device", "⌁", "Device Lab"],
   ["creative", "✦", "Creative Studio"],
@@ -358,81 +354,64 @@ function AgentsPanel({ agents, tasks = [], onPlan }) {
       let finalResult = result;
 
       const handoffStep = result?.steps?.find(
-        step => step?.status === "WAITING_FOR_HAND" && step?.handoff?.action
+        step => step?.status === "WAITING_FOR_HAND" && step?.command_task_id
       );
 
-      if (handoffStep) {
-        setMissionResult({
-          ...result,
-          status: "HAND_EXECUTING",
-          handoff: handoffStep.handoff,
-        });
-
-        const action = handoffStep.handoff.action;
-        const payload = handoffStep.handoff.payload || {};
-        let evidence;
-
-        switch (action) {
-          case "NAVIGATE":
-            evidence = await browserNavigate(payload.url);
-            break;
-          case "GET_PAGE_DATA":
-            evidence = await getCurrentPage();
-            break;
-          case "CLICK":
-            evidence = await browserClick(payload.selector);
-            break;
-          case "TYPE":
-            evidence = await browserType(payload.selector, payload.value);
-            break;
-          case "SCROLL":
-            evidence = await browserScroll(Number(payload.amount || 700));
-            break;
-          case "DRAG":
-            evidence = await browserDrag(
-              payload.selector,
-              Number(payload.dx || 0),
-              Number(payload.dy || 0)
-            );
-            break;
-          default:
-            throw new Error(`Unsupported browser handoff action: ${action}`);
-        }
-
-        const verified = await reportMissionHandoff(
-          result.mission.id,
-          "COMPLETED",
-          {
-            agent: handoffStep.agent,
-            tool: "browser_hands",
-            action,
-            result: evidence,
-          }
-        );
-
+      if (handoffStep && result?.mission?.id) {
+        // The backend already queued this action for the authenticated extension.
+        // Never perform a second browser action from the React page.
         finalResult = {
           ...result,
-          status: verified.status,
-          mission: {
-            ...result.mission,
-            status: verified.mission.status,
-            progress: verified.mission.progress,
-            result: verified.mission.result,
-          },
-          next_action: verified.next_action || result.next_action,
-          steps: result.steps.map(step =>
-            step.step === handoffStep.step
-              ? {
-                  ...step,
-                  status: verified.verified === true ? "COMPLETED" : verified.status,
-                  verified: verified.verified === true,
-                  evidence,
-                }
-              : step
-          ),
+          status: "WAITING_FOR_HAND",
+          next_action: "Amri imehifadhiwa. Inasubiri Chrome extension na uthibitisho wa backend.",
         };
-      }
+        setMissionResult(finalResult);
 
+        const deadline = Date.now() + 25000;
+        while (Date.now() < deadline) {
+          await new Promise(resolvePromise => window.setTimeout(resolvePromise, 500));
+          const taskRows = await getTasks();
+          const persisted = Array.isArray(taskRows)
+            ? taskRows.find(task => Number(task.id) === Number(result.mission.id))
+            : null;
+          if (!persisted) continue;
+
+          let persistedResult = {};
+          try {
+            persistedResult = typeof persisted.result === "string"
+              ? JSON.parse(persisted.result || "{}")
+              : (persisted.result || {});
+          } catch {
+            persistedResult = {};
+          }
+          const currentStatus = String(persisted.status || "WAITING_FOR_HAND").toUpperCase();
+          finalResult = {
+            ...result,
+            status: currentStatus,
+            mission: {
+              ...result.mission,
+              id: persisted.id,
+              status: currentStatus,
+              progress: persisted.progress,
+              result: persisted.result,
+              error: persisted.error,
+            },
+            steps: Array.isArray(persistedResult.steps) ? persistedResult.steps : result.steps,
+            next_action: persisted.error || (
+              currentStatus === "COMPLETED"
+                ? "Browser result saved and verified by the backend."
+                : currentStatus === "BLOCKED"
+                  ? "Browser action blocked by a safety control; inspect the saved blocker."
+                  : currentStatus === "FAILED"
+                    ? "Browser execution failed; inspect the saved error before retrying."
+                    : "Waiting for the extension to return verifiable browser evidence."
+            ),
+          };
+          setMissionResult(finalResult);
+          if (["COMPLETED", "FAILED", "BLOCKED"].includes(currentStatus)) break;
+          if (currentStatus === "WAITING_FOR_VERIFICATION") break;
+        }
+      }
       setMissionResult(finalResult);
     } catch (error) {
       setMissionResult({ status: "ERROR", reason: error.message });
@@ -1036,6 +1015,7 @@ function App() {
 
           {active === "agents" && <AgentsPanel agents={agents} tasks={tasks} onPlan={createPlan} />}
           {active === "jobs" && <JobResearch />}
+          {active === "broker" && <BusinessBroker />}
           {active === "browser" && <BrowserHands />}
           {active === "device" && <DeviceLab />}
           {active === "creative" && <CreativeStudio />}

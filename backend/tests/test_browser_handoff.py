@@ -1,3 +1,4 @@
+from app.core.intent import classify
 from app.orchestration.handoffs import build_browser_handoff
 
 
@@ -44,3 +45,18 @@ def test_browser_handoff_blocks_consequential_click_language():
 
 def test_browser_handoff_rejects_unsupported_click_target_text():
     assert build_browser_handoff("bonyeza submit button") is None
+
+
+def test_normal_chat_intent_routes_page_read_to_orchestration():
+    intent = classify("soma ukurasa")
+    assert intent.name == "BROWSER_NAVIGATE"
+    assert intent.executable is False
+
+
+def test_browser_handoff_read_page_action_has_no_write_side_effect():
+    result = build_browser_handoff("soma ukurasa")
+    assert result == {
+        "action": "GET_PAGE_DATA",
+        "payload": {},
+        "reason": "Explicit request to read the current browser page.",
+    }

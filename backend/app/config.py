@@ -35,6 +35,12 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:5173,https://mr-ai-stan-web.onrender.com"
     searxng_url: str = ""
 
+    # Optional Coding Agent GitHub workspace. Never expose the token through status endpoints.
+    coding_github_token: str = ""
+    coding_github_repository: str = ""
+    coding_github_base_branch: str = "main"
+    coding_github_work_branch: str = "mr-ai/coding-agent-work"
+
     gmail_client_id: str = ""
     gmail_client_secret: str = ""
     gmail_redirect_uri: str = ""

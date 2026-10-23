@@ -242,3 +242,22 @@ def test_repeated_job_search_resumes_exact_old_approval_task(monkeypatch):
     assert execution.status == "COMPLETED"
     assert db.query(TaskStep).filter_by(task_id=task.id).one().state == "verified"
 
+
+
+def test_agent_fleet_reports_missing_execution_hands_instead_of_fake_ready_status():
+    db = make_db()
+    user = SimpleNamespace(id=99)
+
+    report = build_executive_briefing(user, db)
+    fleet = {agent["id"]: agent for agent in report["agents"]["fleet"]}
+
+    assert report["agents"]["total"] == 11
+    assert fleet["orchestrator"]["runtime_status"] == "READY"
+    assert fleet["jobs"]["runtime_status"] == "READY"
+    assert fleet["memory"]["runtime_status"] == "READY"
+    for agent_id in ("browser", "coding", "creative", "device", "security"):
+        assert fleet[agent_id]["runtime_status"] == "WAITING_FOR_HAND"
+    assert fleet["gmail"]["runtime_status"] in {"NOT_CONNECTED", "NOT_CONFIGURED"}
+    assert fleet["research"]["runtime_status"] in {"CONFIGURED", "NOT_CONNECTED"}
+    assert all("runtime_status" in item for item in fleet.values())
+    db.close()

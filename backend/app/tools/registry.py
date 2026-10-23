@@ -4,6 +4,7 @@ import shutil
 from typing import Any
 
 from ..config import settings
+from ..connectors.coding_workspace import coding_workspace_status
 
 def _binary_status(binary: str, label: str) -> dict[str, Any]:
     path = shutil.which(binary)
@@ -24,6 +25,15 @@ def get_tool_registry() -> list[dict[str, Any]]:
             "mode": "LOCAL",
             "free": True,
             "description": "CPU, memory, storage, network, uptime and optional GPU telemetry.",
+        },
+        {
+            "id": "coding_workspace",
+            "name": "GitHub Coding Workspace",
+            "category": "CODING",
+            "status": "CONNECTED" if coding_workspace_status().get("configured") else "NOT_CONNECTED",
+            "mode": "GITHUB_API",
+            "free": True,
+            "description": "Restricted file inspection/commit operations on a configured non-production branch; completion is based on actual GitHub Actions checks.",
         },
         {
             "id": "browser_hands",
@@ -145,6 +155,15 @@ def get_tool_registry() -> list[dict[str, Any]]:
             "mode": "CLOUD",
             "free": False,
             "description": "Secondary AI provider. Availability depends on the configured API account.",
+        },
+        {
+            "id": "business_broker",
+            "name": "Business Broker Pipeline",
+            "category": "BUSINESS",
+            "status": "AVAILABLE",
+            "mode": "BACKEND",
+            "free": True,
+            "description": "Owner-scoped opportunity research, source evidence, transparent rule-based ranking, editable outreach drafts and persistent follow-up tasks. Search availability depends on configured public sources.",
         },
         {
             "id": "searxng",

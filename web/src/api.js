@@ -27,17 +27,13 @@ export function getToken() {
 
 function syncExtensionAuthToken(token) {
   const extensionId = getBrowserExtensionId();
-  if (!extensionId || typeof globalThis.chrome?.runtime?.sendMessage !== "function") return;
-
-  try {
-    const pending = globalThis.chrome.runtime.sendMessage(extensionId, {
-      type: "MR_AI_AUTH_TOKEN",
-      token: token || "",
-    });
-    pending?.catch?.(() => {});
-  } catch {
+  if (!extensionId) return;
+  sendExtensionMessage(extensionId, {
+    type: "MR_AI_AUTH_TOKEN",
+    token: token || "",
+  }).catch(() => {
     // The dashboard remains usable when the extension is absent or reloading.
-  }
+  });
 }
 
 export function setToken(token) {
@@ -154,8 +150,8 @@ export async function login(username, password) {
   return data;
 }
 
-export function chat(message, provider = "gemini", toolContext = null, sessionId = null) {
-  return request("/ai/chat", {
+export async function chat(message, provider = "gemini", toolContext = null, sessionId = null) {
+  const result = await request("/ai/chat", {
     method: "POST",
     body: JSON.stringify({
       message,
@@ -164,6 +160,8 @@ export function chat(message, provider = "gemini", toolContext = null, sessionId
       tool_context: toolContext
     })
   }, CHAT_API_TIMEOUT_MS);
+  notifyExtensionBrowserPoll();
+  return result;
 }
 
 
@@ -244,6 +242,40 @@ export function recordActivityEvent(event) {
 
 export function getTasks() {
   return request("/tasks");
+}
+
+export function getBrokerStatus() {
+  return request("/broker/status");
+}
+
+export function getBrokerOpportunities(filters = {}) {
+  const params = new URLSearchParams();
+  Object.entries(filters || {}).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && String(value).trim()) params.set(key, String(value));
+  });
+  const suffix = params.toString();
+  return request("/broker/opportunities" + (suffix ? "?" + suffix : ""));
+}
+
+export function researchBrokerOpportunities(payload) {
+  return request("/broker/research", {
+    method: "POST",
+    body: JSON.stringify(payload || {}),
+  }, TOOL_API_TIMEOUT_MS);
+}
+
+export function prepareBrokerOutreach(opportunityId, payload = {}) {
+  return request("/broker/opportunities/" + encodeURIComponent(opportunityId) + "/prepare-outreach", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  }, TOOL_API_TIMEOUT_MS);
+}
+
+export function updateBrokerOpportunity(opportunityId, payload = {}) {
+  return request("/broker/opportunities/" + encodeURIComponent(opportunityId), {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
 }
 
 export function approveTask(taskId) {
@@ -385,6 +417,63 @@ export function flashFirmware({ serial, partition, image_path, sha256, confirm }
 
 
 
+function notifyExtensionBrowserPoll() {
+  const extensionId = getBrowserExtensionId();
+  if (!extensionId) return;
+  sendExtensionMessage(extensionId, { type: "MR_AI_POLL_NOW" }, 3000).catch(() => {
+    // The periodic background alarm is the recovery path if the bridge is unavailable.
+  });
+}
+
+function sendExtensionMessage(extensionId, message, timeoutMs = 15000) {
+  if (typeof globalThis.chrome?.runtime?.sendMessage === "function") {
+    return Promise.race([
+      globalThis.chrome.runtime.sendMessage(extensionId, message),
+      new Promise((_, reject) => window.setTimeout(() => reject(new Error("Browser Hands message timed out.")), timeoutMs)),
+    ]);
+  }
+
+  if (typeof window === "undefined" || typeof window.postMessage !== "function") {
+    return Promise.reject(new Error("Browser Hands messaging is unavailable in this environment."));
+  }
+
+  const bridgeRequestId = window.crypto?.randomUUID
+    ? window.crypto.randomUUID()
+    : "mr-ai-bridge-" + Date.now() + "-" + Math.random().toString(36).slice(2);
+
+  return new Promise((resolve, reject) => {
+    let finished = false;
+    const cleanup = () => {
+      window.clearTimeout(timer);
+      window.removeEventListener("message", onMessage);
+    };
+    const finish = (callback, value) => {
+      if (finished) return;
+      finished = true;
+      cleanup();
+      callback(value);
+    };
+    const onMessage = event => {
+      if (event.source !== window || event.origin !== window.location.origin) return;
+      const data = event.data;
+      if (data?.type !== "MR_AI_EXTENSION_RESPONSE" || data.requestId !== bridgeRequestId) return;
+      finish(resolve, data.response || { ok: false, error: "Browser Hands returned an empty bridge response." });
+    };
+    const timer = window.setTimeout(() => {
+      finish(reject, new Error("Browser Hands did not answer within " + timeoutMs + "ms. Check that the extension is installed, reloaded, and allowed on this site."));
+    }, timeoutMs);
+
+    window.addEventListener("message", onMessage);
+    window.postMessage({
+      type: "MR_AI_EXTENSION_REQUEST",
+      source: "mr-ai-web",
+      extensionId,
+      requestId: bridgeRequestId,
+      message
+    }, window.location.origin);
+  });
+}
+
 function getBrowserExtensionId() {
   const configured = import.meta.env.VITE_MR_AI_EXTENSION_ID;
   if (configured) return configured;
@@ -397,13 +486,13 @@ export async function getBrowserHandsStatus() {
   const extensionId = getBrowserExtensionId();
   const token = getToken();
   if (token) syncExtensionAuthToken(token);
-  if (!extensionId || typeof globalThis.chrome?.runtime?.sendMessage !== "function") {
-    return { installed: false, connected: false, extensionId: extensionId || null, targetTab: "unknown" };
+  if (!extensionId) {
+    return { installed: false, connected: false, extensionId: null, targetTab: "unknown" };
   }
 
   try {
     const response = await Promise.race([
-      globalThis.chrome.runtime.sendMessage(extensionId, { type: "MR_AI_PING" }),
+      sendExtensionMessage(extensionId, { type: "MR_AI_PING" }, 2500),
       new Promise((_, reject) => window.setTimeout(
         () => reject(new Error("Extension ping timed out.")),
         2500
@@ -438,7 +527,7 @@ export async function browserAction(action, payload = {}) {
 
   async function sendBrowserRequest(extra = {}) {
     const message = await Promise.race([
-      globalThis.chrome.runtime.sendMessage(extensionId, {
+      sendExtensionMessage(extensionId, {
         type: "MR_AI_BROWSER_ACTION",
         requestId,
         action,
@@ -603,11 +692,13 @@ export function planAgentWork(requestText) {
 }
 
 
-export function executeMission(requestText) {
-  return request("/agents/mission", {
+export async function executeMission(requestText) {
+  const result = await request("/agents/mission", {
     method: "POST",
     body: JSON.stringify({ request: requestText }),
   }, TOOL_API_TIMEOUT_MS);
+  notifyExtensionBrowserPoll();
+  return result;
 }
 
 export function reportMissionHandoff(missionId, status, evidence) {
@@ -677,11 +768,13 @@ export function getExecutiveBriefing() {
 }
 
 
-export function runOrchestrator(message) {
-  return request("/orchestrator/run", {
+export async function runOrchestrator(message) {
+  const result = await request("/orchestrator/run", {
     method: "POST",
     body: JSON.stringify({ message }),
   }, TOOL_API_TIMEOUT_MS);
+  notifyExtensionBrowserPoll();
+  return result;
 }
 
 export function getOrchestratorExecutions() {

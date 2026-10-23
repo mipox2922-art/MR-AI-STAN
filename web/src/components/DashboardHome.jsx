@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { dispatchTool, searchToolWeb, planAgentWork, executeMission, chat, getExecutiveBriefing, getAIHealth, approveTask, startApprovedMission, browserNavigate, browserClick, browserType, browserScroll, browserDrag, getCurrentPage, reportMissionHandoff } from "../api";
+import { dispatchTool, searchToolWeb, planAgentWork, executeMission, chat, getExecutiveBriefing, getAIHealth, approveTask, startApprovedMission, getTasks, browserNavigate, browserClick, browserType, browserScroll, browserDrag, getCurrentPage } from "../api";
 import HudOrb from "./HudOrb";
 import Chat from "./Chat";
 import { sanitizeAssistantMessage } from "../utils/chatSafety";
@@ -804,58 +804,62 @@ function MissionWorkbench({ onMissionUpdate }) {
       let finalResult = await executeMission(value);
       latest = finalResult;
       const handoffStep = finalResult?.steps?.find(
-        step => step?.status === "WAITING_FOR_HAND" && step?.handoff?.action
+        step => step?.status === "WAITING_FOR_HAND" && step?.command_task_id
       );
 
       if (handoffStep && finalResult?.mission?.id) {
-        setMissionResult({ ...finalResult, status: "HAND_EXECUTING" });
-        const action = handoffStep.handoff.action;
-        const payload = handoffStep.handoff.payload || {};
-        let evidence;
-
-        switch (action) {
-          case "NAVIGATE":
-            evidence = await browserNavigate(payload.url);
-            break;
-          case "GET_PAGE_DATA":
-            evidence = await getCurrentPage();
-            break;
-          case "CLICK":
-            evidence = await browserClick(payload.selector);
-            break;
-          case "TYPE":
-            evidence = await browserType(payload.selector, payload.value);
-            break;
-          case "SCROLL":
-            evidence = await browserScroll(Number(payload.amount || 700));
-            break;
-          case "DRAG":
-            evidence = await browserDrag(payload.selector, Number(payload.dx || 0), Number(payload.dy || 0));
-            break;
-          default:
-            throw new Error("Kitendo cha browser hakitumiki: " + action);
-        }
-
-        const verified = await reportMissionHandoff(finalResult.mission.id, "COMPLETED", {
-          agent: handoffStep.agent,
-          tool: "browser_hands",
-          action,
-          result: evidence,
-        });
-        finalResult = {
+        // The backend has already queued the command for the authenticated
+        // extension. Never execute the same action a second time in the UI.
+        setMissionResult({
           ...finalResult,
-          status: verified.status,
-          mission: {
-            ...finalResult.mission,
-            status: verified.mission.status,
-            progress: verified.mission.progress,
-            result: verified.mission.result,
-          },
-          next_action: verified.next_action || finalResult.next_action,
-          steps: finalResult.steps.map(step => step.step === handoffStep.step
-            ? { ...step, status: verified.verified === true ? "COMPLETED" : verified.status, verified: verified.verified === true, evidence: { message: "Browser imerudisha matokeo. Hali ya mwisho inahitaji uthibitisho huru.", result: evidence } }
-            : step),
-        };
+          status: "WAITING_FOR_HAND",
+          next_action: "Amri imehifadhiwa. Inasubiri Chrome extension, kisha backend itathibitisha ushahidi.",
+        });
+
+        const deadline = Date.now() + 25000;
+        while (Date.now() < deadline) {
+          await new Promise(resolve => window.setTimeout(resolve, 500));
+          const taskRows = await getTasks();
+          const persisted = Array.isArray(taskRows)
+            ? taskRows.find(task => Number(task.id) === Number(finalResult.mission.id))
+            : null;
+          if (!persisted) continue;
+
+          let persistedResult = {};
+          try {
+            persistedResult = typeof persisted.result === "string"
+              ? JSON.parse(persisted.result || "{}")
+              : (persisted.result || {});
+          } catch {
+            persistedResult = {};
+          }
+          const currentStatus = String(persisted.status || "WAITING_FOR_HAND").toUpperCase();
+          finalResult = {
+            ...finalResult,
+            status: currentStatus,
+            mission: {
+              ...finalResult.mission,
+              id: persisted.id,
+              status: currentStatus,
+              progress: persisted.progress,
+              result: persisted.result,
+              error: persisted.error,
+            },
+            steps: Array.isArray(persistedResult.steps) ? persistedResult.steps : finalResult.steps,
+            next_action: persisted.error || (
+              currentStatus === "COMPLETED"
+                ? "Browser result saved and verified by the backend."
+                : currentStatus === "BLOCKED"
+                  ? "Browser action blocked by a safety control; review the blocker before retrying."
+                  : currentStatus === "FAILED"
+                    ? "Browser execution failed; inspect the saved error before retrying."
+                    : "Waiting for a verified browser result."
+            ),
+          };
+          setMissionResult(finalResult);
+          onMissionUpdate?.(finalResult);
+          if (!["WAITING_FOR_HAND", "RUNNING", "IN_PROGRESS"].includes(currentStatus)) break;
+        }
       }
 
       setMissionResult(finalResult);

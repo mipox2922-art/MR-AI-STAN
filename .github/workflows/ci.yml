@@ -168,10 +168,75 @@ jobs:
       - name: Compile device bridge
         run: python -m compileall -q device-bridge
 
+  browser-hands-e2e:
+    name: Real Browser Hands end-to-end
+    needs: [backend, extension]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Install backend and frontend dependencies
+        run: |
+          python -m pip install -r backend/requirements.txt
+          cd web
+          npm ci
+          npm install --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Start isolated local API and Vite frontend
+        env:
+          SECRET_KEY: mrai-browser-e2e-only-secret-key-not-for-production-2026
+          DATABASE_URL: sqlite:////tmp/mr-ai-browser-hands-e2e.sqlite
+          SCHEDULER_ENABLED: "false"
+          CORS_ORIGINS: http://127.0.0.1:5173,http://localhost:5173
+          PYTHONPATH: ${{ github.workspace }}/backend
+        run: |
+          set -euo pipefail
+          cd backend
+          python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 > /tmp/mrai-browser-e2e-api.log 2>&1 &
+          echo $! > /tmp/mrai-browser-e2e-api.pid
+          cd ../web
+          VITE_API_URL=http://127.0.0.1:8000 npm run dev -- --host 127.0.0.1 > /tmp/mrai-browser-e2e-web.log 2>&1 &
+          echo $! > /tmp/mrai-browser-e2e-web.pid
+          for attempt in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:8000/health >/dev/null && curl -fsS http://127.0.0.1:5173/ | grep -q 'id="root"'; then
+              echo "Local API and frontend are ready."
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "--- API startup log ---"
+          cat /tmp/mrai-browser-e2e-api.log || true
+          echo "--- Frontend startup log ---"
+          cat /tmp/mrai-browser-e2e-web.log || true
+          exit 1
+      - name: Execute real Chromium mission through the unpacked MV3 extension
+        working-directory: web
+        env:
+          BROWSER_E2E_WEB_URL: http://127.0.0.1:5173
+          BROWSER_E2E_API_URL: http://127.0.0.1:8000
+          BROWSER_E2E_EXTENSION_DIR: ${{ github.workspace }}/extension
+          BROWSER_E2E_FIXTURE_PATH: ${{ github.workspace }}/web/fixtures/browser-hands-e2e.html
+        run: |
+          xvfb-run --auto-servernum node scripts/browser-hands-e2e.mjs || {
+            echo "--- API log ---"
+            cat /tmp/mrai-browser-e2e-api.log || true
+            echo "--- Frontend log ---"
+            cat /tmp/mrai-browser-e2e-web.log || true
+            exit 1
+          }
+
   production-smoke:
     name: Live Render smoke test
     if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
-    needs: [backend, frontend, extension, device_bridge]
+    needs: [backend, frontend, extension, device_bridge, browser-hands-e2e]
     runs-on: ubuntu-latest
     timeout-minutes: 8
     steps:

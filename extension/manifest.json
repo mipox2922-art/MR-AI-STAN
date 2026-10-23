@@ -1,16 +1,18 @@
 {
   "manifest_version": 3,
   "name": "MR AI — Browser Hands",
-  "version": "1.1.4",
+  "version": "1.1.5",
   "description": "MR AI browser extension connected to the shared secure backend.",
   "permissions": [
     "activeTab",
     "scripting",
     "storage",
-    "tabs"
+    "tabs",
+    "alarms"
   ],
   "host_permissions": [
     "http://localhost:8000/*",
+    "http://127.0.0.1:8000/*",
     "https://mr-ai-stan.onrender.com/*"
   ],
   "externally_connectable": {

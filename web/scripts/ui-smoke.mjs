@@ -192,6 +192,16 @@ async function apiMock(route) {
   }
   if (method === "POST" && path === "/tools/route") return sendJson(route, { status: "ROUTED", route: { agent: "research", tool: "searxng" }, result: { status: "COMPLETED", results: [] }, message: "Mock tool routing only." });
   if (method === "POST" && path === "/tools/dispatch") return sendJson(route, { status: "COMPLETED", route: { agent: "orchestrator", tool: "system_telemetry" }, result: systemStatus });
+  if (method === "GET" && path === "/broker/status") return sendJson(route, {
+    status: "AVAILABLE",
+    owner_scoped_pipeline: true,
+    public_job_feeds: ["RemoteOK", "Remotive"],
+    business_supplier_search: "NOT_CONNECTED",
+    automatic_outreach: false,
+    payments_and_orders: false,
+    message: "UI test fixture only; no live business source is claimed.",
+  });
+  if (method === "GET" && path === "/broker/opportunities") return sendJson(route, []);
   if (method === "GET" && path === "/jobs/autopilot") return sendJson(route, mockJobAutopilot);
   if (method === "PUT" && path === "/jobs/autopilot") {
     mockJobAutopilot.config = { ...mockJobAutopilot.config, ...body };
@@ -422,13 +432,13 @@ async function main() {
   completedChecks.push("executive briefing expands to a task-backed Agent Crew roster");
   assert.equal(radarScanRequests, 0, "After initial telemetry refresh completes, dashboard polling must not scan local sensor hardware.");
   const nav = page.locator(".sidebar nav button");
-  assert.equal(await nav.count(), 16, "All 16 main navigation entries should render.");
-  completedChecks.push("authenticated app startup + 16 main navigation controls");
+  assert.equal(await nav.count(), 17, "All 17 main navigation entries should render.");
+  completedChecks.push("authenticated app startup + 17 main navigation controls");
 
   const destinations = [
     "Dashboard", "AI Core", "Agents", "Browser Hands", "Device Lab",
     "Creative Studio", "Tracking Map", "Security", "Toolbox", "Web Intelligence",
-    "Job Research", "Gmail", "Schedules", "Tasks", "Memory", "Settings",
+    "Job Research", "Business Broker", "Gmail", "Schedules", "Tasks", "Memory", "Settings",
   ];
   async function waitForDestination(label) {
     if (label === "Dashboard") {
@@ -443,7 +453,7 @@ async function main() {
     await waitForDestination(label);
   }
   for (const destination of destinations) await goTo(destination);
-  completedChecks.push("all 16 navigation routes open the matching module");
+  completedChecks.push("all 17 navigation routes open the matching module");
 
   await goTo("Dashboard");
   await page.locator(".cc-system-status button").click();
@@ -497,7 +507,7 @@ async function main() {
     ["Open Browser Hands", "Browser Hands"], ["Open Device Lab", "Device Lab"],
     ["Open Creative Studio", "Creative Studio"], ["Open Tracking Map", "Tracking Map"],
     ["Open Security", "Security"], ["Open Toolbox", "Toolbox"], ["Open Web Intelligence", "Web Intelligence"],
-    ["Open Job Research", "Job Research"], ["Open Gmail", "Gmail"], ["Open Schedules", "Schedules"], ["Open Tasks", "Tasks"],
+    ["Open Job Research", "Job Research"], ["Open Business Broker", "Business Broker"], ["Open Gmail", "Gmail"], ["Open Schedules", "Schedules"], ["Open Tasks", "Tasks"],
     ["Open Memory", "Memory"], ["Open Settings", "Settings"],
   ];
   for (const [action, destination] of paletteTargets) {
