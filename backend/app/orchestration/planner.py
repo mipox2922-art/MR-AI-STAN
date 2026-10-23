@@ -11,7 +11,7 @@ from ..agents.registry import AGENTS
 # accidentally launching three unrelated agents.
 _COMMAND_ROUTES: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("memory", (
-        r"^(?:hifadhi\s+kumbukumbu|remember\s+this|remember\s+that|save\s+memory|kumbuka(?:\s+hii|\s+kwamba)?|remember|sahau|forget|tafuta\s+kumbukumbu)\b",
+        r"^(?:hifadhi\s+kumbukumbu|remember\s+this|remember\s+that|save\s+memory|kumbuka(?:\s+hii|\s+kwamba)?|unakumbuka|remember|sahau|forget|tafuta\s+kumbukumbu)\b",
     )),
     ("orchestrator", (
         r"^(?:system\s+(?:health|status|info|telemetry)|(?:cpu|ram|storage|disk|network|uptime)\b)",
