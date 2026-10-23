@@ -1508,12 +1508,22 @@ export default function DashboardHome({
     try {
       const result = await getAIHealth(targetProvider);
       setProviderHealth(result);
-      // Only a successful live probe for this provider clears the stale AI error.
+      // Keep the visible and persisted runtime state aligned with the same
+      // provider that was tested; a healthy backend alone is not enough.
       if (result?.status === "LIVE") {
-        await setAIState("IDLE").catch(() => {});
+        const savedState = await setAIState("IDLE").catch(() => null);
+        onState?.(savedState?.state || "IDLE");
+        onRefresh?.();
+      } else if (result?.status === "ERROR") {
+        const savedState = await setAIState("ERROR").catch(() => null);
+        onState?.(savedState?.state || "ERROR");
+        onRefresh?.();
       }
     } catch (err) {
       setProviderHealth({ status: "ERROR", provider: targetProvider, reason: err?.message || "Health check failed." });
+      const savedState = await setAIState("ERROR").catch(() => null);
+      onState?.(savedState?.state || "ERROR");
+      onRefresh?.();
     }
   }
 
