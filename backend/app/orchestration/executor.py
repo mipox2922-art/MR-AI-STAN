@@ -458,6 +458,71 @@ async def execute_mission(
         if agent_id == "browser" and "browser_hands" in step.get("tools", []):
             handoff = build_browser_handoff(request)
             if handoff:
+                existing_commands = db.query(Task).filter(
+                    Task.user_id == user.id,
+                    Task.agent == "browser",
+                    Task.source == "browser_hands",
+                    Task.requested_by == f"mission:{mission.id}",
+                ).order_by(Task.id.desc()).all()
+                existing_command = None
+                existing_descriptor = None
+                for candidate in existing_commands:
+                    try:
+                        descriptor = json.loads(candidate.description or "{}")
+                    except (TypeError, ValueError):
+                        continue
+                    if (
+                        descriptor.get("mission_id") == mission.id
+                        and descriptor.get("step_position") == index
+                        and descriptor.get("action") == handoff.get("action")
+                    ):
+                        existing_command = candidate
+                        existing_descriptor = descriptor
+                        break
+
+                # Never replay an ambiguous external action. Queue/Running commands
+                # are already owned by the extension; a lost result remains blocked
+                # for verification. Only an explicit restart of a FAILED/BLOCKED
+                # mission may enqueue another attempt.
+                if existing_command and existing_command.status not in {"FAILED", "BLOCKED"}:
+                    current_state = str(existing_command.status or "").upper()
+                    existing_request_id = str(
+                        (existing_descriptor or {}).get("request_id") or f"browser-task-{existing_command.id}"
+                    )
+                    surfaced_status = (
+                        "WAITING_FOR_VERIFICATION"
+                        if current_state in {"COMPLETED", "WAITING_FOR_VERIFICATION"}
+                        else "WAITING_FOR_HAND"
+                    )
+                    try:
+                        existing_result = json.loads(existing_command.result or "{}")
+                    except (TypeError, ValueError):
+                        existing_result = {}
+                    steps.append({
+                        "step": index,
+                        "agent": agent_id,
+                        "name": step_name,
+                        "tool": "browser_hands",
+                        "status": surfaced_status,
+                        "verified": False,
+                        "command_task_id": existing_command.id,
+                        "request_id": existing_request_id,
+                        "handoff": {"action": handoff["action"], "payload": handoff.get("payload") or {}},
+                        "evidence": {
+                            "message": (
+                                "Existing browser action has no independently verified parent-step result. "
+                                "It was not replayed; inspect the saved command result before any retry."
+                                if surfaced_status == "WAITING_FOR_VERIFICATION"
+                                else "An existing browser command is queued or running. The manager did not enqueue a duplicate action."
+                            ),
+                            "command_task_id": existing_command.id,
+                            "command_status": current_state,
+                            "error": existing_result.get("error"),
+                        },
+                    })
+                    _persist_step_progress(db, mission, steps)
+                    continue
+
                 # The child Task is the durable queue message. Its ID is the
                 # idempotency/correlation key; the extension must claim it once
                 # and echo the backend-issued claim token with its result.
