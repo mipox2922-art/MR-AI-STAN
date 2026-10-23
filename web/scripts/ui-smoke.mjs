@@ -16,6 +16,7 @@ let rebootRequests = 0;
 let radarScanRequests = 0;
 let delayedChatRequests = 0;
 let delayedChatRequestBodies = [];
+let mockAIState = "IDLE";
 const providerHealthRequests = [];
 let mockJobAutopilot = {
   config: {
@@ -156,8 +157,11 @@ async function apiMock(route) {
     return sendJson(route, { status: "NOT_CONFIGURED", configured: false, connected: false, scope: [] });
   }
   if (method === "GET" && path === "/ai/history") return sendJson(route, { messages: [], session_id: url.searchParams.get("session_id") });
-  if (method === "GET" && path === "/ai/state") return sendJson(route, { state: "IDLE", verified: true, updated_at: new Date().toISOString() });
-  if (method === "POST" && path === "/ai/state") return sendJson(route, { state: body.state, verified: true, updated_at: new Date().toISOString() });
+  if (method === "GET" && path === "/ai/state") return sendJson(route, { state: mockAIState, verified: true, updated_at: new Date().toISOString() });
+  if (method === "POST" && path === "/ai/state") {
+    mockAIState = String(body.state || "IDLE").toUpperCase();
+    return sendJson(route, { state: mockAIState, verified: true, updated_at: new Date().toISOString() });
+  }
   if (method === "GET" && path === "/ai/health") {
     const requestedProvider = url.searchParams.get("provider") || "openrouter";
     providerHealthRequests.push(requestedProvider);
@@ -165,6 +169,9 @@ async function apiMock(route) {
   }
   if (method === "POST" && path === "/ai/chat") {
     delayedChatRequestBodies.push({ message: body.message, at: Date.now() });
+    if (body.message === "Simulate provider quota failure") {
+      return sendJson(route, { detail: "AI provider returned empty or invalid response: API error 429 quota exceeded" }, 502);
+    }
     if (body.message === "Timeout regression test") {
       delayedChatRequests += 1;
       await new Promise(resolve => setTimeout(resolve, 13000));
