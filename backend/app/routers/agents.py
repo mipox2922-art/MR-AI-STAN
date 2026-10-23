@@ -17,7 +17,15 @@ router = APIRouter(prefix="/agents", tags=["Agents"])
 
 
 @router.get("")
-def list_agents(current_user=Depends(get_current_user)):
+def list_agents(
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    briefing = build_executive_briefing(current_user, db)
+    runtime_by_id = {
+        item["id"]: item
+        for item in (briefing.get("agents") or {}).get("fleet", [])
+    }
     return [
         {
             "id": agent.id,
@@ -27,6 +35,9 @@ def list_agents(current_user=Depends(get_current_user)):
             "tools": list(agent.tools),
             "capability_count": len(agent.tools),
             "risk": agent.risk,
+            "status": runtime_by_id.get(agent.id, {}).get("status", "NOT_CONFIGURED"),
+            "runtime_status": runtime_by_id.get(agent.id, {}).get("runtime_status", "NOT_CONFIGURED"),
+            "current_task": runtime_by_id.get(agent.id, {}).get("current_task"),
         }
         for agent in AGENTS
     ]
