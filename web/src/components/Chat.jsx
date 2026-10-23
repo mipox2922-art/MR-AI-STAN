@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { chat, routeTool, getExecutiveBriefing, getChatHistory, setAIState } from "../api";
+import { chat, routeTool, getExecutiveBriefing, getChatHistory, setAIState, getGmailStatus, searchGmail, getGmailMessage } from "../api";
 import VoiceControl from "./VoiceControl";
 import { sanitizeAssistantMessage } from "../utils/chatSafety";
 
@@ -128,6 +128,19 @@ function explainChatFailure(rawMessage) {
   }
   return "Ombi halijakamilika. " + sanitizeAssistantMessage(message).slice(0, 180)
     + " Kagua Hitilafu Zilizorekodiwa kwenye Executive Briefing.";
+}
+
+function isGmailReadCommand(value) {
+  const text = String(value || "").trim().toLowerCase();
+  const asksToRead = /\b(soma|someni|onyesha|nionyeshe|angalia|tazama|read|check|show|list|fetch|retrieve)\b/.test(text);
+  const namesMailbox = /\b(?:e-?mails?|gmail|inbox|barua(?:\s+pepe)?)\b/.test(text);
+  return asksToRead && namesMailbox;
+}
+
+function shortenMailBody(value, maxLength = 900) {
+  const body = String(value || "").replace(/\r\n?/g, "\n").trim();
+  if (!body) return "Hakuna maudhui ya maandishi yaliyorejeshwa.";
+  return body.length > maxLength ? body.slice(0, maxLength).trimEnd() + "… [maudhui yamefupishwa]" : body;
 }
 
 function readableRoutingStatus(value) {
@@ -292,6 +305,75 @@ export default function Chat({
     }
 
     if (sending) return;
+
+    // Gmail reads are executed through the authorized Gmail connector, never
+    // sent to the third-party AI model as prompt context.
+    if (isGmailReadCommand(text)) {
+      setMessages(prev => [...prev, { role: "user", content: text }]);
+      setMessage("");
+      setSending(true);
+      reportRuntimeState("THINKING");
+      setToolStatus("GMAIL / CHECKING AUTHORIZATION");
+      try {
+        const gmail = await getGmailStatus();
+        if (gmail?.connected !== true) {
+          const answer = gmail?.configured === true
+            ? "Boss, Gmail OAuth imewekwa kwenye server lakini akaunti bado haijaidhinisha MR AI. Fungua Gmail kwenye menyu, bonyeza CONNECT GMAIL, na ukamilishe ruhusa za Google. Sijasoma wala kutuma barua. Ombi hili halikutumwa kwa AI provider."
+            : "Boss, Gmail OAuth haijawekwa kwenye server kwa sasa. Msimamizi anahitaji kusanidi Google OAuth client ID, client secret na redirect URI kwenye Render. Sijasoma wala kutuma barua, na ombi hili halikutumwa kwa AI provider.";
+          setMessages(prev => [...prev, { role: "assistant", content: answer }]);
+          setToolStatus(gmail?.configured === true ? "GMAIL / AUTHORIZATION REQUIRED" : "GMAIL / OAUTH NOT CONFIGURED");
+          reportRuntimeState("IDLE");
+          return;
+        }
+
+        const result = await searchGmail("in:inbox", 5);
+        const listed = Array.isArray(result?.messages) ? result.messages.filter(item => item?.id).slice(0, 3) : [];
+        if (!listed.length) {
+          const estimate = Number(result?.result_size_estimate);
+          const answer = Number.isFinite(estimate) && estimate === 0
+            ? "Boss, nimekagua Inbox kupitia Gmail iliyoidhinishwa; hakuna barua zilizorudishwa."
+            : "Boss, Gmail imeunganishwa lakini orodha ya barua haikurudisha ujumbe unaoweza kusomwa. Fungua Gmail module ukague utafutaji wa Inbox.";
+          setMessages(prev => [...prev, { role: "assistant", content: answer }]);
+          setToolStatus("GMAIL / INBOX CHECKED");
+          reportRuntimeState("IDLE");
+          return;
+        }
+
+        const emails = await Promise.all(listed.map(async summary => {
+          try {
+            const result = await getGmailMessage(summary.id);
+            return result?.message || summary;
+          } catch {
+            return summary;
+          }
+        }));
+        const answer = [
+          "Boss, nimeleta barua " + emails.length + " za karibuni kutoka Inbox. Maudhui haya yanatoka moja kwa moja kwenye Gmail na hayakutumwi kwa AI provider:",
+          ...emails.map((email, index) => {
+            const body = shortenMailBody(email.body_text || email.snippet);
+            return (index + 1) + ". " + (String(email.subject || "").trim() || "(Bila mada)")
+              + "\nKutoka: " + (email.from || "Haijaonyeshwa")
+              + "\nTarehe: " + (email.date || "Haijaonyeshwa")
+              + "\n" + body;
+          }),
+          "Sijatuma wala kujibu barua yoyote."
+        ].join("\n\n");
+        setMessages(prev => [...prev, { role: "assistant", content: sanitizeAssistantMessage(answer) }]);
+        setToolStatus("GMAIL / " + emails.length + " MESSAGES READ");
+        reportRuntimeState("IDLE");
+      } catch (error) {
+        const detail = String(error?.message || "");
+        const answer = /401|403|authorization|unauthorized|token|credential/i.test(detail)
+          ? "Boss, Gmail haikuidhinisha usomaji wa Inbox. Fungua Gmail, kagua hali ya muunganisho, kisha unganisha tena akaunti. Hakuna barua iliyotumwa."
+          : "Boss, sikuweza kusoma Inbox kutoka Gmail. " + (detail ? sanitizeAssistantMessage(detail).slice(0, 160) : "Hitilafu ya muunganisho imetokea.") + " Hakuna barua iliyotumwa.";
+        setMessages(prev => [...prev, { role: "assistant", content: answer }]);
+        setToolStatus("GMAIL / READ FAILED");
+        reportRuntimeState("IDLE");
+      } finally {
+        setSending(false);
+      }
+      return;
+    }
 
     const modeStatusReply = getModeStatusReply(text, mode);
     if (modeStatusReply) {
