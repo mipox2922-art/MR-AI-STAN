@@ -41,6 +41,7 @@ _COMMAND_ROUTES: tuple[tuple[str, tuple[str, ...]], ...] = (
         r"^(?:check|kagua|scan|audit|test|angalia|fanya)\b.*\b(?:security|usalama|vulnerability|malware|port\s+scan)\b",
     )),
     ("coding", (
+        r"^(?:chambua|inspect|review|audit|kagua)\b.*\b(?:repo|repository|project|code|msimbo|source|software)\b",
         r"^(?:tengeneza|build|create|make|fix|debug|repair|rekebisha|andika|program|implement|code|review)\b.*\b(?:code|coding|program|repo|github|app|website|tovuti|bug|api|backend|frontend|software)\b",
         r"^(?:fix|debug|repair|rekebisha)\b.*\b(?:bug|error|hitilafu)\b",
     )),
