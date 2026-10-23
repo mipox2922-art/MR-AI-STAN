@@ -196,7 +196,7 @@ async function apiMock(route) {
   if (method === "POST" && path === "/ai/chat") {
     delayedChatRequestBodies.push({ message: body.message, at: Date.now() });
     if (body.message === "Simulate safety metadata leakage") {
-      return sendJson(route, { response: "User Safety: safe\\nJibu lenye maana." });
+      return sendJson(route, { response: "User Safety: safe" + String.fromCharCode(10) + "Jibu lenye maana." });
     }
     if (body.message === "Simulate provider quota failure") {
       return sendJson(route, { detail: "AI provider returned empty or invalid response: API error 429 quota exceeded" }, 502);
