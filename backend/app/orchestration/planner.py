@@ -5,41 +5,41 @@ from typing import Any
 from ..agents.registry import AGENTS
 
 
+# These are execution specialties, not decorative dashboard labels. The
+# orchestrator manages the mission; only the specialist that can do the work
+# should appear as an executable step.
 ROUTES = (
-    (("system", "mfumo", "cpu", "ram", "storage", "disk", "network", "uptime", "hali ya pc"), "orchestrator"),
+    (("cpu", "ram", "storage", "disk", "network", "uptime", "telemetry", "system status", "system health", "afya ya mfumo", "hali ya pc", "mfumo"), "orchestrator"),
     (("job", "jobs", "kazi", "ajira", "remote"), "jobs"),
-    (("gmail", "email", "barua pepe", "mail"), "gmail"),
-    (("youtube", "instagram", "website", "browser", "peruzi", "tafuta mtandaoni", "soma ukurasa", "read page", "fungua", "bonyeza", "click", "andika", "type", "weka", "jaza", "scroll", "sogeza", "drag"), "browser"),
+    (("gmail", "email", "emails", "mail", "inbox", "barua pepe"), "gmail"),
+    (("youtube", "instagram", "browser", "chrome", "open website", "fungua website", "peruzi", "tafuta mtandaoni", "soma ukurasa", "read page", "fungua", "bonyeza", "click", "andika", "type", "weka", "jaza", "scroll", "sogeza", "drag"), "browser"),
     (("bango", "poster", "banner", "graphic", "design", "logo"), "creative"),
     (("simu", "android", "adb", "fastboot", "bluetooth", "usb", "flash"), "device"),
     (("security", "usalama", "scan", "vulnerability", "port", "malware"), "security"),
-    (("code", "coding", "program", "repo", "github", "app", "website", "build"), "coding"),
-    (("memory", "kumbuka", "sahau"), "memory"),
+    (("code", "coding", "program", "repo", "github", "app", "website", "tovuti", "build", "bug", "debug", "rekebisha"), "coding"),
+    (("memory", "kumbuka", "sahau", "remember", "forget"), "memory"),
     (("schedule", "ratiba", "reminder", "kumbusha", "kesho", "kila siku"), "scheduler"),
 )
 
 
 def select_agents(text: str) -> list[str]:
-    value = text.casefold()
-    selected: list[str] = ["orchestrator"]
-    matched_route = False
+    value = str(text or "").casefold()
+    selected: list[str] = []
     for keywords, agent_id in ROUTES:
-        if any(keyword in value for keyword in keywords):
-            matched_route = True
-            if agent_id not in selected:
-                selected.append(agent_id)
+        if any(keyword in value for keyword in keywords) and agent_id not in selected:
+            selected.append(agent_id)
 
-    # Fall back to research only when no route matched at all. A system-health
-    # request matches the orchestrator route, even though it adds no second agent.
-    if not matched_route:
+    # Generic research is a fallback only. Never silently add an orchestrator
+    # telemetry step to unrelated work.
+    if not selected:
         selected.append("research")
     return selected
 
 
 def build_plan(text: str) -> dict[str, Any]:
-    request = text.strip()
-    agent_ids = select_agents(request)
+    request = str(text or "").strip()
     definitions = {agent.id: agent for agent in AGENTS}
+    agent_ids = select_agents(request)
     steps = []
 
     for index, agent_id in enumerate(agent_ids, start=1):
@@ -60,8 +60,9 @@ def build_plan(text: str) -> dict[str, Any]:
         "agents": [definitions[item].name for item in agent_ids],
         "steps": steps,
         "verification": [
-            "Every external action must return a verified result.",
-            "High-risk device/security actions require an explicit authorization boundary.",
-            "The system must never report completion without evidence.",
+            "Every external action must return a verified result from its actual execution tool.",
+            "A queued browser/device handoff is not proof that the remote action completed.",
+            "Persist each step's tool, result, failure or verification evidence.",
+            "A mission is complete only when every required step is verified.",
         ],
     }
