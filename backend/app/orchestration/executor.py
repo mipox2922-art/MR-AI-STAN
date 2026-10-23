@@ -128,6 +128,29 @@ def _gmail_search_query(request: str) -> str:
     return "in:inbox"
 
 
+def _mission_explicitly_approved(db: Session, mission: Task) -> bool:
+    """Distinguish a user-approved higher-risk mission from routine auto-read work."""
+    try:
+        result = json.loads(mission.result or "{}")
+        if isinstance(result, dict) and result.get("owner_approved") is True:
+            return True
+    except (TypeError, ValueError):
+        pass
+
+    for approval in db.query(ApprovalRequest).filter(
+        ApprovalRequest.user_id == mission.user_id,
+        ApprovalRequest.action == "MISSION_EXECUTION",
+        ApprovalRequest.status == "APPROVED",
+    ).order_by(ApprovalRequest.id.desc()).limit(50).all():
+        try:
+            data = json.loads(approval.payload or "{}")
+        except (TypeError, ValueError):
+            continue
+        if data.get("task_id") == mission.id:
+            return True
+    return False
+
+
 def _persist_step_progress(db: Session, mission: Task, steps: list[dict[str, Any]]) -> None:
     """Persist tool/action evidence as each step finishes so interrupted missions can resume."""
     existing = {
@@ -165,6 +188,7 @@ def _persist_step_progress(db: Session, mission: Task, steps: list[dict[str, Any
         "steps": steps,
         "verified_steps": verified_total,
         "total_steps": len(existing),
+        "owner_approved": _mission_explicitly_approved(db, mission),
     }, ensure_ascii=False, default=str)
     db.commit()
     db.refresh(mission)
@@ -452,12 +476,14 @@ async def execute_mission(
                 db.add(command)
                 db.flush()
                 request_id = f"browser-task-{command.id}"
+                explicit_boss_approval = _mission_explicitly_approved(db, mission)
                 command_payload = {
                     "request_id": request_id,
                     "mission_id": mission.id,
                     "step_position": index,
                     "action": handoff["action"],
                     "payload": handoff.get("payload") or {},
+                    "boss_approved": explicit_boss_approval,
                     "created_at": datetime.now(timezone.utc).isoformat(),
                 }
                 command.description = json.dumps(command_payload, ensure_ascii=False)
