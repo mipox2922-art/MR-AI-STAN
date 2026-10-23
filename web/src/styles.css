@@ -7269,7 +7269,7 @@ button { cursor: pointer; }
 }
 
 
-/* Fixed 1536 x 1024 MR AI dashboard canvas.
+/* Fixed 1536 x 864 MR AI dashboard canvas.
    These scoped overrides intentionally supersede legacy responsive dashboard grids only.
    Other MR AI pages continue to use the normal application layout. */
 body.dashboard-canvas-active {
@@ -7291,8 +7291,8 @@ body.dashboard-canvas-active #root {
   left: 50%;
   top: 50%;
   width: 1536px;
-  height: 1024px;
-  min-height: 1024px;
+  height: 864px;
+  min-height: 864px;
   display: block;
   padding: 0;
   margin: 0;
@@ -7466,7 +7466,7 @@ body.dashboard-canvas-active #root {
   left: 0;
   top: 0;
   width: 1536px;
-  height: 1024px;
+  height: 864px;
   min-width: 0;
   min-height: 0;
   margin: 0;
@@ -7480,7 +7480,7 @@ body.dashboard-canvas-active #root {
   inset: 0;
   display: block;
   width: 1536px;
-  height: 1024px;
+  height: 864px;
   max-width: none;
   min-width: 0;
   min-height: 0;
@@ -7495,7 +7495,7 @@ body.dashboard-canvas-active #root {
   top: 0;
   display: block;
   width: 1536px;
-  height: 1024px;
+  height: 864px;
   min-width: 0;
   max-width: none;
   margin: 0;
@@ -8301,7 +8301,7 @@ body.dashboard-canvas-active #root {
   left: 238px;
   top: 536px;
   width: 1282px;
-  height: 472px;
+  height: calc(100% - 544px);
   min-width: 0;
   margin: 0;
   padding: 0 2px 0 0;
@@ -8366,8 +8366,8 @@ body.dashboard-canvas-active #root {
     left: 50%;
     top: 50%;
     width: 1536px;
-    height: 1024px;
-    min-height: 1024px;
+    height: 864px;
+    min-height: 864px;
     padding: 0;
     display: block;
     transform: translate(-50%, -50%) scale(var(--dashboard-canvas-scale, 1));
@@ -8390,7 +8390,7 @@ body.dashboard-canvas-active #root {
     left: 0;
     top: 0;
     width: 1536px;
-    height: 1024px;
+    height: 864px;
     padding: 0;
     overflow: hidden;
   }
