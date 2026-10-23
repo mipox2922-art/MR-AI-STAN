@@ -74,6 +74,12 @@ def _is_safe_for_autonomous_execution(
             from ..core.intent import classify
             if classify(request).name in {"MEMORY_SEARCH", "MEMORY_SAVE"}:
                 continue
+        # The extension enforces its local domain allowlist. Only page reads,
+        # bounded scrolling and allowlisted navigation may start automatically.
+        if agent_id == "browser" and "browser_hands" in tools:
+            handoff = build_browser_handoff(request)
+            if handoff and handoff.get("action") in {"GET_PAGE_DATA", "SCROLL", "NAVIGATE"}:
+                continue
         # Research is automatic only if an actual search backend is configured.
         if agent_id == "research" and "searxng" in tools and settings.searxng_url:
             continue
@@ -425,12 +431,53 @@ async def execute_mission(
 
         route = route_command(request)
         tool_id = route.get("tool")
-        if agent_id in {"browser", "research"} and "browser_hands" in step.get("tools", []):
+        if agent_id == "browser" and "browser_hands" in step.get("tools", []):
             handoff = build_browser_handoff(request)
             if handoff:
-                steps.append({"step": index, "agent": agent_id, "name": step_name, "tool": "browser_hands",
-                    "status": "WAITING_FOR_HAND", "verified": False, "handoff": handoff,
-                    "evidence": {"message": "Browser action payload prepared, but this backend route does not dispatch it to the extension. No browser action is claimed."}})
+                # The child Task is the durable queue message. Its ID is the
+                # idempotency/correlation key; the extension must claim it once
+                # and echo the backend-issued claim token with its result.
+                command = Task(
+                    user_id=user.id,
+                    title=f"Browser: {handoff['action']}"[:255],
+                    description="",
+                    status="QUEUED",
+                    priority="NORMAL",
+                    agent="browser",
+                    source="browser_hands",
+                    requested_by=f"mission:{mission.id}",
+                    approved_by=user.id,
+                    progress=0,
+                )
+                db.add(command)
+                db.flush()
+                request_id = f"browser-task-{command.id}"
+                command_payload = {
+                    "request_id": request_id,
+                    "mission_id": mission.id,
+                    "step_position": index,
+                    "action": handoff["action"],
+                    "payload": handoff.get("payload") or {},
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                }
+                command.description = json.dumps(command_payload, ensure_ascii=False)
+                db.add(ActivityLog(
+                    user_id=user.id,
+                    action="BROWSER_COMMAND_QUEUED",
+                    details=f"mission_id={mission.id}; command_id={command.id}; action={handoff['action']}",
+                ))
+                db.commit()
+                db.refresh(command)
+                steps.append({
+                    "step": index, "agent": agent_id, "name": step_name, "tool": "browser_hands",
+                    "status": "WAITING_FOR_HAND", "verified": False,
+                    "command_task_id": command.id, "request_id": request_id,
+                    "handoff": {"action": handoff["action"], "payload": handoff.get("payload") or {}},
+                    "evidence": {
+                        "message": "Browser command persisted in the authenticated extension queue; waiting for the installed extension to execute it.",
+                        "command_task_id": command.id,
+                    },
+                })
                 _persist_step_progress(db, mission, steps)
                 continue
         if tool_id == "searxng" and "searxng" in step.get("tools", []):
