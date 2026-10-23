@@ -119,11 +119,11 @@ def _gmail_search_query(request: str) -> str:
 
 def _persist_step_progress(db: Session, mission: Task, steps: list[dict[str, Any]]) -> None:
     """Persist tool/action evidence as each step finishes so interrupted missions can resume."""
-    total = max(len(steps), 1)
     existing = {
         row.position: row
         for row in db.query(TaskStep).filter(TaskStep.task_id == mission.id).all()
     }
+    total = max(len(existing), len(steps), 1)
     verified_total = 0
     for index, item in enumerate(steps, start=1):
         status = str(item.get("status") or "WAITING").upper()
@@ -273,6 +273,12 @@ async def execute_mission(
         agent_id = step.get("agent", "orchestrator")
         step_name = step.get("name", agent_id)
         # These are the only mission actions this backend currently verifies directly.
+        if is_resume:
+            previous = _resume_verified_step(db, mission, index)
+            if previous is not None:
+                steps.append(previous)
+                continue
+
         if agent_id == "jobs":
             from ..routers.jobs import research_public_jobs
             query = re.sub(
@@ -302,6 +308,7 @@ async def execute_mission(
                 steps.append({"step": index, "agent": agent_id, "name": step_name, "tool": "public_job_feeds",
                     "status": "FAILED", "verified": False,
                     "evidence": {"message": f"Utafutaji umeshindwa: {type(exc).__name__}.", "query": query}})
+            _persist_step_progress(db, mission, steps)
             continue
 
         if agent_id == "orchestrator" and "system_telemetry" in step.get("tools", []):
@@ -349,8 +356,8 @@ async def execute_mission(
                         "evidence": {"message": "Gmail OAuth is not connected for this user; no mail was read."}})
                 elif not _is_read_only_gmail_request(request):
                     steps.append({"step": index, "agent": agent_id, "name": step_name, "tool": "gmail",
-                        "status": "WAITING_APPROVAL", "verified": False,
-                        "evidence": {"message": "This request may send or modify email. The current Gmail workflow requires an explicit send/reply confirmation and structured recipient/content."}})
+                        "status": "WAITING_FOR_HAND", "verified": False,
+                        "evidence": {"message": "No email was sent or modified. This request needs the Gmail UI's explicit send/reply confirmation and structured recipient/content."}})
                 else:
                     query = _gmail_search_query(request)
                     result = await list_messages(db, user.id, query=query, max_results=20)
@@ -376,12 +383,6 @@ async def execute_mission(
             _persist_step_progress(db, mission, steps)
             continue
 
-        if is_resume:
-            previous = _resume_verified_step(db, mission, index)
-            if previous is not None:
-                steps.append(previous)
-                continue
-
         route = route_command(request)
         tool_id = route.get("tool")
         if agent_id in {"browser", "research"} and "browser_hands" in step.get("tools", []):
@@ -389,7 +390,8 @@ async def execute_mission(
             if handoff:
                 steps.append({"step": index, "agent": agent_id, "name": step_name, "tool": "browser_hands",
                     "status": "WAITING_FOR_HAND", "verified": False, "handoff": handoff,
-                    "evidence": {"message": "Handoff imetayarishwa kwa extension; hatua ya browser yenyewe haijathibitishwa."}})
+                    "evidence": {"message": "Browser action payload prepared, but this backend route does not dispatch it to the extension. No browser action is claimed."}})
+                _persist_step_progress(db, mission, steps)
                 continue
         if tool_id == "searxng" and "searxng" in step.get("tools", []):
             search_tool = next((x for x in registry_summary()["tools"] if x["id"] == "searxng"), None)
@@ -397,10 +399,12 @@ async def execute_mission(
             message = "SearXNG haijaunganishwa." if status == "NOT_CONNECTED" else "Tumia search dispatch yenye ruhusa kutekeleza utafutaji."
             steps.append({"step": index, "agent": agent_id, "name": step_name, "tool": tool_id,
                 "status": status, "verified": False, "evidence": {"message": message}})
+            _persist_step_progress(db, mission, steps)
             continue
         steps.append({"step": index, "agent": agent_id, "name": step_name,
             "tool": (step.get("tools") or [None])[0], "status": "WAITING_FOR_HAND", "verified": False,
-            "evidence": {"message": "Hakuna connected execution hand iliyothibitisha kitendo hiki."}})
+            "evidence": {"message": "No connected execution hand is available for this agent action. The action was not executed."}})
+        _persist_step_progress(db, mission, steps)
 
     # Every completed tool action has already been persisted. Persist any remaining
     # result rows (including a handoff) before deriving the final mission state.
