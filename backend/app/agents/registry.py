@@ -57,7 +57,7 @@ AGENTS: tuple[AgentDefinition, ...] = (
         "coding", "Coding Agent",
         "Inspects projects, proposes patches, runs tests and prepares code changes.",
         ("inspect_repo", "edit_files", "run_tests", "debug", "commit", "pull_request"),
-        ("github",),
+        ("coding_workspace",),
         "MEDIUM",
     ),
     AgentDefinition(
