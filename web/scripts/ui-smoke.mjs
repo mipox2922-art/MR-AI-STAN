@@ -455,7 +455,16 @@ async function main() {
   }
   assert.ok(providerHealthRequests.includes("gemini"), "Dashboard must probe Gemini after Gemini is selected in Chat.");
   await page.locator(".cc-ai-health-state").getByText("GEMINI PROVIDER: LIVE", { exact: true }).waitFor({ state: "visible", timeout: 7000 });
-  completedChecks.push("Dashboard AI health probe follows the shared Chat provider selection");
+
+  await dashboardChatInput.fill("Simulate provider quota failure");
+  await page.locator(".cc-chat-panel .chat-input > button").last().click();
+  await page.locator(".cc-chat-panel .messages").getByText(/quota au rate limit/i).waitFor({ state: "visible", timeout: 7000 });
+  assert.equal(mockAIState, "ERROR", "A failed chat must leave the core runtime in ERROR.");
+  await page.locator(".cc-exec-speak").filter({ hasText: "TEST AI PROVIDER" }).click();
+  await page.locator(".cc-ai-health-state").getByText("GEMINI PROVIDER: LIVE", { exact: true }).waitFor({ state: "visible", timeout: 7000 });
+  await page.locator(".cc-core-readout").getByText("CHAT ERROR · PROVIDER REACHABLE", { exact: true }).waitFor({ state: "visible", timeout: 7000 });
+  assert.equal(mockAIState, "ERROR", "A successful health probe must not erase the last failed chat state.");
+  completedChecks.push("Provider reachability stays separate from chat status; quota failures explain the next step");
 
   const modeButton = page.locator(".sidebar-footer button").first();
   await modeButton.click();
