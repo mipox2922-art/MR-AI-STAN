@@ -175,6 +175,39 @@ def _reconcile_browser_command(
     command.progress = 100 if verified else 0
     command.status = terminal_status
 
+    # A completed receipt task must itself carry verified TaskStep evidence.
+    # Otherwise GET /tasks correctly downgrades COMPLETED records with zero steps
+    # to WAITING_FOR_VERIFICATION, even though the parent mission was verified.
+    child_step = db.query(TaskStep).filter(
+        TaskStep.task_id == command.id,
+        TaskStep.position == 1,
+    ).first()
+    if child_step is None:
+        child_step = TaskStep(
+            task_id=command.id,
+            position=1,
+            title="Execute browser action and verify returned state",
+        )
+        db.add(child_step)
+    child_step.title = "Execute browser action and verify returned state"
+    child_step.state = (
+        "verified" if verified
+        else "failed" if terminal_status in {"FAILED", "BLOCKED"}
+        else "pending"
+    )
+    child_step.evidence = json.dumps({
+        "task_id": command.id,
+        "agent": "browser",
+        "tool": "browser_hands",
+        "execution_status": terminal_status,
+        "verified": verified,
+        "action": command_data.get("action"),
+        "output": stored_payload["result"],
+        "error": stored_payload["error"],
+        "request_id": command_data.get("request_id"),
+    }, ensure_ascii=False, default=str)
+    child_step.verified_at = now if verified else None
+
     parent_id = command_data.get("mission_id")
     position = command_data.get("step_position")
     parent = None
