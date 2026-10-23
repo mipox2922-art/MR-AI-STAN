@@ -1308,7 +1308,7 @@ function ExecutiveMorningBrief({ system, gmailStatus, tasks = [], agents = [], o
         </div>
         {providerHealth && (
           <div className={"cc-ai-health-state " + (providerHealth.status === "LIVE" ? "is-live" : providerHealth.status === "ERROR" ? "is-error" : "is-checking")} role="status" aria-live="polite">
-            <strong>OPENROUTER PROVIDER: {providerHealth.status}</strong>
+            <strong>{String(providerHealth.provider || "AI").toUpperCase()} PROVIDER: {providerHealth.status}</strong>
             {Number.isFinite(providerHealth.latency_ms) && <span>Latency {providerHealth.latency_ms} ms</span>}
             {providerHealth.reason && <p>{providerHealth.reason}</p>}
             {providerHealth.tested_at && <small>Checked {timeLabel(providerHealth.tested_at)} · Africa/Dar_es_Salaam</small>}
@@ -1532,13 +1532,16 @@ export default function DashboardHome({
   const selectedProvider = aiProvider || system?.ai?.provider;
   const aiLiveTested = providerHealth?.status === "LIVE"
     && providerHealth?.provider === selectedProvider;
+  const selectionMatchesConfiguredProvider = selectedProvider === system?.ai?.provider;
   const topReadout = useMemo(() => ({
-    model: system?.ai?.model || "N/A",
-    tier: system?.ai?.tier || "N/A",
+    model: selectionMatchesConfiguredProvider
+      ? (system?.ai?.model || "N/A")
+      : (selectedProvider ? selectedProvider.toUpperCase() + " · MODEL NOT REPORTED" : "N/A"),
+    tier: selectionMatchesConfiguredProvider ? (system?.ai?.tier || "N/A") : "NOT REPORTED",
     status: aiLiveTested ? "LIVE" : (services.ai_core || "NOT_CONFIGURED"),
     uptime,
     active: activeCount,
-  }), [system, services.ai_core, uptime, activeCount, aiLiveTested]);
+  }), [system, services.ai_core, uptime, activeCount, aiLiveTested, selectionMatchesConfiguredProvider, selectedProvider]);
 
   return (
     <div className={`command-center-reference ${working ? "cc-working" : "cc-normal"}`}>
