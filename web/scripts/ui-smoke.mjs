@@ -443,7 +443,7 @@ async function main() {
     await waitForDestination(label);
   }
   for (const destination of destinations) await goTo(destination);
-  completedChecks.push("all 16 navigation routes open the matching module");
+  completedChecks.push("all 17 navigation routes open the matching module");
 
   await goTo("Dashboard");
   await page.locator(".cc-system-status button").click();
@@ -497,7 +497,7 @@ async function main() {
     ["Open Browser Hands", "Browser Hands"], ["Open Device Lab", "Device Lab"],
     ["Open Creative Studio", "Creative Studio"], ["Open Tracking Map", "Tracking Map"],
     ["Open Security", "Security"], ["Open Toolbox", "Toolbox"], ["Open Web Intelligence", "Web Intelligence"],
-    ["Open Job Research", "Job Research"], ["Open Gmail", "Gmail"], ["Open Schedules", "Schedules"], ["Open Tasks", "Tasks"],
+    ["Open Job Research", "Job Research"], ["Open Business Broker", "Business Broker"], ["Open Gmail", "Gmail"], ["Open Schedules", "Schedules"], ["Open Tasks", "Tasks"],
     ["Open Memory", "Memory"], ["Open Settings", "Settings"],
   ];
   for (const [action, destination] of paletteTargets) {
