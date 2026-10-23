@@ -7,6 +7,7 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
+from ..config import settings
 from ..models import ActivityLog, ApprovalRequest, Task, TaskStep
 from ..routers.system import system_status
 from ..tools.registry import registry_summary
@@ -33,23 +34,147 @@ def _add_steps_from_plan(db: Session, task_id: int, plan: dict[str, Any]) -> lis
     return rows
 
 
-def _is_safe_for_autonomous_execution(plan: dict[str, Any]) -> bool:
-    """Allow unattended execution only for implemented, read-only operations."""
+def _is_read_only_gmail_request(request: str) -> bool:
+    value = request.casefold()
+    write_intents = (
+        "send ", "send email", "tuma ", "tuma email", "tuma barua",
+        "reply", "jibu", "forward", "sambaza", "delete", "futa email",
+        "archive", "purchase", "pay",
+    )
+    if any(term in value for term in write_intents):
+        return False
+    read_intents = (
+        "read", "soma", "search", "tafuta", "inbox", "angalia", "onyesha",
+        "show", "check", "email zangu", "barua pepe zangu", "gmail",
+    )
+    return any(term in value for term in read_intents)
+
+
+def _is_safe_for_autonomous_execution(
+    plan: dict[str, Any],
+    request: str,
+    user_id: int,
+    db: Session,
+) -> bool:
+    """Allow unattended execution only for implemented, read-only operations with live tools."""
     steps = plan.get("steps") or []
     if not steps:
         return False
     for step in steps:
         agent_id = step.get("agent")
         tools = set(step.get("tools") or [])
-        # Job research currently queries public feeds only; it never applies.
+        # Public job feeds are read-only and never submit an application.
         if agent_id == "jobs":
             continue
-        # Host telemetry is read-only and can be verified by the backend.
+        # Host telemetry is read-only and executed by this backend.
         if agent_id == "orchestrator" and "system_telemetry" in tools:
             continue
-        # Unknown/unconnected or side-effecting agents require Boss approval.
+        # Research is automatic only if an actual search backend is configured.
+        if agent_id == "research" and "searxng" in tools and settings.searxng_url:
+            continue
+        # Gmail reads are automatic only when OAuth is currently connected.
+        if agent_id == "gmail" and _is_read_only_gmail_request(request):
+            try:
+                from ..connectors.gmail import connection_status
+                if connection_status(db, user_id).get("connected") is True:
+                    continue
+            except Exception:
+                pass
+        # Unconnected or side-effecting tools do not get simulated.
         return False
     return True
+
+
+def _web_search_query(request: str) -> str:
+    value = request.strip()
+    value = re.sub(
+        r"^(?:tafuta(?:\s+mtandaoni)?|search(?:\s+(?:the\s+web|online|for))?|research|jua\s+kuhusu|nipe\s+taarifa(?:\s+kuhusu)?|onyesha)\s*",
+        "",
+        value,
+        flags=re.IGNORECASE,
+    )
+    return value.strip(" :,-")[:300] or request.strip()[:300]
+
+
+def _gmail_search_query(request: str) -> str:
+    value = request.casefold()
+    if any(term in value for term in ("unread", "zisizosomwa", "ambazo sijasoma")):
+        return "in:inbox is:unread"
+    if any(term in value for term in ("leo", "today")):
+        return "in:inbox newer_than:1d"
+
+    original = request.strip()
+    query = re.sub(
+        r"^(?:tafuta|search|find|read|soma|onyesha|show|angalia|check)\s+"
+        r"(?:email(?:s)?|mail|gmail|barua\s+pepe)\b",
+        "",
+        original,
+        flags=re.IGNORECASE,
+    ).strip(" :,-")
+    query = re.sub(r"^(?:zangu|yangu|zote|yote|za\s+leo|yangu\s+zote)\b", "", query, flags=re.IGNORECASE).strip()
+    if query and query.casefold() not in {"zangu", "yangu", "zote", "yote", "za leo", "zangu za leo"}:
+        return f"in:inbox {query}"[:500]
+    return "in:inbox"
+
+
+def _persist_step_progress(db: Session, mission: Task, steps: list[dict[str, Any]]) -> None:
+    """Persist tool/action evidence as each step finishes so interrupted missions can resume."""
+    total = max(len(steps), 1)
+    existing = {
+        row.position: row
+        for row in db.query(TaskStep).filter(TaskStep.task_id == mission.id).all()
+    }
+    verified_total = 0
+    for index, item in enumerate(steps, start=1):
+        status = str(item.get("status") or "WAITING").upper()
+        output = item.get("evidence")
+        verified = status == "COMPLETED" and item.get("verified") is True and bool(output)
+        evidence = json.dumps({
+            "task_id": mission.id,
+            "agent": item.get("agent"),
+            "tool": item.get("tool"),
+            "execution_status": status,
+            "verified": verified,
+            "output": output,
+            "step_result": item,
+        }, ensure_ascii=False, default=str)
+        row = existing.get(index)
+        if row is None:
+            row = TaskStep(task_id=mission.id, position=index, title=str(item.get("name") or item.get("agent") or f"Step {index}")[:255])
+            db.add(row)
+            existing[index] = row
+        row.title = str(item.get("name") or item.get("agent") or f"Step {index}")[:255]
+        row.state = "verified" if verified else "failed" if status == "FAILED" else "pending"
+        row.evidence = evidence
+        row.verified_at = datetime.now(timezone.utc).replace(tzinfo=None) if verified else None
+        verified_total += int(verified)
+
+    mission.progress = int(verified_total / total * 100) if steps else 0
+    mission.result = json.dumps({
+        "steps": steps,
+        "verified_steps": verified_total,
+        "total_steps": len(steps),
+    }, ensure_ascii=False, default=str)
+    db.commit()
+    db.refresh(mission)
+
+
+def _resume_verified_step(db: Session, mission: Task, position: int) -> dict[str, Any] | None:
+    row = db.query(TaskStep).filter(TaskStep.task_id == mission.id, TaskStep.position == position).first()
+    if not row or str(row.state or "").lower() != "verified" or not row.evidence:
+        return None
+    try:
+        payload = json.loads(row.evidence)
+    except (TypeError, ValueError):
+        return None
+    # Only the executor's own structured evidence can be reused. Client handoffs
+    # and legacy/manual evidence do not independently prove a tool action.
+    if not isinstance(payload, dict) or payload.get("verified") is not True:
+        return None
+    previous = payload.get("step_result")
+    if not isinstance(previous, dict) or str(previous.get("status", "")).upper() != "COMPLETED":
+        return None
+    return previous
 
 
 async def execute_mission(
@@ -63,7 +188,7 @@ async def execute_mission(
 
     plan = build_plan(request)
     if mission is None:
-        auto_execute = _is_safe_for_autonomous_execution(plan)
+        auto_execute = _is_safe_for_autonomous_execution(plan, request, user.id, db)
         proposed = Task(
             user_id=user.id,
             title=request[:255],
@@ -126,18 +251,21 @@ async def execute_mission(
 
     if mission.user_id != user.id or mission.agent != "orchestrator":
         return {"status": "REJECTED", "reason": "Mission owner/agent did not match."}
-    if mission.approved_by != user.id or mission.status != "PENDING":
+    resumable_states = {"WAITING", "WAITING_FOR_HAND", "WAITING_FOR_VERIFICATION", "FAILED"}
+    if mission.approved_by != user.id or mission.status not in ({"PENDING"} | resumable_states):
         return {"status": "WAITING_APPROVAL", "mission": _task_payload(mission),
                 "next_action": "Boss approval is required before any mission step executes."}
 
-    from ..models import TaskStep as StepModel
-    db.query(StepModel).filter(StepModel.task_id == mission.id).delete(synchronize_session=False)
-    mission.status = "IN_PROGRESS"
+    is_resume = mission.status in resumable_states
+    mission.status = "RUNNING"
     mission.error = None
-    mission.result = None
-    mission.progress = 0
-    db.add(ActivityLog(user_id=user.id, action="MISSION_STARTED", details=f"task_id={mission.id}; approved_by={user.id}"))
+    db.add(ActivityLog(
+        user_id=user.id,
+        action="MISSION_RESUMED" if is_resume else "MISSION_STARTED",
+        details=f"task_id={mission.id}; approved_by={user.id}; resume={is_resume}",
+    ))
     db.commit()
+    db.refresh(mission)
 
     steps: list[dict[str, Any]] = []
     plan_steps = plan.get("steps") or []
@@ -177,10 +305,82 @@ async def execute_mission(
             continue
 
         if agent_id == "orchestrator" and "system_telemetry" in step.get("tools", []):
+            evidence = system_status(user)
             steps.append({"step": index, "agent": agent_id, "name": step_name,
                 "tool": "system_telemetry", "status": "COMPLETED", "verified": True,
-                "evidence": system_status(user)})
+                "evidence": evidence})
+            _persist_step_progress(db, mission, steps)
             continue
+
+        if agent_id == "research" and "searxng" in step.get("tools", []):
+            if not settings.searxng_url:
+                steps.append({"step": index, "agent": agent_id, "name": step_name,
+                    "tool": "searxng", "status": "NOT_CONNECTED", "verified": False,
+                    "evidence": {"message": "SearXNG is not configured; web research was not executed."}})
+            else:
+                query = _web_search_query(request)
+                try:
+                    from ..routers.tools import _search_searxng
+                    result = await _search_searxng(query)
+                    successful = str(result.get("status", "")).upper() == "COMPLETED"
+                    steps.append({"step": index, "agent": agent_id, "name": step_name,
+                        "tool": "searxng", "status": "COMPLETED" if successful else str(result.get("status", "FAILED")).upper(),
+                        "verified": successful, "evidence": {
+                            "query": query,
+                            "source": result.get("source"),
+                            "result_count": len(result.get("results") or []),
+                            "results": (result.get("results") or [])[:10],
+                            "message": "Live search results received from configured SearXNG." if successful else result.get("message", "Search did not complete."),
+                        }})
+                except Exception as exc:
+                    steps.append({"step": index, "agent": agent_id, "name": step_name, "tool": "searxng",
+                        "status": "FAILED", "verified": False,
+                        "evidence": {"query": query, "message": f"Web research failed: {type(exc).__name__}."}})
+            _persist_step_progress(db, mission, steps)
+            continue
+
+        if agent_id == "gmail":
+            from ..connectors.gmail import GmailConnectorError, connection_status, list_messages
+            try:
+                state = connection_status(db, user.id)
+                if state.get("connected") is not True:
+                    steps.append({"step": index, "agent": agent_id, "name": step_name, "tool": "gmail",
+                        "status": "NOT_CONNECTED", "verified": False,
+                        "evidence": {"message": "Gmail OAuth is not connected for this user; no mail was read."}})
+                elif not _is_read_only_gmail_request(request):
+                    steps.append({"step": index, "agent": agent_id, "name": step_name, "tool": "gmail",
+                        "status": "WAITING_APPROVAL", "verified": False,
+                        "evidence": {"message": "This request may send or modify email. The current Gmail workflow requires an explicit send/reply confirmation and structured recipient/content."}})
+                else:
+                    query = _gmail_search_query(request)
+                    result = await list_messages(db, user.id, query=query, max_results=20)
+                    messages = result.get("messages") or []
+                    steps.append({"step": index, "agent": agent_id, "name": step_name, "tool": "gmail",
+                        "status": "COMPLETED" if str(result.get("status", "")).upper() == "COMPLETED" else "FAILED",
+                        "verified": str(result.get("status", "")).upper() == "COMPLETED",
+                        "evidence": {
+                            "query": query,
+                            "count": len(messages),
+                            "result_size_estimate": result.get("result_size_estimate", len(messages)),
+                            "messages": messages,
+                            "message": "Messages fetched from the authenticated Gmail API; no messages were modified.",
+                        }})
+            except GmailConnectorError as exc:
+                steps.append({"step": index, "agent": agent_id, "name": step_name, "tool": "gmail",
+                    "status": "FAILED", "verified": False,
+                    "evidence": {"message": str(exc)[:400]}})
+            except Exception as exc:
+                steps.append({"step": index, "agent": agent_id, "name": step_name, "tool": "gmail",
+                    "status": "FAILED", "verified": False,
+                    "evidence": {"message": f"Gmail read failed: {type(exc).__name__}."}})
+            _persist_step_progress(db, mission, steps)
+            continue
+
+        if is_resume:
+            previous = _resume_verified_step(db, mission, index)
+            if previous is not None:
+                steps.append(previous)
+                continue
 
         route = route_command(request)
         tool_id = route.get("tool")
@@ -202,20 +402,9 @@ async def execute_mission(
             "tool": (step.get("tools") or [None])[0], "status": "WAITING_FOR_HAND", "verified": False,
             "evidence": {"message": "Hakuna connected execution hand iliyothibitisha kitendo hiki."}})
 
-    # Persist a durable row per planned step. A client-supplied or unverified handoff
-    # never receives state=verified.
-    for index, result_step in enumerate(steps, start=1):
-        status = str(result_step.get("status") or "WAITING").upper()
-        evidence_obj = result_step.get("evidence")
-        evidence = json.dumps(evidence_obj, ensure_ascii=False, default=str) if evidence_obj else None
-        verified = status == "COMPLETED" and result_step.get("verified") is True and bool(evidence and evidence.strip())
-        step_state = "verified" if verified else "failed" if status == "FAILED" else "pending"
-        db.add(TaskStep(task_id=mission.id, position=index,
-            title=str(result_step.get("name") or result_step.get("agent") or f"Hatua {index}")[:255],
-            state=step_state, evidence=evidence,
-            verified_at=datetime.now(timezone.utc).replace(tzinfo=None) if verified else None))
-
-    db.flush()
+    # Every completed tool action has already been persisted. Persist any remaining
+    # result rows (including a handoff) before deriving the final mission state.
+    _persist_step_progress(db, mission, steps)
     persisted_steps = db.query(TaskStep).filter(TaskStep.task_id == mission.id).all()
     verified_total = sum(
         str(row.state).lower() == "verified" and bool(str(row.evidence or "").strip())
@@ -226,7 +415,16 @@ async def execute_mission(
     waiting = any(str(row.get("status", "")).upper() in {
         "WAITING", "WAITING_FOR_HAND", "WAITING_FOR_VERIFICATION", "WAITING_APPROVAL", "NOT_CONNECTED"
     } for row in steps)
-    mission.status = "COMPLETED" if all_verified else "WAITING" if waiting else "FAILED" if failed else "WAITING_FOR_VERIFICATION"
+    if all_verified:
+        mission.status = "COMPLETED"
+    elif failed:
+        mission.status = "FAILED"
+    elif any(str(row.get("status", "")).upper() in {"WAITING_FOR_HAND", "NOT_CONNECTED"} for row in steps):
+        mission.status = "WAITING_FOR_HAND"
+    elif waiting:
+        mission.status = "WAITING_FOR_VERIFICATION"
+    else:
+        mission.status = "VERIFYING"
     mission.progress = int(verified_total / len(persisted_steps) * 100) if persisted_steps else 0
     mission.result = json.dumps({"steps": steps, "verified_steps": verified_total, "total_steps": len(persisted_steps)},
         ensure_ascii=False, default=str)
