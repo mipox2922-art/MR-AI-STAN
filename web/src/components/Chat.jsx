@@ -118,6 +118,8 @@ export default function Chat({
   onPowerCommand,
   mode = "normal",
   coreStatus = "IDLE",
+  provider = "openrouter",
+  onProviderChange,
   tasks = [],
   tasksAvailable = false,
   telemetry = null,
@@ -137,7 +139,6 @@ export default function Chat({
     }
   });
   const [message, setMessage] = useState("");
-  const [provider, setProvider] = useState("openrouter");
   const utteranceRef = useRef(null);
   const messageListRef = useRef(null);
   const [toolStatus, setToolStatus] = useState("AI_ONLY");
@@ -419,7 +420,7 @@ export default function Chat({
         <span className="tool-routing-status" aria-live="polite" title={toolStatus}>{sending ? "NACHAMBUA OMBI..." : coreStatus}</span>
         <select
           value={provider}
-          onChange={e => setProvider(e.target.value)}
+          onChange={e => onProviderChange?.(e.target.value)}
         >
           <option value="openrouter">OPENROUTER (FREE ROUTER)</option>
           <option value="mistral">MISTRAL</option>
