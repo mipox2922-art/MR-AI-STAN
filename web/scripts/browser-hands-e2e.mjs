@@ -140,6 +140,7 @@ try {
   await dashboard.locator(".agent-planner-form input").fill("soma ukurasa");
   await dashboard.locator(".agent-planner-form").getByRole("button", { name: "ANZA KAZI" }).click();
 
+  let lastObserved = null;
   const persisted = await waitUntil(async () => {
     const rows = await jsonRequest(API_URL + "/tasks", { token });
     const mission = rows.find(task => task.agent === "orchestrator" && task.title === "soma ukurasa");
@@ -148,15 +149,26 @@ try {
       String(task.requested_by || "") === "mission:" + mission?.id
     );
     if (!mission || !command) return null;
-    if (mission.status === "FAILED" || mission.status === "BLOCKED" || command.status === "FAILED" || command.status === "BLOCKED") {
-      throw new Error("Mission did not complete: " + JSON.stringify({
-        mission: { id: mission.id, status: mission.status, error: mission.error },
-        command: { id: command.id, status: command.status, error: command.error },
-      }));
+    let commandPacket = {};
+    try {
+      commandPacket = typeof command.result === "string" ? JSON.parse(command.result || "{}") : (command.result || {});
+    } catch {
+      commandPacket = {};
+    }
+    lastObserved = {
+      mission: { id: mission.id, status: mission.status, progress: mission.progress, error: mission.error },
+      command: { id: command.id, status: command.status, error: command.error },
+      commandResult: commandPacket,
+    };
+    if (["FAILED", "BLOCKED", "WAITING_FOR_VERIFICATION"].includes(String(mission.status).toUpperCase()) ||
+        ["FAILED", "BLOCKED", "WAITING_FOR_VERIFICATION"].includes(String(command.status).toUpperCase())) {
+      throw new Error("Browser result returned but was not accepted as independently verified: " + JSON.stringify(lastObserved));
     }
     if (mission.status !== "COMPLETED" || command.status !== "COMPLETED") return null;
     return { mission, command };
-  }, { timeoutMs: 35000, intervalMs: 300, description: "real extension result persisted and verified by the backend" });
+  }, { timeoutMs: 35000, intervalMs: 300, description: "real extension result persisted and verified by the backend" }).catch(error => {
+    throw new Error(String(error.message || error) + (lastObserved ? "; last stored state=" + JSON.stringify(lastObserved) : ""));
+  });
 
   const commandResult = typeof persisted.command.result === "string"
     ? JSON.parse(persisted.command.result)
