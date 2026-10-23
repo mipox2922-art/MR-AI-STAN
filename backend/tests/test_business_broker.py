@@ -11,7 +11,7 @@ from sqlalchemy.pool import StaticPool
 from app.config import settings
 from app.database import Base, get_db
 from app.dependencies import get_current_user
-from app.models import BusinessOpportunity, Task, TaskStep
+from app.models import BusinessOpportunity, Memory, Task, TaskStep
 from app.orchestration.executor import execute_mission
 from app.orchestration.planner import select_agents
 from app.routers import business_broker
@@ -98,6 +98,13 @@ def test_research_persists_source_and_builds_draft_follow_up(monkeypatch):
         assert task.deadline is not None
         assert task.status == "PENDING"
         assert json.loads(task.description)["outreach_is_draft_only"] is True
+        remembered = db.query(Memory).filter_by(
+            user_id=101,
+            key="business_broker:last_research:client_lead",
+        ).one()
+        memory_packet = json.loads(remembered.value)
+        assert memory_packet["goal"] == "Find businesses that need graphic design"
+        assert memory_packet["opportunity_ids"] == [stored.id]
 
 
 def test_remote_work_broker_uses_existing_public_job_feed(monkeypatch):
