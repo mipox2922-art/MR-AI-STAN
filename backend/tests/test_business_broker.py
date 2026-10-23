@@ -13,6 +13,7 @@ from app.database import Base, get_db
 from app.dependencies import get_current_user
 from app.models import BusinessOpportunity, Task, TaskStep
 from app.orchestration.executor import execute_mission
+from app.orchestration.planner import select_agents
 from app.routers import business_broker
 
 
@@ -259,3 +260,8 @@ def test_command_center_mission_executes_broker_and_persists_verified_step(monke
         assert packet["steps"][0]["tool"] == "business_broker"
         assert packet["steps"][0]["evidence"]["saved_count"] == 1
         assert pipeline.follow_up_task_id is not None
+
+
+def test_broker_request_is_preserved_in_compound_mission():
+    agents = select_agents("Find businesses that need graphic design and read emails")
+    assert agents == ["research", "gmail"]
