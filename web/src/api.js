@@ -244,6 +244,40 @@ export function getTasks() {
   return request("/tasks");
 }
 
+export function getBrokerStatus() {
+  return request("/broker/status");
+}
+
+export function getBrokerOpportunities(filters = {}) {
+  const params = new URLSearchParams();
+  Object.entries(filters || {}).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && String(value).trim()) params.set(key, String(value));
+  });
+  const suffix = params.toString();
+  return request("/broker/opportunities" + (suffix ? "?" + suffix : ""));
+}
+
+export function researchBrokerOpportunities(payload) {
+  return request("/broker/research", {
+    method: "POST",
+    body: JSON.stringify(payload || {}),
+  }, TOOL_API_TIMEOUT_MS);
+}
+
+export function prepareBrokerOutreach(opportunityId, payload = {}) {
+  return request("/broker/opportunities/" + encodeURIComponent(opportunityId) + "/prepare-outreach", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  }, TOOL_API_TIMEOUT_MS);
+}
+
+export function updateBrokerOpportunity(opportunityId, payload = {}) {
+  return request("/broker/opportunities/" + encodeURIComponent(opportunityId), {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
 export function approveTask(taskId) {
   return request(`/tasks/${encodeURIComponent(taskId)}/approve`, { method: "POST" });
 }
