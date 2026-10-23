@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..dependencies import get_current_user
-from ..models import ActivityLog, BusinessOpportunity, Task
+from ..models import ActivityLog, BusinessOpportunity, Memory, Task
 
 router = APIRouter(prefix="/broker", tags=["Business Broker"])
 
@@ -475,6 +475,41 @@ async def research_business_opportunities(
                 "opportunity_id": row.id,
                 **_prepare_workflow(db, row, user_id, offer=offer),
             })
+    # Write a compact, owner-scoped Memory Core index so later missions can recall the last
+    # research batch without copying sensitive contact data into memory.
+    if saved_rows:
+        memory_key = "business_broker:last_research:" + chosen_type.lower()
+        memory_context = {
+            "goal": goal[:500],
+            "opportunity_type": chosen_type,
+            "checked_at": now.isoformat(),
+            "source_names": sources.get("source_names") or [],
+            "opportunity_ids": [row.id for row in saved_rows[:25]],
+            "opportunities": [
+                {
+                    "id": row.id,
+                    "title": row.title,
+                    "source_url": row.source_url,
+                    "fit_score": row.fit_score,
+                    "status": row.status,
+                }
+                for row in saved_rows[:10]
+            ],
+            "warning": "Search evidence does not verify publisher identity, current availability, or guaranteed profit.",
+        }
+        remembered = db.query(Memory).filter(
+            Memory.user_id == user_id,
+            Memory.key == memory_key,
+        ).order_by(Memory.id.desc()).first()
+        if remembered:
+            remembered.value = json.dumps(memory_context, ensure_ascii=False, default=str)
+        else:
+            db.add(Memory(
+                user_id=user_id,
+                key=memory_key,
+                value=json.dumps(memory_context, ensure_ascii=False, default=str),
+            ))
+
     db.add(ActivityLog(
         user_id=user_id,
         action="BUSINESS_BROKER_RESEARCH",
