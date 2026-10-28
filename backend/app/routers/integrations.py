@@ -29,6 +29,59 @@ def gmail_status(
     return connection_status(db, current_user.id)
 
 
+@router.get("/gmail/assistant/status")
+def gmail_assistant_status(
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    from ..gmail_assistant import get_assistant_status
+    return get_assistant_status(db, current_user.id)
+
+
+@router.get("/gmail/assistant/drafts")
+def gmail_assistant_drafts(
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    from ..gmail_assistant import list_assistant_records
+    return {"items": list_assistant_records(db, current_user.id, limit=50)}
+
+
+@router.post("/gmail/assistant/config")
+def gmail_assistant_config(
+    payload: dict,
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    from ..gmail_assistant import configure_assistant
+    enabled = payload.get("enabled")
+    auto_send_enabled = payload.get("auto_send_enabled")
+    if enabled is not None and not isinstance(enabled, bool):
+        raise HTTPException(status_code=400, detail="'enabled' must be a boolean.")
+    if auto_send_enabled is not None and not isinstance(auto_send_enabled, bool):
+        raise HTTPException(status_code=400, detail="'auto_send_enabled' must be a boolean.")
+    if enabled is None and auto_send_enabled is None:
+        raise HTTPException(status_code=400, detail="Provide enabled and/or auto_send_enabled.")
+    return configure_assistant(
+        db,
+        current_user.id,
+        enabled=enabled,
+        auto_send_enabled=auto_send_enabled,
+    )
+
+
+@router.post("/gmail/assistant/run")
+async def gmail_assistant_run(
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    from ..gmail_assistant import run_gmail_assistant_for_user
+    try:
+        return await run_gmail_assistant_for_user(db, current_user.id, force=True)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail="Gmail assistant run failed: " + type(exc).__name__) from exc
+
+
 @router.get("/gmail/connect")
 def gmail_connect(
     current_user=Depends(get_current_user),
@@ -130,12 +183,15 @@ async def gmail_reply(
 ):
     """Reply to a Gmail message after explicit confirmation in the UI."""
     try:
-        return await reply_to_message(
+        result = await reply_to_message(
             db,
             current_user.id,
             message_id,
             body=payload.get("body", ""),
         )
+        from ..gmail_assistant import record_manual_reply_sent
+        record_manual_reply_sent(db, current_user.id, message_id, result)
+        return result
     except GmailConnectorError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
