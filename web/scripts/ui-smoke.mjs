@@ -394,6 +394,18 @@ async function main() {
   await page.waitForFunction(() => document.querySelector(".sidebar nav button") !== null, undefined, { timeout: 10000 });
   // Dashboard owns its HUD titlebar and intentionally hides the generic page topbar.
   await page.locator(".cc-titlebar").waitFor({ state: "visible", timeout: 15000 });
+  const expectedGreeting = await page.evaluate(() => {
+    const hour = Number(new Intl.DateTimeFormat("en-GB", {
+      timeZone: "Africa/Dar_es_Salaam", hour: "2-digit", hour12: false,
+    }).format(new Date()));
+    return hour < 5 ? "HABARI ZA USIKU, BOSS FERISI"
+      : hour < 12 ? "HABARI ZA ASUBUHI, BOSS FERISI"
+      : hour < 16 ? "HABARI ZA MCHANA, BOSS FERISI"
+      : hour < 19 ? "HABARI ZA JIONI, BOSS FERISI"
+      : "HABARI ZA USIKU, BOSS FERISI";
+  });
+  await page.getByRole("heading", { name: expectedGreeting, exact: true }).waitFor({ state: "visible", timeout: 7000 });
+  completedChecks.push("dashboard greeting matches the Dar es Salaam local time");
   await page.locator(".cc-system-footer").waitFor({ state: "visible", timeout: 7000 });
   await page.waitForFunction(() => {
     const footer = document.querySelector(".cc-system-footer")?.textContent || "";

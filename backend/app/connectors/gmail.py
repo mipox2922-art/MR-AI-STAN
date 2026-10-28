@@ -382,6 +382,28 @@ async def get_message(db: Session, user_id: int, message_id: str) -> dict[str, A
     }
 
 
+async def get_thread(db: Session, user_id: int, thread_id: str) -> dict[str, Any]:
+    """Fetch a bounded thread snapshot for verified Gmail reply tracking."""
+    if not thread_id or len(thread_id) > 200:
+        raise GmailConnectorError("Invalid Gmail thread id.")
+    response = await _gmail_get(
+        db,
+        user_id,
+        f"/threads/{thread_id}",
+        params={"format": "full"},
+    )
+    messages = []
+    for payload in (response.get("messages") or [])[-30:]:
+        item = _normalize_message(payload, include_body=True)
+        try:
+            item["internal_date_ms"] = int(payload.get("internalDate") or 0)
+        except (TypeError, ValueError):
+            item["internal_date_ms"] = 0
+        item["body_text"] = str(item.get("body_text") or "")[:8000]
+        messages.append(item)
+    return {"status": "COMPLETED", "id": response.get("id"), "messages": messages}
+
+
 async def send_message(
     db: Session,
     user_id: int,

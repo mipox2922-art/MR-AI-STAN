@@ -6,12 +6,13 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import and_, or_, update
 from sqlalchemy.orm import Session
 
 from .config import settings
 from .database import SessionLocal, get_db
 from .dependencies import get_current_user
-from .models import ActivityLog, Notification, ScheduledJob, Task
+from .models import ActivityLog, Notification, ScheduledJob, Task, User
 from .schemas import ScheduleCreate, ScheduleUpdate
 from .task_runner import run_pending_tasks
 from .self_audit import maybe_run_self_audit
@@ -32,6 +33,13 @@ _last_cycle_summary: dict[str, int] = {
     "new_jobs_found": 0,
     "application_drafts_ready": 0,
     "job_source_errors": 0,
+    "approved_missions_processed": 0,
+    "gmail_users_checked": 0,
+    "gmail_messages_processed": 0,
+    "gmail_drafts_created": 0,
+    "gmail_replies_sent": 0,
+    "gmail_followups_processed": 0,
+    "gmail_assistant_errors": 0,
 }
 
 
@@ -136,6 +144,78 @@ def run_due_jobs(db: Session, now: Optional[datetime] = None) -> int:
     return fired
 
 
+async def run_approved_pending_missions(db: Session, limit: int = 3) -> int:
+    """Resume owner-approved orchestrator missions queued in the database."""
+    from .orchestration.executor import execute_mission
+
+    now = datetime.utcnow()
+    stale_cutoff = now - timedelta(minutes=15)
+    candidates = (
+        db.query(Task)
+        .filter(
+            Task.agent == "orchestrator",
+            Task.source == "orchestrator",
+            Task.approved_by.is_not(None),
+            Task.approved_by == Task.user_id,
+            or_(
+                Task.status == "PENDING",
+                and_(Task.status.in_(["RUNNING", "IN_PROGRESS"]), Task.updated_at < stale_cutoff),
+            ),
+        )
+        .order_by(Task.created_at.asc(), Task.id.asc())
+        .limit(max(1, min(int(limit), 10)))
+        .all()
+    )
+    processed = 0
+    for candidate in candidates:
+        expected_status = str(candidate.status or "").upper()
+        conditions = [
+            Task.id == candidate.id,
+            Task.user_id == candidate.user_id,
+            Task.agent == "orchestrator",
+            Task.source == "orchestrator",
+            Task.approved_by == candidate.user_id,
+            Task.status == expected_status,
+        ]
+        if expected_status in {"RUNNING", "IN_PROGRESS"}:
+            conditions.append(Task.updated_at < stale_cutoff)
+        claim = db.execute(
+            update(Task)
+            .where(*conditions)
+            .values(status="RUNNING", updated_at=now)
+        )
+        db.commit()
+        if claim.rowcount != 1:
+            continue
+        mission = db.query(Task).filter(Task.id == candidate.id, Task.user_id == candidate.user_id).first()
+        user = db.query(User).filter(User.id == candidate.user_id).first()
+        if mission is None or user is None:
+            if mission is not None:
+                mission.status = "FAILED"
+                mission.error = "Approved mission owner could not be loaded by the scheduler."
+                db.commit()
+            processed += 1
+            continue
+        try:
+            await execute_mission(mission.description or mission.title, user, db, mission=mission)
+        except Exception as exc:
+            db.rollback()
+            failed = db.query(Task).filter(Task.id == candidate.id, Task.user_id == candidate.user_id).first()
+            if failed is not None:
+                failed.status = "FAILED"
+                failed.error = "Background mission execution failed: " + type(exc).__name__
+                failed.updated_at = datetime.utcnow()
+                db.add(ActivityLog(
+                    user_id=candidate.user_id,
+                    action="APPROVED_MISSION_FAILED",
+                    details="task_id=" + str(candidate.id) + "; error_type=" + type(exc).__name__,
+                ))
+                db.commit()
+            logger.error("Approved mission failed: task_id=%s error_type=%s", candidate.id, type(exc).__name__)
+        processed += 1
+    return processed
+
+
 async def run_scheduler_cycle() -> tuple[int, int]:
     global _last_cycle_at, _last_cycle_status, _last_cycle_error_type, _last_cycle_summary
     db = SessionLocal()
@@ -150,6 +230,13 @@ async def run_scheduler_cycle() -> tuple[int, int]:
         "new_jobs_found": 0,
         "application_drafts_ready": 0,
         "job_source_errors": 0,
+        "approved_missions_processed": 0,
+        "gmail_users_checked": 0,
+        "gmail_messages_processed": 0,
+        "gmail_drafts_created": 0,
+        "gmail_replies_sent": 0,
+        "gmail_followups_processed": 0,
+        "gmail_assistant_errors": 0,
     }
     try:
         maybe_run_self_audit(db)
@@ -174,9 +261,30 @@ async def run_scheduler_cycle() -> tuple[int, int]:
 
         processed = await run_pending_tasks(db, limit=5)
         summary["tasks_processed"] = processed
+
+        try:
+            summary["approved_missions_processed"] = await run_approved_pending_missions(db, limit=3)
+        except Exception as exc:
+            db.rollback()
+            logger.error("Approved mission dispatcher failed: error_type=%s", type(exc).__name__)
+
+        try:
+            from .gmail_assistant import run_gmail_assistant_cycle
+            gmail_summary = await run_gmail_assistant_cycle(db)
+            summary["gmail_users_checked"] = int(gmail_summary.get("users_checked") or 0)
+            summary["gmail_messages_processed"] = int(gmail_summary.get("messages_processed") or 0)
+            summary["gmail_drafts_created"] = int(gmail_summary.get("drafts_created") or 0)
+            summary["gmail_replies_sent"] = int(gmail_summary.get("replies_sent") or 0)
+            summary["gmail_followups_processed"] = int(gmail_summary.get("followups_processed") or 0)
+            summary["gmail_assistant_errors"] = int(gmail_summary.get("errors") or 0)
+        except Exception as exc:
+            db.rollback()
+            summary["gmail_assistant_errors"] += 1
+            logger.error("Gmail VIP cycle failed: error_type=%s", type(exc).__name__)
+
         _last_cycle_summary = dict(summary)
         _last_cycle_status = "COMPLETED"
-        if fired or processed or summary["autopilot_users_due"]:
+        if fired or processed or summary["autopilot_users_due"] or summary["approved_missions_processed"] or summary["gmail_messages_processed"] or summary["gmail_replies_sent"]:
             logger.info(
                 "Scheduler cycle complete: triggered=%s processed=%s job_users=%s "
                 "job_candidates=%s application_drafts=%s job_source_errors=%s",

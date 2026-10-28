@@ -1173,7 +1173,15 @@ function ExecutiveMorningBrief({ system, gmailStatus, tasks = [], agents = [], o
   const hour = Number(new Intl.DateTimeFormat("en-GB", {
     timeZone: "Africa/Dar_es_Salaam", hour: "2-digit", hour12: false,
   }).format(new Date()));
-  const greeting = "KARIBU BOSS FERISI";
+  const greeting = hour < 5
+    ? "HABARI ZA USIKU, BOSS FERISI"
+    : hour < 12
+      ? "HABARI ZA ASUBUHI, BOSS FERISI"
+      : hour < 16
+        ? "HABARI ZA MCHANA, BOSS FERISI"
+        : hour < 19
+          ? "HABARI ZA JIONI, BOSS FERISI"
+          : "HABARI ZA USIKU, BOSS FERISI";
   const taskRows = Array.isArray(briefing?.tasks?.items) ? briefing.tasks.items : null;
   const agentRows = Array.isArray(briefing?.agents?.fleet) ? briefing.agents.fleet : null;
   const agentSummary = {
@@ -1213,7 +1221,7 @@ function ExecutiveMorningBrief({ system, gmailStatus, tasks = [], agents = [], o
     const jobText = jobAutopilot
       ? `Job Autopilot: nafasi ${jobAutopilot.jobs_found ?? 0} zimehifadhiwa, draft ${jobAutopilot.drafts_ready ?? 0} ziko tayari, ${jobAutopilot.waiting_for_profile ?? 0} zinasubiri profile, na maombi yaliyotumwa na mfumo ${jobAutopilot.applications_submitted_automatically ?? 0}. ${jobAutopilot.auto_submit_available ? "" : "Uwasilishaji wa mwisho haujaunganishwa; hakuna ombi linalodaiwa kuwa limetumwa."}`
       : "Hali ya Job Autopilot haijathibitishwa kwenye briefing.";
-    return ["Karibu Boss Ferisi.", "Huu hapa muhtasari wa MR AI STAN.", tasksText, agentsText,
+    return [greeting + ".", "Huu hapa muhtasari wa MR AI STAN.", tasksText, agentsText,
       jobText, approvalText, failureText, gmailText, "Hatua inayopendekezwa: " + priorityText].join(" ");
   }
 
@@ -1299,7 +1307,7 @@ function ExecutiveMorningBrief({ system, gmailStatus, tasks = [], agents = [], o
         <div className="cc-executive-copy">
           <span className="cc-eyebrow">MOG343 OPERATIONS // EXECUTIVE BRIEFING</span>
           <h1 id="cc-executive-greeting">{greeting}</h1>
-          <p>Karibu Boss Ferisi. Muhtasari huu unatokana na kazi, hatua zenye ushahidi, agent registry na audit logs zilizorudishwa na backend.</p>
+          <p>Nipo tayari kukusaidia, Boss Ferisi. Muhtasari huu unatokana na kazi, hatua zenye ushahidi, agent registry na audit logs zilizorudishwa na backend.</p>
           <div className="cc-executive-statusline">
             <span className={"cc-exec-pulse " + (briefing ? "is-live" : "is-waiting")} />
             <strong>{loading ? "SYNCING VERIFIED OPERATIONS..." : briefing ? "OPERATIONAL BRIEFING UPDATED" : "BRIEFING NOT AVAILABLE"}</strong>

@@ -7,6 +7,10 @@ import {
   sendGmailMessage,
   replyToGmailMessage,
   startGmailConnect,
+  getGmailAssistantStatus,
+  getGmailAssistantDrafts,
+  updateGmailAssistantConfig,
+  runGmailAssistantNow,
 } from "../api";
 
 function StatusBadge({ value }) {
@@ -25,6 +29,9 @@ export default function GmailPanel() {
   const [composeSubject, setComposeSubject] = useState("");
   const [composeBody, setComposeBody] = useState("");
   const [replyToId, setReplyToId] = useState("");
+  const [assistantStatus, setAssistantStatus] = useState(null);
+  const [assistantDrafts, setAssistantDrafts] = useState([]);
+  const [assistantBusy, setAssistantBusy] = useState(false);
 
   async function refreshStatus() {
     try {
@@ -37,8 +44,34 @@ export default function GmailPanel() {
     }
   }
 
+  async function refreshAssistant() {
+    try {
+      const [nextStatus, nextDrafts] = await Promise.all([
+        getGmailAssistantStatus(),
+        getGmailAssistantDrafts(),
+      ]);
+      setAssistantStatus(nextStatus);
+      setAssistantDrafts(Array.isArray(nextDrafts?.items) ? nextDrafts.items : []);
+    } catch (err) {
+      setError(err.message || "Gmail VIP Assistant haipatikani.");
+    }
+  }
+
   useEffect(() => {
-    refreshStatus();
+    let active = true;
+    refreshStatus().then(value => {
+      if (active && value?.connected) refreshAssistant();
+    });
+    const timer = window.setInterval(() => {
+      if (document.visibilityState !== "visible") return;
+      refreshStatus().then(value => {
+        if (active && value?.connected) refreshAssistant();
+      });
+    }, 60000);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
   }, []);
 
   async function connect() {
@@ -85,6 +118,65 @@ export default function GmailPanel() {
       setSelected(result.message);
     } catch (err) {
       setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function setAssistantConfig(payload) {
+    setAssistantBusy(true);
+    setError("");
+    setNotice("");
+    try {
+      const next = await updateGmailAssistantConfig(payload);
+      setAssistantStatus(next);
+      await refreshAssistant();
+      setNotice(next.auto_send_enabled
+        ? "Gmail VIP imewashwa. Majibu ya kawaida tu yanaweza kutumwa kiotomatiki; barua nyeti zitasubiri."
+        : next.enabled
+          ? "Gmail VIP inasoma na kuandaa rasimu. Kutuma kiotomatiki kumezimwa."
+          : "Gmail VIP imesitishwa.");
+    } catch (err) {
+      setError(err.message || "Mipangilio ya Gmail VIP imeshindwa kuhifadhiwa.");
+    } finally {
+      setAssistantBusy(false);
+    }
+  }
+
+  async function runAssistant() {
+    setAssistantBusy(true);
+    setError("");
+    setNotice("");
+    try {
+      const result = await runGmailAssistantNow();
+      await refreshAssistant();
+      await refreshStatus();
+      const stats = result?.summary || {};
+      setNotice("Gmail VIP: barua mpya " + (stats.messages_processed ?? result?.messages_processed ?? 0)
+        + " · rasimu " + (stats.drafts_created ?? 0)
+        + " · zilizotumwa kiotomatiki " + (stats.replies_sent ?? 0)
+        + " · zinazohitaji ukaguzi " + (stats.needs_review ?? 0) + ".");
+    } catch (err) {
+      setError(err.message || "Gmail VIP haikuweza kukamilisha ukaguzi.");
+    } finally {
+      setAssistantBusy(false);
+    }
+  }
+
+  async function useAssistantDraft(item) {
+    if (!connected || busy || !item?.message_id) return;
+    setBusy(true);
+    setError("");
+    try {
+      const result = await getGmailMessage(item.message_id);
+      setSelected(result.message);
+      setReplyToId(item.message_id);
+      setComposeTo("");
+      setComposeSubject("");
+      setComposeBody(item.follow_up_draft || item.reply_draft || "");
+      setNotice("Rasimu imewekwa kwenye jibu. Ipitie kabla ya kutuma.");
+    } catch (err) {
+      setError(err.message || "Rasimu haikuweza kufunguliwa.");
     } finally {
       setBusy(false);
     }
@@ -206,6 +298,70 @@ export default function GmailPanel() {
           )}
         </div>
       </div>
+
+      {connected && (
+        <section className="gmail-assistant-box" style={{ marginTop: 14, marginBottom: 14, padding: 14, border: "1px solid var(--border, rgba(255,255,255,.15))", borderRadius: 10 }}>
+          <div className="gmail-section-title">MR AI · GMAIL VIP ASSISTANT</div>
+          <p style={{ margin: "8px 0", opacity: 0.85 }}>
+            Inasoma barua mpya zisizosomwa, inaandaa majibu kwa AI, inahifadhi kazi za ufuatiliaji, na hukagua kama mtumaji amejibu.
+          </p>
+          <div className="gmail-actions" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button className={assistantStatus?.enabled === false ? "ghost-button" : "primary-button"} disabled={assistantBusy} onClick={() => setAssistantConfig({ enabled: assistantStatus?.enabled === false })}>
+              {assistantStatus?.enabled === false ? "WASHA GMAIL VIP" : "SIMAMISHA GMAIL VIP"}
+            </button>
+            <button className={assistantStatus?.auto_send_enabled ? "danger-button" : "ghost-button"} disabled={assistantBusy || assistantStatus?.enabled === false} onClick={() => {
+              const next = !assistantStatus?.auto_send_enabled;
+              if (next && !window.confirm("BOSS FERISI: Unaidhinisha MR AI kutuma kiotomatiki majibu yenye hatari ndogo tu? Barua zinazohusu fedha, mikataba, akaunti, afya, sheria, siri au ahadi zitabaki rasimu.")) return;
+              setAssistantConfig({ auto_send_enabled: next });
+            }}>
+              {assistantStatus?.auto_send_enabled ? "AUTO-REPLY: ON" : "AUTO-REPLY: OFF"}
+            </button>
+            <button className="mini-button" disabled={assistantBusy || assistantStatus?.enabled === false} onClick={runAssistant}>
+              {assistantBusy ? "INAKAGUA BARUA..." : "KAGUA INBOX SASA"}
+            </button>
+            <button className="mini-button" disabled={assistantBusy} onClick={refreshAssistant}>REFRESH VIP</button>
+          </div>
+          <div className="tool-status" style={{ marginTop: 10 }} role="status" aria-live="polite">
+            {assistantStatus
+              ? "VIP " + (assistantStatus.enabled ? "ACTIVE" : "PAUSED")
+                + " · AUTO-SEND " + (assistantStatus.auto_send_enabled ? "ON" : "OFF")
+                + " · RASIMU " + (assistantStatus.draft_count ?? assistantDrafts.length)
+                + " · ZINAZOSUBIRI MAJIBU " + (assistantStatus.awaiting_reply ?? 0)
+                + " · UCHUNGUZI WA MWISHO " + (assistantStatus.last_scan_at || "BADO")
+                + " · SCHEDULER " + (assistantStatus.scheduler || "UNKNOWN")
+              : "Inapakia hali ya Gmail VIP..."}
+          </div>
+          <div style={{ display: "grid", gap: 10, marginTop: 12 }}>
+            {assistantDrafts.slice(0, 12).map(item => (
+              <article key={item.message_id} className="panel" style={{ padding: 12 }}>
+                <div style={{ display: "flex", alignItems: "start", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <strong>{item.subject || "(Hakuna subject)"}</strong>
+                    <p style={{ margin: "5px 0" }}>{item.from || "Mtumaji hajulikani"} · {item.status || "UNKNOWN"}</p>
+                    <p style={{ margin: "5px 0", opacity: 0.85 }}>{item.summary || "Muhtasari haujapatikana."}</p>
+                    {item.follow_up_note && <small>Ufuatiliaji: {item.follow_up_note}</small>}
+                  </div>
+                  {["DRAFT_READY", "FOLLOW_UP_DRAFT_READY", "SEND_RESULT_UNCONFIRMED", "NEEDS_REVIEW"].includes(item.status) && (
+                    <button className="mini-button" disabled={busy || assistantBusy} onClick={() => useAssistantDraft(item)}>
+                      {item.status === "SEND_RESULT_UNCONFIRMED" ? "KAGUA / TUMIA RASIMU" : "TUMIA RASIMU"}
+                    </button>
+                  )}
+                </div>
+                {item.reply_draft && item.status !== "REPLIED" && (
+                  <details style={{ marginTop: 8 }}>
+                    <summary style={{ cursor: "pointer" }}>Fungua rasimu</summary>
+                    <textarea readOnly rows={4} value={item.follow_up_draft || item.reply_draft} style={{ width: "100%", marginTop: 8, resize: "vertical" }} />
+                  </details>
+                )}
+              </article>
+            ))}
+            {!assistantDrafts.length && <div className="empty">Hakuna rasimu za Gmail VIP zilizohifadhiwa bado.</div>}
+          </div>
+          <small style={{ display: "block", marginTop: 8, opacity: 0.78 }}>
+            AUTO-REPLY ni hiari na imezimwa hadi uidhinishe. Ujumbe nyeti na wenye maamuzi ya fedha/sheria hautatumwa kiotomatiki. Majibu ya mkono bado yanahitaji uthibitisho.
+          </small>
+        </section>
+      )}
 
       <div className="gmail-search-row">
         <input
