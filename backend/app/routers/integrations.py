@@ -189,8 +189,13 @@ async def gmail_reply(
             message_id,
             body=payload.get("body", ""),
         )
-        from ..gmail_assistant import record_manual_reply_sent
-        record_manual_reply_sent(db, current_user.id, message_id, result)
+        try:
+            from ..gmail_assistant import record_manual_reply_sent
+            record_manual_reply_sent(db, current_user.id, message_id, result)
+        except Exception:
+            # Gmail already confirmed the send. Do not turn a tracking-only
+            # persistence issue into a misleading failed-send response.
+            db.rollback()
         return result
     except GmailConnectorError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
