@@ -169,6 +169,28 @@ export function getGmailStatus() {
   return request("/integrations/gmail/status");
 }
 
+export function getGmailAssistantStatus() {
+  return request("/integrations/gmail/assistant/status");
+}
+
+export function getGmailAssistantDrafts() {
+  return request("/integrations/gmail/assistant/drafts");
+}
+
+export function updateGmailAssistantConfig(payload = {}) {
+  return request("/integrations/gmail/assistant/config", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function runGmailAssistantNow() {
+  return request("/integrations/gmail/assistant/run", {
+    method: "POST",
+    body: JSON.stringify({}),
+  }, TOOL_API_TIMEOUT_MS);
+}
+
 export function startGmailConnect() {
   return request("/integrations/gmail/connect");
 }
