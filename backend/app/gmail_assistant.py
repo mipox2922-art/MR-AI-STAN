@@ -131,7 +131,7 @@ def get_assistant_status(db: Session, user_id: int) -> dict[str, Any]:
         "enabled": _bool(_read(db, user_id, ENABLED_KEY, "true"), True),
         "auto_send_enabled": _bool(_read(db, user_id, AUTO_SEND_KEY, "false"), False),
         "last_scan_at": _read(db, user_id, LAST_SCAN_KEY, "") or None,
-        "draft_count": sum(item.get("status") in {"DRAFT_READY", "FOLLOW_UP_DRAFT_READY", "NEEDS_AI_PROVIDER", "NEEDS_REVIEW"} for item in records),
+        "draft_count": sum(item.get("status") in {"DRAFT_READY", "FOLLOW_UP_DRAFT_READY", "NEEDS_AI_PROVIDER", "NEEDS_REVIEW", "SEND_RESULT_UNCONFIRMED"} for item in records),
         "awaiting_reply": sum(item.get("status") == "SENT_WAITING_REPLY" for item in records),
         "follow_up_drafts": sum(item.get("status") == "FOLLOW_UP_DRAFT_READY" for item in records),
         "scheduler": "ENABLED" if settings.scheduler_enabled and not settings.serverless_mode else "DISABLED",
@@ -374,7 +374,20 @@ async def _process_followups(db: Session, user_id: int, auto_send_enabled: bool)
             record["follow_up_draft"] = draft[:8000]
             record["follow_up_note"] = "No reply from the original sender was found after the sent message."
             if auto_send_enabled and _auto_send_is_safe(record, draft, confidence=followup_confidence):
-                result = await gmail.reply_to_message(db, user_id, str(record["message_id"]), draft)
+                # Persist a no-retry marker before an external send. If the request
+                # times out after Google accepts it, the scheduler must not duplicate it.
+                record["status"] = "SEND_RESULT_UNCONFIRMED"
+                record["auto_send_started_at"] = _iso_now()
+                _save_record(db, user_id, record)
+                try:
+                    result = await gmail.reply_to_message(db, user_id, str(record["message_id"]), draft)
+                except Exception as exc:
+                    record["send_error_type"] = type(exc).__name__
+                    record["follow_up_note"] = "Send result was not confirmed. Check the Gmail Sent folder before retrying."
+                    _ensure_tracking_task(db, user_id, record)
+                    _save_record(db, user_id, record)
+                    stats["errors"] += 1
+                    continue
                 sent_ids = list(record.get("sent_message_ids") or [])
                 if result.get("message_id") and result["message_id"] not in sent_ids:
                     sent_ids.append(result["message_id"])
@@ -489,6 +502,11 @@ async def run_gmail_assistant_for_user(db: Session, user_id: int, *, force: bool
             if ai["action"] in {"reply", "follow_up"} and ai["reply_draft"]:
                 record["status"] = "DRAFT_READY"
                 if auto_send and _auto_send_is_safe(record, ai["reply_draft"]):
+                    # Persist a no-retry marker before sending, so an API timeout
+                    # cannot cause a duplicate reply on the next inbox poll.
+                    record["status"] = "SEND_RESULT_UNCONFIRMED"
+                    record["auto_send_started_at"] = _iso_now()
+                    _save_record(db, user_id, record)
                     try:
                         result = await gmail.reply_to_message(db, user_id, message_id, ai["reply_draft"])
                         sent_id = result.get("message_id")
@@ -501,8 +519,9 @@ async def run_gmail_assistant_for_user(db: Session, user_id: int, *, force: bool
                         record["follow_up_at"] = (_now() + timedelta(days=FOLLOW_UP_DAYS)).isoformat().replace("+00:00", "Z")
                         summary["replies_sent"] += 1
                     except Exception as exc:
-                        record["status"] = "DRAFT_READY"
+                        record["status"] = "SEND_RESULT_UNCONFIRMED"
                         record["send_error_type"] = type(exc).__name__
+                        record["follow_up_note"] = "Send result was not confirmed. Check the Gmail Sent folder before retrying."
                         summary["needs_review"] += 1
                 else:
                     summary["drafts_created"] += 1
