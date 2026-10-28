@@ -341,8 +341,10 @@ export default function GmailPanel() {
                     <p style={{ margin: "5px 0", opacity: 0.85 }}>{item.summary || "Muhtasari haujapatikana."}</p>
                     {item.follow_up_note && <small>Ufuatiliaji: {item.follow_up_note}</small>}
                   </div>
-                  {["DRAFT_READY", "FOLLOW_UP_DRAFT_READY"].includes(item.status) && (
-                    <button className="mini-button" disabled={busy || assistantBusy} onClick={() => useAssistantDraft(item)}>TUMIA RASIMU</button>
+                  {["DRAFT_READY", "FOLLOW_UP_DRAFT_READY", "SEND_RESULT_UNCONFIRMED", "NEEDS_REVIEW"].includes(item.status) && (
+                    <button className="mini-button" disabled={busy || assistantBusy} onClick={() => useAssistantDraft(item)}>
+                      {item.status === "SEND_RESULT_UNCONFIRMED" ? "KAGUA / TUMIA RASIMU" : "TUMIA RASIMU"}
+                    </button>
                   )}
                 </div>
                 {item.reply_draft && item.status !== "REPLIED" && (
