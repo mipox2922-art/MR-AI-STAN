@@ -1,0 +1,72 @@
+name: MR AI background worker heartbeat
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/mr-ai-worker-heartbeat.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mr-ai-background-worker-heartbeat
+  cancel-in-progress: false
+
+jobs:
+  verify-worker:
+    name: Wake backend and verify scheduler
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - name: Wake free Render backend and verify the background worker
+        env:
+          API_URL: https://mr-ai-stan.onrender.com
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          import sys
+          import time
+          from urllib.error import HTTPError, URLError
+          from urllib.request import urlopen
+
+          url = os.environ["API_URL"].rstrip("/") + "/health"
+          last_problem = "Backend did not return a healthy response."
+          for attempt in range(1, 9):
+              try:
+                  with urlopen(url, timeout=20) as response:
+                      payload = json.loads(response.read().decode("utf-8"))
+                  scheduler = payload.get("background_scheduler") or {}
+                  print(json.dumps({
+                      "attempt": attempt,
+                      "health": payload.get("status"),
+                      "database": payload.get("database"),
+                      "database_engine": payload.get("database_engine"),
+                      "scheduler_enabled": scheduler.get("enabled_by_config"),
+                      "scheduler_running": scheduler.get("loop_running"),
+                      "last_cycle_status": scheduler.get("last_cycle_status"),
+                      "last_cycle_at": scheduler.get("last_cycle_at"),
+                  }, ensure_ascii=False))
+                  if (
+                      payload.get("status") == "healthy"
+                      and payload.get("database") == "reachable"
+                      and scheduler.get("enabled_by_config") is True
+                      and scheduler.get("loop_running") is True
+                  ):
+                      print("PASS: MR AI backend and background scheduler are running.")
+                      sys.exit(0)
+                  last_problem = "Backend responded, but database or background scheduler is not healthy."
+              except (HTTPError, URLError, TimeoutError, OSError, ValueError, json.JSONDecodeError) as exc:
+                  last_problem = type(exc).__name__ + ": backend is waking up or did not return valid health JSON."
+                  print("Attempt " + str(attempt) + "/8: " + last_problem)
+              if attempt < 8:
+                  time.sleep(10)
+
+          print("FAIL: " + last_problem)
+          sys.exit(1)
+          PY
