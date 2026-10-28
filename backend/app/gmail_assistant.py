@@ -219,11 +219,15 @@ def _email_prompt(message: dict[str, Any], follow_up: bool = False, prior_draft:
     )
 
 
-def _auto_send_is_safe(record: dict[str, Any], reply_text: str) -> bool:
+def _auto_send_is_safe(record: dict[str, Any], reply_text: str, confidence: float | None = None) -> bool:
     sender = parseaddr(str(record.get("from") or ""))[1].casefold()
     if not sender or sender.startswith(("no-reply@", "noreply@", "donotreply@")):
         return False
-    if float(record.get("confidence") or 0) < 0.85:
+    effective_confidence = record.get("confidence") if confidence is None else confidence
+    try:
+        if float(effective_confidence or 0) < 0.85:
+            return False
+    except (TypeError, ValueError):
         return False
     source = " ".join(str(x or "") for x in (
         record.get("subject"), record.get("summary"), record.get("original_body_preview"), reply_text
@@ -362,11 +366,14 @@ async def _process_followups(db: Session, user_id: int, auto_send_enabled: bool)
                 }, follow_up=True, prior_draft=str(record.get("last_sent_body") or record.get("reply_draft") or "")),
                 timeout=35,
             )
-            draft = _parse_ai_result(raw).get("reply_draft") or str(raw).strip()
+            followup_ai = _parse_ai_result(raw)
+            draft = followup_ai.get("reply_draft") or str(raw).strip()
+            followup_confidence = followup_ai.get("confidence", 0.0)
             record["ai_provider"] = provider
+            record["follow_up_confidence"] = followup_confidence
             record["follow_up_draft"] = draft[:8000]
             record["follow_up_note"] = "No reply from the original sender was found after the sent message."
-            if auto_send_enabled and _auto_send_is_safe(record, draft):
+            if auto_send_enabled and _auto_send_is_safe(record, draft, confidence=followup_confidence):
                 result = await gmail.reply_to_message(db, user_id, str(record["message_id"]), draft)
                 sent_ids = list(record.get("sent_message_ids") or [])
                 if result.get("message_id") and result["message_id"] not in sent_ids:
