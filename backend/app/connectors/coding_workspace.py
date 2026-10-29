@@ -185,7 +185,7 @@ async def list_source_files(branch: str | None = None) -> dict[str, Any]:
         raise CodingWorkspaceError("GitHub branch did not return a commit SHA.", 502)
     tree = await _request(
         "GET",
-        _repo_path(repository, "/git/trees/" + quote(commit_sha, safe="") + "?recursive=1"),
+        _repo_path(repository, "/git/trees/" + quote(chosen, safe="/") + "?recursive=1"),
     )
     entries = tree.get("tree") if isinstance(tree, dict) else None
     if not isinstance(entries, list):
