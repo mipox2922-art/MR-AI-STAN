@@ -53,6 +53,51 @@ function getModeStatusReply(value, mode) {
   return "Mode ya sasa ni " + normalized + ".";
 }
 
+function getTaskStatusReply(value, tasks, tasksAvailable) {
+  const text = String(value || "").trim().toLowerCase();
+  const asksStatus =
+    /\\bumefanya\\s+kazi\\s+gani/.test(text) ||
+    /\\bkazi\\s+ngapi\\b.{0,70}\\b(?:zimekamilika|zimeisha|zimefanyika|completed|done|zinaendelea|zinafanyika)\\b/.test(text) ||
+    /\\b(?:kazi|tasks?)\\b.{0,70}\\b(?:zimekamilika|completed|finished|done|status|progress|zinaendelea)\\b/.test(text) ||
+    /\\b(?:what work have you done|what have you done so far|how many tasks|completed tasks|task status|task summary)\\b/.test(text) ||
+    /\\bmuhtasari wa kazi\\b|\\bhali ya kazi\\b|\\bkazi zilizokamilika\\b/.test(text);
+  if (!asksStatus) return null;
+  if (tasksAvailable !== true || !Array.isArray(tasks)) {
+    return "Boss Ferisi, siwezi kuthibitisha idadi ya kazi kwa sababu orodha ya Tasks haijapakiwa kutoka backend. Sitachukulia mazungumzo au idadi ya rekodi kuwa ushahidi wa kazi zilizokamilika.";
+  }
+
+  const statusOf = task => String(task?.status || "").toUpperCase();
+  const completed = tasks.filter(task => ["COMPLETED", "DONE", "VERIFIED"].includes(statusOf(task)));
+  const active = tasks.filter(task => ["RUNNING", "IN_PROGRESS", "WORKING"].includes(statusOf(task)));
+  const waiting = tasks.filter(task => ["PENDING", "WAITING", "WAITING_APPROVAL", "WAITING_FOR_HAND", "WAITING_FOR_PROFILE", "WAITING_FOR_VERIFICATION"].includes(statusOf(task)));
+  const failed = tasks.filter(task => ["FAILED", "ERROR", "CANCELLED"].includes(statusOf(task)));
+  const asksWhatDone = /umefanya\\s+kazi\\s+gani|what work have you done|what have you done so far|kazi zilizokamilika|completed tasks/i.test(text);
+
+  const lines = [
+    "Boss Ferisi, huu ndio muhtasari wa orodha ya Tasks iliyopakiwa, si madai kuhusu kazi ambazo hazina rekodi.",
+    `Kazi zilizoorodheshwa: ${tasks.length} · Zilizokamilika: ${completed.length} · Zinaendelea: ${active.length} · Zinasubiri: ${waiting.length} · Zilizoshindwa/kusitishwa: ${failed.length}.`
+  ];
+  if (asksWhatDone) {
+    if (completed.length) {
+      lines.push("Kazi zilizowekwa COMPLETED:");
+      completed.slice(0, 5).forEach((task, index) => {
+        lines.push(`${index + 1}. ${String(task.title || task.name || "Kazi bila jina")} · Agent: ${String(task.agent || "haijatajwa")} · ID: ${task.id ?? "haipo"}`);
+      });
+    } else {
+      lines.push("Hakuna kazi iliyo na status COMPLETED kwenye orodha hii. Kazi zilizorekodiwa pekee hazimaanishi zimekamilika.");
+    }
+  }
+  return lines.join("\\n");
+}
+
+function getAmbiguousDelegationReply(value) {
+  const text = String(value || "").trim().toLowerCase();
+  const asksDelegate = /\\bwambie\\b.{0,50}\\b(?:vijana|mawakala|agents|crew)\\b.{0,50}\\b(?:kazi|pige|fanye|work|task)\\b/.test(text) ||
+    /\\b(?:assign|tell)\\b.{0,50}\\b(?:agents|team|crew)\\b.{0,50}\\b(?:work|tasks?)\\b/.test(text);
+  if (!asksDelegate) return null;
+  return "Nimeelewa Boss: unataka kazi zikabidhiwe kwa vijana/mawakala. Lakini agizo halijataja kazi mahsusi, kwa hiyo sijaunda Task wala kudai mawakala wameanza. Taja kazi yenyewe au fungua Mission Control uweke lengo, kisha nitapanga hatua na kuonyesha matokeo yaliyothibitishwa.";
+}
+
 function getAcknowledgementReply(value) {
   const text = String(value || "").trim().toLowerCase().replace(/[.!?]+$/g, "").replace(/\s+/g, " ");
   if (/^(sasa|mambo|vipi|niaje|habari|upo|uko hapo|mr ai)$/.test(text)) {
@@ -306,6 +351,30 @@ export default function Chat({
 
     // Handle short acknowledgements locally. These do not need an AI-provider
     // round trip, which previously caused ordinary messages like "sasa" to fail.
+    const taskStatusReply = getTaskStatusReply(text, tasks, tasksAvailable);
+    if (taskStatusReply) {
+      setMessages(prev => [
+        ...prev,
+        { role: "user", content: text },
+        { role: "assistant", content: taskStatusReply }
+      ]);
+      setMessage("");
+      reportRuntimeState("IDLE");
+      return;
+    }
+
+    const delegationReply = getAmbiguousDelegationReply(text);
+    if (delegationReply) {
+      setMessages(prev => [
+        ...prev,
+        { role: "user", content: text },
+        { role: "assistant", content: delegationReply }
+      ]);
+      setMessage("");
+      reportRuntimeState("IDLE");
+      return;
+    }
+
     const acknowledgementReply = getAcknowledgementReply(text);
     if (acknowledgementReply) {
       setMessages(prev => [
