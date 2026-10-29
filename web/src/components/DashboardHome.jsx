@@ -3,6 +3,8 @@ import { dispatchTool, searchToolWeb, planAgentWork, executeMission, chat, getEx
 import HudOrb from "./HudOrb";
 import Chat from "./Chat";
 import { sanitizeAssistantMessage } from "../utils/chatSafety";
+import { getTanzaniaGreeting } from "../utils/localTime";
+import "./executiveBriefing.css";
 import LiveMap from "./LiveMap";
 import {
   getActiveTaskForAgent,
@@ -1170,18 +1172,7 @@ function ExecutiveMorningBrief({ system, gmailStatus, tasks = [], agents = [], o
     };
   }, []);
 
-  const hour = Number(new Intl.DateTimeFormat("en-GB", {
-    timeZone: "Africa/Dar_es_Salaam", hour: "2-digit", hour12: false,
-  }).format(new Date()));
-  const greeting = hour < 5
-    ? "HABARI ZA USIKU, BOSS FERISI"
-    : hour < 12
-      ? "HABARI ZA ASUBUHI, BOSS FERISI"
-      : hour < 16
-        ? "HABARI ZA MCHANA, BOSS FERISI"
-        : hour < 19
-          ? "HABARI ZA JIONI, BOSS FERISI"
-          : "HABARI ZA USIKU, BOSS FERISI";
+  const greeting = getTanzaniaGreeting();
   const taskRows = Array.isArray(briefing?.tasks?.items) ? briefing.tasks.items : null;
   const agentRows = Array.isArray(briefing?.agents?.fleet) ? briefing.agents.fleet : null;
   const agentSummary = {
@@ -1200,6 +1191,17 @@ function ExecutiveMorningBrief({ system, gmailStatus, tasks = [], agents = [], o
   const blockers = Array.isArray(briefing?.blockers) ? briefing.blockers : [];
   const waitingApprovalTasks = taskRows?.filter(task => task.status === "WAITING_APPROVAL") || [];
   const failedTasks = taskRows?.filter(task => ["FAILED", "ERROR"].includes(String(task.status || "").toUpperCase())) || [];
+  const activeTaskRows = taskRows?.filter(task =>
+    ["IN_PROGRESS", "RUNNING", "WORKING", "STARTED", "EXECUTING"].includes(String(task.status || "").toUpperCase())
+  ) || [];
+  const activeTask = activeTaskRows[0] || null;
+  const latestActivity = recent[0] || null;
+  const taskStatusCounts = {
+    active: Number.isFinite(briefing?.tasks?.working) ? briefing.tasks.working : (taskRows ? activeTaskRows.length : null),
+    completed: Number.isFinite(briefing?.tasks?.completed) ? briefing.tasks.completed : (taskRows ? taskRows.filter(task => ["COMPLETED", "DONE"].includes(String(task.status || "").toUpperCase())).length : null),
+    waiting: Number.isFinite(briefing?.tasks?.waiting) ? briefing.tasks.waiting : (taskRows ? taskRows.filter(task => ["PENDING", "WAITING", "BLOCKED", "WAITING_APPROVAL", "WAITING_FOR_HAND", "WAITING_FOR_VERIFICATION", "WAITING_FOR_PROFILE", "READY_FOR_REVIEW"].includes(String(task.status || "").toUpperCase())).length : null),
+    failed: Number.isFinite(briefing?.tasks?.failed) ? briefing.tasks.failed : (taskRows ? failedTasks.length : null),
+  };
 
   function briefingSpeechText() {
     const tasksText = taskRows
@@ -1215,14 +1217,22 @@ function ExecutiveMorningBrief({ system, gmailStatus, tasks = [], agents = [], o
       ? `Kazi ${failedTasks.length} zimeshindwa. Sababu zinaonekana kwenye orodha ya kazi.`
       : "Hakuna kazi iliyoshindwa iliyoripotiwa kwenye orodha ya kazi.";
     const priorityText = briefing?.next_action || "Hatua inayofuata haijathibitishwa.";
+    const currentWorkText = activeTask
+      ? `Kazi inayoendelea: ${activeTask.title || "Kazi bila jina"}, wakala ${activeTask.agent || "haijathibitishwa"}, maendeleo ${Number.isFinite(activeTask.progress) ? activeTask.progress + "%" : "hayajathibitishwa"}. ${activeTask.next_action || ""}`
+      : latestActivity
+        ? `Hakuna kazi hai iliyothibitishwa sasa. Hatua ya mwisho iliyorekodiwa: ${activityLabel(latestActivity)}.`
+        : "Hakuna kazi hai iliyothibitishwa, na hakuna activity log ya karibuni ya kuripoti.";
+    const blockerText = blockers.length
+      ? `Kizuizi kikuu: ${blockers[0].message}`
+      : "Hakuna kizuizi kilichoripotiwa kwenye briefing.";
     const gmailText = gmailConnected
       ? "Gmail imeunganishwa, lakini jumla ya barua na majibu haijathibitishwa hapa."
       : "Hali ya Gmail: " + gmailState + ".";
     const jobText = jobAutopilot
       ? `Job Autopilot: nafasi ${jobAutopilot.jobs_found ?? 0} zimehifadhiwa, draft ${jobAutopilot.drafts_ready ?? 0} ziko tayari, ${jobAutopilot.waiting_for_profile ?? 0} zinasubiri profile, na maombi yaliyotumwa na mfumo ${jobAutopilot.applications_submitted_automatically ?? 0}. ${jobAutopilot.auto_submit_available ? "" : "Uwasilishaji wa mwisho haujaunganishwa; hakuna ombi linalodaiwa kuwa limetumwa."}`
       : "Hali ya Job Autopilot haijathibitishwa kwenye briefing.";
-    return [greeting + ".", "Huu hapa muhtasari wa MR AI STAN.", tasksText, agentsText,
-      jobText, approvalText, failureText, gmailText, "Hatua inayopendekezwa: " + priorityText].join(" ");
+    return [greeting + ".", "Huu hapa muhtasari wa MR AI STAN.", tasksText, currentWorkText, agentsText,
+      jobText, approvalText, failureText, blockerText, gmailText, "Hatua inayopendekezwa: " + priorityText].join(" ");
   }
 
   async function approveProposedTask(task) {
@@ -1352,6 +1362,50 @@ function ExecutiveMorningBrief({ system, gmailStatus, tasks = [], agents = [], o
           <small>{gmailConnected ? "IDADI YA BARUA/MAJIBU HAIJATHIBITISHWA" : "ANGALIA MUUNGANISHO"}</small>
         </button>
       </div>
+
+      <section className="cc-exec-live-ops" aria-labelledby="cc-exec-live-ops-title">
+        <div className="cc-exec-live-ops-head">
+          <div>
+            <span className="cc-eyebrow">AUTOMATED STATUS // VERIFIED TASK RECORDS</span>
+            <h2 id="cc-exec-live-ops-title">Hali ya Kazi Sasa</h2>
+          </div>
+          <strong className={loading ? "is-syncing" : briefing ? "is-ready" : "is-error"} role="status" aria-live="polite">
+            {loading ? "INASAWAZISHA" : briefing ? "IMEBORESHWA KIOTOMATIKI" : "RIPOTI HAIJAPATIKANA"}
+          </strong>
+        </div>
+        {!taskRows ? (
+          <p className="cc-exec-live-unavailable">
+            {error ? "Ripoti ya kazi haijapatikana: " + error : "Hali ya kazi haijathibitishwa. Backend haijarudisha orodha ya Tasks, kwa hiyo hakuna kazi inayodaiwa kuwa inafanya kazi."}
+          </p>
+        ) : (
+          <>
+            <div className="cc-exec-live-counts">
+              <div className="cc-exec-live-count"><span>ZINAENDELEA</span><strong>{taskStatusCounts.active ?? "?"}</strong></div>
+              <div className="cc-exec-live-count"><span>ZIMETHIBITISHWA</span><strong>{taskStatusCounts.completed ?? "?"}</strong></div>
+              <div className="cc-exec-live-count"><span>ZINASUBIRI</span><strong>{taskStatusCounts.waiting ?? "?"}</strong></div>
+              <div className="cc-exec-live-count"><span>ZIMESHINDWA</span><strong className={taskStatusCounts.failed ? "exec-warn-text" : ""}>{taskStatusCounts.failed ?? "?"}</strong></div>
+            </div>
+            <div className="cc-exec-live-bottom">
+              <div className="cc-exec-live-focus">
+                <span>KAZI INAYOFANYIKA SASA</span>
+                <strong>{activeTask?.title || "Hakuna kazi hai iliyothibitishwa."}</strong>
+                <small>
+                  {activeTask
+                    ? `Wakala: ${activeTask.agent || "Haijathibitishwa"} · Progress: ${Number.isFinite(activeTask.progress) ? activeTask.progress + "%" : "Haijathibitishwa"} · ${activeTask.next_action || "Hatua inayofuata haijathibitishwa."}`
+                    : latestActivity
+                      ? `Hatua ya mwisho: ${activityLabel(latestActivity)} · ${timeLabel(latestActivity.created_at)}`
+                      : "Hakuna activity log ya karibuni ya kuripoti."}
+                </small>
+              </div>
+              <div className={"cc-exec-live-blocker" + (blockers.length ? " is-warning" : "")}>
+                <span>{blockers.length ? "KIZUIZI KIKUU" : "HATUA INAYOPENDEKEZWA"}</span>
+                <strong>{blockers.length ? blockers[0].message : briefing?.next_action || "Hatua inayofuata haijathibitishwa."}</strong>
+                {failedTasks[0] && <small>Kazi iliyoshindwa: {failedTasks[0].title || "Kazi bila jina"} · {failedTasks[0].error || "Sababu haijawekwa kwenye rekodi."}</small>}
+              </div>
+            </div>
+          </>
+        )}
+      </section>
 
       <details className="cc-executive-details">
         <summary>
