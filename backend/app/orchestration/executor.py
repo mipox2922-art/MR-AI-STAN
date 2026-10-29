@@ -66,6 +66,29 @@ def _is_read_only_gmail_request(request: str) -> bool:
     )
     return any(term in value for term in read_intents)
 
+def _is_read_only_job_request(request: str) -> bool:
+    """Permit public job-feed research only; application submission is a side effect."""
+    value = str(request or "").strip().casefold()
+    if not value:
+        return False
+
+    write_intents = (
+        "apply", "application", "submit", "send my cv", "send cv",
+        "tuma maombi", "tuma cv", "omba kazi", "wasilisha maombi",
+        "submit application", "send application", "apply automatically",
+        "apply for", "omba nafasi",
+    )
+    if any(term in value for term in write_intents):
+        return False
+
+    read_intents = (
+        "job search", "job research", "remote job", "remote jobs",
+        "find job", "find jobs", "search job", "search jobs",
+        "tafuta kazi", "nitafutie kazi", "tafutia kazi", "ajira",
+        "kazi za", "jobs for", "jobs in", "jobs",
+    )
+    return any(term in value for term in read_intents)
+
 
 def _is_safe_for_autonomous_execution(
     plan: dict[str, Any],
@@ -80,9 +103,12 @@ def _is_safe_for_autonomous_execution(
     for step in steps:
         agent_id = step.get("agent")
         tools = set(step.get("tools") or [])
-        # Public job feeds are read-only and never submit an application.
+        # Public job feeds are read-only. Never let the job agent bypass approval
+        # for applications, CV submission, or other consequential actions.
         if agent_id == "jobs":
-            continue
+            if _is_read_only_job_request(request):
+                continue
+            return False
         # Host telemetry is read-only and executed by this backend.
         if agent_id == "orchestrator" and "system_telemetry" in tools:
             continue
