@@ -77,7 +77,6 @@ def _service_status() -> dict:
         "grok": "CONFIGURED" if grok_configured else "NOT_CONFIGURED",
     }
 
-@router.get('/status')
 def _default_ai_provider() -> tuple[str | None, str | None, str | None]:
     """Prefer explicitly free AI routes before any provider that may incur charges."""
     openrouter_key = settings.openrouter_api_key.strip()
@@ -106,6 +105,7 @@ def _default_ai_provider() -> tuple[str | None, str | None, str | None]:
     return None, None, None
 
 
+@router.get("/status")
 def system_status(current_user=Depends(get_current_user)):
     if psutil is None:
         telemetry = {
