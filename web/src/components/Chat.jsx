@@ -57,7 +57,7 @@ function getTaskStatusReply(value, tasks, tasksAvailable) {
   const text = String(value || "").trim().toLowerCase();
   const asksStatus =
     /\bumefanya\s+kazi\s+gani/.test(text) ||
-    /\bkazi\s+ngapi\b.{0,70}\b(?:zime.{0,12}(?:kamil|kamli|isha|fanyika)|completed|done|zinaendelea|zinafanyika)\b/.test(text) ||
+    /\bkazi\s+ngapi\b.{0,70}(?:zime.{0,20}(?:kamil|kamli|isha|fanyika)|completed|done|zinaendelea|zinafanyika)/.test(text) ||
     /\b(?:kazi|tasks?)\b.{0,70}\b(?:zimekamilika|completed|finished|done|status|progress|zinaendelea)\b/.test(text) ||
     /\b(?:what work have you done|what have you done so far|how many tasks|completed tasks|task status|task summary)\b/.test(text) ||
     /\bmuhtasari wa kazi\b|\bhali ya kazi\b|\bkazi zilizokamilika\b/.test(text);
