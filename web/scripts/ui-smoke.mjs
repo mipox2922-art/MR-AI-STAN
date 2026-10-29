@@ -211,6 +211,18 @@ async function apiMock(route) {
     return sendJson(route, { status: "COMPLETED", mission: { id: 999, title: body.request, status: "COMPLETED", progress: 100, agent: "orchestrator", result: "E2E test fixture" }, plan, steps, next_action: "UI smoke test only." });
   }
   if (method === "GET" && path === "/tools") return sendJson(route, toolSummary);
+  if (method === "GET" && path === "/tools/coding/status") return sendJson(route, {
+    status: "NOT_CONNECTED",
+    configured: false,
+    can_plan: false,
+    can_apply: false,
+    free_provider_available: false,
+    repository: "mipox2922-art/MR-AI-STAN",
+    base_branch: "main",
+    work_branch: null,
+    ai_provider: null,
+    message: "Configure GitHub workspace credentials and a free AI provider.",
+  });
   if (method === "POST" && path === "/tools/search") {
     return sendJson(route, { status: "COMPLETED", query: body.query, results: [{ title: "Smoke Search Result", url: "https://example.com/", content: "Mocked search result for UI wiring", engine: "ui-smoke" }] });
   }
@@ -509,7 +521,19 @@ async function main() {
     await page.locator(".sidebar nav button").filter({ hasText: label }).first().click();
     await waitForDestination(label);
   }
-  for (const destination of destinations) await goTo(destination);
+  for (const destination of destinations) {
+    await goTo(destination);
+    if (destination === "Toolbox") {
+      const codingConsole = page.locator(".coding-agent-console");
+      await codingConsole.waitFor({ state: "visible", timeout: 7000 });
+      await codingConsole.getByRole("heading", { name: "MR AI Coding Agent", exact: true }).waitFor({ state: "visible" });
+      assert.ok(await codingConsole.getByText("NOT_CONNECTED", { exact: true }).count() > 0,
+        "Coding Agent must show the real configured status and not fake readiness.");
+      assert.ok(await codingConsole.getByRole("button", { name: "ANALYZE REPO & PREPARE PATCH" }).isDisabled(),
+        "Coding Agent must disable patch generation when GitHub workspace/free AI is not configured.");
+      completedChecks.push("Toolbox exposes Coding Agent patch workflow and truthfully gates disconnected credentials");
+    }
+  }
   completedChecks.push("all 17 navigation routes open the matching module");
 
   await goTo("Dashboard");
