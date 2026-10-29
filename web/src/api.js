@@ -762,6 +762,37 @@ export function getTools() {
   return request("/tools");
 }
 
+const CODING_AGENT_TIMEOUT_MS = 120000;
+
+export function getCodingAgentStatus() {
+  return request("/tools/coding/status");
+}
+
+export function planCodingAgentTask(requestText) {
+  return request("/tools/coding/agent/plan", {
+    method: "POST",
+    body: JSON.stringify({ request: requestText }),
+  }, CODING_AGENT_TIMEOUT_MS);
+}
+
+export function applyCodingAgentPlan(plan, proposalSignature) {
+  return request("/tools/coding/agent/apply", {
+    method: "POST",
+    body: JSON.stringify({ plan, proposal_signature: proposalSignature }),
+  }, CODING_AGENT_TIMEOUT_MS);
+}
+
+export function checkCodingAgentCommit(commitSha, taskId) {
+  const query = new URLSearchParams();
+  if (taskId !== undefined && taskId !== null) query.set("task_id", String(taskId));
+  const suffix = query.toString();
+  return request(
+    `/tools/coding/agent/checks/${encodeURIComponent(commitSha)}${suffix ? "?" + suffix : ""}`,
+    {},
+    TOOL_API_TIMEOUT_MS,
+  );
+}
+
 export function searchToolWeb(query) {
   return request("/tools/search", {
     method: "POST",
