@@ -38,7 +38,7 @@ export default function ToolBox() {
   useEffect(() => {
     const commitSha = codingExecution?.commit_sha;
     const taskId = codingExecution?.task_id;
-    const terminal = ["PASSED", "FAILED"].includes(String(codingExecution?.ci || "").toUpperCase());
+    const terminal = ["PASSED", "FAILED", "PR_REQUIRED"].includes(String(codingExecution?.ci || "").toUpperCase());
     if (!commitSha || !taskId || terminal) return undefined;
 
     let cancelled = false;
@@ -89,7 +89,10 @@ export default function ToolBox() {
     setCodingError("");
     try {
       const result = await applyCodingAgentPlan(codingPlan.plan, codingPlan.proposal_signature);
-      setCodingExecution({ ...result, ci: result.ci || "RUNNING" });
+      setCodingExecution({
+        ...result,
+        ci: result.status === "COMMITTED_NO_PR" ? "PR_REQUIRED" : (result.ci || "RUNNING"),
+      });
       setCodingPlan(null);
     } catch (error) {
       setCodingError(error?.message || "Coding Agent could not apply the patch.");
