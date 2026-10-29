@@ -184,13 +184,14 @@ async def coding_agent_apply(
         user_id=current_user.id,
         title=("Coding Agent: " + str(result.get("summary") or safe_plan.get("summary") or "Code change"))[:255],
         description=str(safe_plan.get("request") or "")[:12000],
-        status="IN_PROGRESS",
+        status="WAITING_FOR_HAND" if result.get("status") == "COMMITTED_NO_PR" else "IN_PROGRESS",
         priority="NORMAL",
         agent="coding",
         source="coding_agent",
         requested_by=str(getattr(current_user, "username", None) or "Boss Ferisi")[:100],
         approved_by=current_user.id,
-        progress=25,
+        progress=15 if result.get("status") == "COMMITTED_NO_PR" else 25,
+        error=str(result.get("message") or "") if result.get("status") == "COMMITTED_NO_PR" else None,
         result=json.dumps(result, ensure_ascii=False, default=str),
     )
     db.add(task)
