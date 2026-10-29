@@ -54,6 +54,26 @@ def _validate_configuration() -> tuple[str, str, str, str]:
     return token, repository, base_branch, work_branch
 
 
+def validate_work_branch(raw_branch: str) -> str:
+    """Allow the configured work branch or an isolated per-task Coding Agent branch."""
+    _, _, base_branch, configured_branch = _validate_configuration()
+    branch = str(raw_branch or "").strip()
+    parts = branch.split("/")
+    valid_shape = (
+        bool(_BRANCH_RE.fullmatch(branch))
+        and all(part not in {"", ".", ".."} for part in parts)
+        and branch != base_branch
+        and branch.casefold() not in {"main", "master", "production", "prod"}
+    )
+    is_agent_branch = branch.startswith("mr-ai/coding-agent/") and len(parts) >= 3
+    if not valid_shape or (branch != configured_branch and not is_agent_branch):
+        raise CodingWorkspaceError(
+            "Coding Agent may write only to its configured work branch or an isolated mr-ai/coding-agent/* branch.",
+            400,
+        )
+    return branch
+
+
 def validate_workspace_path(raw_path: str) -> str:
     path = str(raw_path or "").strip().replace("\\", "/")
     if (
@@ -87,10 +107,11 @@ def coding_workspace_status() -> dict[str, Any]:
         "base_branch": base_branch or "main",
         "work_branch": work_branch if branch_safe else None,
         "provider": "GitHub REST API",
-        "operations": ["inspect_files", "write_file", "read_ci_checks"] if configured and branch_safe else [],
+        "operations": ["inspect_files", "generate_patch", "commit_isolated_branch", "open_pull_request", "read_ci_checks"] if configured and branch_safe else [],
         "local_shell": "NOT_CONNECTED",
+        "execution_mode": "GITHUB_BRANCH_AND_ACTIONS",
         "message": (
-            "GitHub workspace operations are configured. File changes are restricted to the configured work branch; tests/builds must be verified from the repository CI checks."
+            "Coding Agent uses a free configured AI provider to propose a patch, commits only to isolated mr-ai/coding-agent/* branches, opens a pull request, and verifies tests from GitHub Actions. No production branch is modified directly."
             if configured and branch_safe
             else "Configure CODING_GITHUB_TOKEN and CODING_GITHUB_REPOSITORY. No repository changes can be executed until credentials are available."
         ),
@@ -102,7 +123,7 @@ async def _request(
     path: str,
     *,
     json_body: dict[str, Any] | None = None,
-) -> dict[str, Any]:
+) -> dict[str, Any] | list[Any]:
     token, repository, _, _ = _validate_configuration()
     url = _GITHUB_API + path
     headers = {
@@ -131,7 +152,7 @@ async def _request(
         data = response.json()
     except ValueError as exc:
         raise CodingWorkspaceError("GitHub returned invalid JSON.", 502) from exc
-    if not isinstance(data, dict):
+    if not isinstance(data, (dict, list)):
         raise CodingWorkspaceError("GitHub returned an unexpected response shape.", 502)
     return data
 
@@ -140,8 +161,60 @@ def _repo_path(repository: str, suffix: str) -> str:
     return "/repos/" + repository + suffix
 
 
-async def _ensure_work_branch() -> tuple[str, str]:
-    token, repository, base_branch, work_branch = _validate_configuration()
+async def get_branch_head_sha(branch: str | None = None) -> str:
+    _, repository, base_branch, configured_work_branch = _validate_configuration()
+    chosen = branch or base_branch
+    if chosen != base_branch and chosen != configured_work_branch:
+        validate_work_branch(chosen)
+    result = await _request("GET", _repo_path(repository, "/git/ref/heads/" + quote(chosen, safe="/")))
+    sha = str((result.get("object") or {}).get("sha") or "")
+    if not sha:
+        raise CodingWorkspaceError("GitHub branch did not return a commit SHA.", 502)
+    return sha
+
+
+async def list_source_files(branch: str | None = None) -> dict[str, Any]:
+    """Return a bounded path inventory from the configured GitHub repository."""
+    _, repository, base_branch, configured_work_branch = _validate_configuration()
+    chosen = branch or base_branch
+    if chosen != base_branch and chosen != configured_work_branch:
+        validate_work_branch(chosen)
+    ref = await _request("GET", _repo_path(repository, "/git/ref/heads/" + quote(chosen, safe="/")))
+    commit_sha = str((ref.get("object") or {}).get("sha") or "")
+    if not commit_sha:
+        raise CodingWorkspaceError("GitHub branch did not return a commit SHA.", 502)
+    tree = await _request(
+        "GET",
+        _repo_path(repository, "/git/trees/" + quote(commit_sha, safe="") + "?recursive=1"),
+    )
+    entries = tree.get("tree") if isinstance(tree, dict) else None
+    if not isinstance(entries, list):
+        raise CodingWorkspaceError("GitHub did not return a repository file tree.", 502)
+    paths = []
+    for entry in entries:
+        if not isinstance(entry, dict) or entry.get("type") != "blob":
+            continue
+        raw_path = str(entry.get("path") or "")
+        if not raw_path.startswith(_ALLOWED_PREFIXES):
+            continue
+        try:
+            path = validate_workspace_path(raw_path)
+        except CodingWorkspaceError:
+            continue
+        paths.append({"path": path, "size": int(entry.get("size") or 0), "sha": entry.get("sha")})
+    return {
+        "status": "COMPLETED",
+        "repository": repository,
+        "branch": chosen,
+        "commit_sha": commit_sha,
+        "truncated": bool(tree.get("truncated", False)),
+        "files": paths[:5000],
+    }
+
+
+async def _ensure_work_branch(branch_override: str | None = None) -> tuple[str, str]:
+    token, repository, base_branch, configured_work_branch = _validate_configuration()
+    work_branch = validate_work_branch(branch_override or configured_work_branch)
     base_ref = quote(base_branch, safe="/")
     work_ref = quote(work_branch, safe="/")
     base = await _request("GET", _repo_path(repository, "/git/ref/heads/" + base_ref))
@@ -175,7 +248,7 @@ async def inspect_files(paths: list[str], *, branch: str | None = None) -> dict[
     _, repository, base_branch, work_branch = _validate_configuration()
     chosen_branch = branch or work_branch
     if chosen_branch not in {base_branch, work_branch}:
-        raise CodingWorkspaceError("Coding Agent can inspect only its configured base or work branch.", 400)
+        validate_work_branch(chosen_branch)
     if not isinstance(paths, list) or not paths or len(paths) > 12:
         raise CodingWorkspaceError("Provide 1 to 12 workspace file paths.", 400)
 
@@ -212,8 +285,9 @@ async def inspect_files(paths: list[str], *, branch: str | None = None) -> dict[
     }
 
 
-async def write_file(path: str, content: str, message: str) -> dict[str, Any]:
-    _, repository, _, work_branch = _validate_configuration()
+async def write_file(path: str, content: str, message: str, *, branch: str | None = None) -> dict[str, Any]:
+    _, repository, _, configured_work_branch = _validate_configuration()
+    work_branch = validate_work_branch(branch or configured_work_branch)
     normalized = validate_workspace_path(path)
     if not isinstance(content, str) or len(content.encode("utf-8")) > _MAX_FILE_BYTES:
         raise CodingWorkspaceError("File content exceeds the 250 KB limit.", 413)
@@ -221,7 +295,7 @@ async def write_file(path: str, content: str, message: str) -> dict[str, Any]:
     if not commit_message or len(commit_message) > 180 or "\n" in commit_message or "\r" in commit_message:
         raise CodingWorkspaceError("Commit message must be a single line of 1 to 180 characters.", 400)
 
-    _, branch_sha = await _ensure_work_branch()
+    _, branch_sha = await _ensure_work_branch(work_branch)
     endpoint = _repo_path(repository, "/contents/" + quote(normalized, safe="/"))
     existing_sha = None
     try:
@@ -256,6 +330,149 @@ async def write_file(path: str, content: str, message: str) -> dict[str, Any]:
         "content_url": (result.get("content") or {}).get("html_url"),
         "ci": "PENDING",
         "message": "File committed to the isolated Coding Agent branch. Check the linked GitHub Actions run before reporting tests/build as passed.",
+    }
+
+
+async def commit_files_atomically(
+    files: list[dict[str, Any]],
+    *,
+    branch: str,
+    message: str,
+    expected_base_sha: str,
+) -> dict[str, Any]:
+    """Commit a complete patch in one Git commit on an isolated branch."""
+    _, repository, base_branch, _ = _validate_configuration()
+    chosen_branch = validate_work_branch(branch)
+    commit_message = str(message or "").strip()
+    if not commit_message or len(commit_message) > 180 or "\n" in commit_message or "\r" in commit_message:
+        raise CodingWorkspaceError("Commit message must be a single line of 1 to 180 characters.", 400)
+    if not isinstance(files, list) or not files or len(files) > 5:
+        raise CodingWorkspaceError("A coding patch must change between 1 and 5 files.", 400)
+
+    current_base_sha = await get_branch_head_sha(base_branch)
+    if current_base_sha != str(expected_base_sha or ""):
+        raise CodingWorkspaceError(
+            "The base branch changed after the patch was planned. Re-plan against the latest code before applying.",
+            409,
+        )
+    branch_name, branch_sha = await _ensure_work_branch(chosen_branch)
+    if branch_sha != current_base_sha:
+        raise CodingWorkspaceError(
+            "This Coding Agent branch already contains commits. Create a fresh plan/branch instead of overwriting existing work.",
+            409,
+        )
+
+    base_commit = await _request(
+        "GET", _repo_path(repository, "/git/commits/" + quote(current_base_sha, safe=""))
+    )
+    base_tree_sha = str(((base_commit.get("tree") or {}).get("sha")) or "")
+    if not base_tree_sha:
+        raise CodingWorkspaceError("GitHub base commit did not return a tree SHA.", 502)
+
+    tree_entries: list[dict[str, str]] = []
+    changed_paths: list[str] = []
+    for item in files:
+        if not isinstance(item, dict):
+            raise CodingWorkspaceError("Coding patch contains an invalid file entry.", 400)
+        path = validate_workspace_path(str(item.get("path") or ""))
+        content = item.get("content")
+        if not isinstance(content, str) or len(content.encode("utf-8")) > _MAX_FILE_BYTES:
+            raise CodingWorkspaceError("A changed file is empty/invalid or exceeds the 250 KB limit.", 413)
+        if path in changed_paths:
+            raise CodingWorkspaceError("Coding patch contains a duplicate file path.", 400)
+        changed_paths.append(path)
+        blob = await _request("POST", _repo_path(repository, "/git/blobs"), json_body={
+            "content": content,
+            "encoding": "utf-8",
+        })
+        blob_sha = str(blob.get("sha") or "")
+        if not blob_sha:
+            raise CodingWorkspaceError("GitHub did not return a blob SHA for " + path, 502)
+        tree_entries.append({"path": path, "mode": "100644", "type": "blob", "sha": blob_sha})
+
+    tree = await _request("POST", _repo_path(repository, "/git/trees"), json_body={
+        "base_tree": base_tree_sha,
+        "tree": tree_entries,
+    })
+    tree_sha = str(tree.get("sha") or "")
+    if not tree_sha:
+        raise CodingWorkspaceError("GitHub did not return a tree SHA for the proposed patch.", 502)
+    commit = await _request("POST", _repo_path(repository, "/git/commits"), json_body={
+        "message": commit_message,
+        "tree": tree_sha,
+        "parents": [branch_sha],
+    })
+    commit_sha = str(commit.get("sha") or "")
+    if not commit_sha:
+        raise CodingWorkspaceError("GitHub did not return a commit SHA for the proposed patch.", 502)
+
+    updated = await _request(
+        "PATCH",
+        _repo_path(repository, "/git/refs/heads/" + quote(branch_name, safe="/")),
+        json_body={"sha": commit_sha, "force": False},
+    )
+    updated_sha = str((updated.get("object") or {}).get("sha") or "")
+    if updated_sha != commit_sha:
+        raise CodingWorkspaceError("GitHub did not confirm the isolated branch update.", 502)
+    return {
+        "status": "COMMITTED",
+        "repository": repository,
+        "branch": branch_name,
+        "base_branch": base_branch,
+        "base_sha": current_base_sha,
+        "commit_sha": commit_sha,
+        "commit_url": commit.get("html_url"),
+        "changed_files": changed_paths,
+        "ci": "PENDING",
+    }
+
+
+async def create_pull_request(
+    branch: str,
+    *,
+    title: str,
+    body: str,
+) -> dict[str, Any]:
+    """Open or reuse a PR for an isolated Coding Agent branch."""
+    _, repository, base_branch, _ = _validate_configuration()
+    head_branch = validate_work_branch(branch)
+    clean_title = str(title or "").strip()[:240]
+    if not clean_title:
+        raise CodingWorkspaceError("Pull request title is required.", 400)
+    owner = repository.split("/", 1)[0]
+    endpoint = _repo_path(repository, "/pulls")
+    existing = await _request(
+        "GET",
+        endpoint + "?state=open&head=" + quote(owner + ":" + head_branch, safe="") +
+        "&base=" + quote(base_branch, safe=""),
+    )
+    if isinstance(existing, list) and existing:
+        row = existing[0]
+        if isinstance(row, dict):
+            return {
+                "status": "EXISTING",
+                "number": row.get("number"),
+                "url": row.get("html_url"),
+                "title": row.get("title"),
+                "state": row.get("state"),
+                "branch": head_branch,
+                "base_branch": base_branch,
+            }
+    result = await _request("POST", endpoint, json_body={
+        "title": clean_title,
+        "head": head_branch,
+        "base": base_branch,
+        "body": str(body or "")[:20000],
+        "draft": False,
+    })
+    return {
+        "status": "OPENED",
+        "number": result.get("number"),
+        "url": result.get("html_url"),
+        "title": result.get("title"),
+        "state": result.get("state"),
+        "branch": head_branch,
+        "base_branch": base_branch,
     }
 
 
