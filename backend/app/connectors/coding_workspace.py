@@ -484,10 +484,18 @@ async def get_commit_checks(commit_sha: str) -> dict[str, Any]:
     checks = await _request("GET", _repo_path(repository, "/commits/" + quote(sha, safe="") + "/check-runs?per_page=50"))
     status = await _request("GET", _repo_path(repository, "/commits/" + quote(sha, safe="") + "/status"))
     rows = checks.get("check_runs") if isinstance(checks.get("check_runs"), list) else []
-    conclusion_values = [str(row.get("conclusion") or "") for row in rows if row.get("status") == "completed"]
-    if any(value in {"failure", "cancelled", "timed_out", "action_required"} for value in conclusion_values):
+    conclusion_values = [str(row.get("conclusion") or "").lower() for row in rows if row.get("status") == "completed"]
+    combined_state = str(status.get("state") or "").lower()
+    if combined_state in {"failure", "error"} or any(
+        value in {"failure", "cancelled", "timed_out", "action_required"} for value in conclusion_values
+    ):
         overall = "FAILED"
-    elif rows and all(row.get("status") == "completed" and row.get("conclusion") == "success" for row in rows):
+    elif rows and all(
+        row.get("status") == "completed" and str(row.get("conclusion") or "").lower() in {"success", "neutral", "skipped"}
+        for row in rows
+    ):
+        overall = "PASSED"
+    elif not rows and combined_state == "success":
         overall = "PASSED"
     else:
         overall = "RUNNING"
