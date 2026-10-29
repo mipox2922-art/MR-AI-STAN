@@ -8,7 +8,7 @@ from sqlalchemy.pool import StaticPool
 
 from app.database import Base
 from app.models import ApprovalRequest, Memory, Task, TaskStep
-from app.orchestration.executor import execute_mission
+from app.orchestration.executor import _is_read_only_job_request, execute_mission
 
 
 def make_db():
@@ -193,3 +193,28 @@ def test_resume_skips_already_verified_job_step(monkeypatch):
     assert packet["steps"][0]["tool"] == "public_job_feeds"
     assert packet["steps"][1]["tool"] == "gmail"
     db.close()
+
+
+
+def test_job_research_is_allowed_without_application_side_effects():
+    assert _is_read_only_job_request("Tafuta kazi za remote Python developer")
+    assert _is_read_only_job_request("job research graphic design")
+    assert _is_read_only_job_request("find jobs in Europe")
+
+
+def test_job_application_requests_are_not_autonomous():
+    blocked = (
+        "apply for remote jobs",
+        "submit job application",
+        "send my CV to employers",
+        "Tuma maombi ya kazi",
+        "omba kazi warehouse",
+        "Tuma CV kwa kampuni",
+        "find jobs and apply automatically",
+    )
+    assert all(not _is_read_only_job_request(request) for request in blocked)
+
+
+def test_empty_or_ambiguous_job_request_is_not_autonomous():
+    assert not _is_read_only_job_request("")
+    assert not _is_read_only_job_request("help me with my career")
