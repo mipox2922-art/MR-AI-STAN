@@ -62,7 +62,7 @@ export default function ToolBox() {
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [codingExecution?.commit_sha, codingExecution?.task_id, ["PASSED", "FAILED"].includes(String(codingExecution?.ci || "").toUpperCase())]);
+  }, [codingExecution?.commit_sha, codingExecution?.task_id, ["PASSED", "FAILED", "PR_REQUIRED"].includes(String(codingExecution?.ci || "").toUpperCase())]);
 
   async function prepareCodingPatch() {
     if (!codingRequest.trim() || codingBusy) return;
