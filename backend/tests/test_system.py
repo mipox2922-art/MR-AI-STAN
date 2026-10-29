@@ -127,3 +127,17 @@ def test_paid_provider_is_not_labeled_free_when_no_free_route_exists(monkeypatch
     )
 
     assert _default_ai_provider() == ("mistral", "mistral-small-latest", "MISTRAL_CONFIGURED")
+
+
+def test_system_status_requires_authentication_without_bearer_token():
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    from app.routers import system as system_router
+
+    app = FastAPI()
+    app.include_router(system_router.router)
+
+    response = TestClient(app).get("/system/status")
+
+    assert response.status_code in {401, 403}
+
