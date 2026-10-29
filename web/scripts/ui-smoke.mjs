@@ -527,6 +527,7 @@ async function main() {
       const codingConsole = page.locator(".coding-agent-console");
       await codingConsole.waitFor({ state: "visible", timeout: 7000 });
       await codingConsole.getByRole("heading", { name: "MR AI Coding Agent", exact: true }).waitFor({ state: "visible" });
+      await codingConsole.locator(".coding-agent-state").filter({ hasText: "NOT_CONNECTED" }).waitFor({ state: "visible", timeout: 7000 });
       assert.ok(await codingConsole.getByText("NOT_CONNECTED", { exact: true }).count() > 0,
         "Coding Agent must show the real configured status and not fake readiness.");
       assert.ok(await codingConsole.getByRole("button", { name: "ANALYZE REPO & PREPARE PATCH" }).isDisabled(),
