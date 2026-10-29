@@ -43,3 +43,24 @@ def test_memory_save_is_persistent():
     result = __import__("asyncio").run(execute(intent, 1, db))
     assert result["status"] == "COMPLETED"
     assert db.query(__import__("app.models", fromlist=["Memory"]).Memory).count() == 1
+
+
+
+def test_task_status_questions_do_not_route_to_job_research():
+    for message in (
+        "umefanya kazi gani mpaka sasa",
+        "kazi ngapi zimekamilika sasa",
+        "what work have you done so far",
+        "how many tasks are completed",
+        "wambie vijana wa pige kazi",
+    ):
+        assert classify(message).name != "JOB_RESEARCH", message
+
+
+def test_explicit_job_search_still_routes_to_job_research():
+    for message in (
+        "Tafuta kazi za remote Python developer",
+        "nitafutie ajira za graphic design",
+        "job research for remote backend roles",
+    ):
+        assert classify(message).name == "JOB_RESEARCH", message
