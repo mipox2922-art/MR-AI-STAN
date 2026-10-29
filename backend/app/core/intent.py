@@ -22,7 +22,7 @@ _RULES: list[tuple[str, tuple[str, ...], str, str, bool]] = [
         "nitafutie kazi", "nitafutie ajira", "tafuta kazi", "tafuta ajira",
         "tafutia kazi", "tafutia ajira", "nafasi za kazi", "kazi remote",
         "remote jobs", "job research", "research jobs", "search jobs", "find jobs",
-        "ajira", "jobs", "job", "kazi",
+        "ajira",
     ), "LOW", "LOW", True),
     ("WEB_RESEARCH", ("search web", "research", "habari za", "jua kuhusu", "web search", "tafuta"), "LOW", "LOW", True),
     ("GMAIL_SEND", ("tuma email", "send email", "send an email", "tuma barua pepe"), "HIGH", "HIGH", False),

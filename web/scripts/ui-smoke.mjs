@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { chromium } from "playwright";
+import { getTanzaniaGreeting } from "../src/utils/localTime.js";
 
 const BASE_URL = process.env.UI_SMOKE_URL || "http://127.0.0.1:5173";
 const API_ORIGIN = (process.env.VITE_API_URL || "https://mr-ai-stan.onrender.com").replace(/\/$/, "");
@@ -179,7 +180,30 @@ async function apiMock(route) {
     }
     return sendJson(route, { response: "E2E response from mocked API", provider: body.provider || "openrouter" });
   }
-  if (method === "GET" && path === "/agents/briefing") return sendJson(route, { status: "READY", briefing: "Mock briefing only" });
+  if (method === "GET" && path === "/agents/briefing") return sendJson(route, {
+    status: "COMPLETED",
+    generated_at: "2026-10-29T10:00:00Z",
+    timezone: "Africa/Dar_es_Salaam",
+    agents: { total: 8, working: 1, waiting: 7, fleet: [] },
+    tasks: {
+      total: 2, completed: 1, working: 1, waiting: 0, failed: 0,
+      counts: { COMPLETED: 1, IN_PROGRESS: 1 },
+      items: [{
+        id: 910, title: "E2E verified coding task", source: "agent", requested_by: "Boss Ferisi",
+        agent: "coding", status: "IN_PROGRESS", priority: "NORMAL", progress: 50,
+        verified_steps: 1, step_count: 2, steps: [], error: null,
+        next_action: "Finish regression tests before marking this task completed."
+      }],
+      pending_approval: []
+    },
+    recent_activity: [{ id: 44, action: "E2E_OPERATION_RECORDED", details: "QA fixture only", created_at: "2026-10-29T09:58:00Z" }],
+    errors: [], tools: {}, job_autopilot: {
+      jobs_found: 0, drafts_ready: 0, waiting_for_profile: 0,
+      applications_submitted_automatically: 0, auto_submit_available: false
+    },
+    blockers: [], next_action: "Finish regression tests before marking this task completed.",
+    truth_boundary: ["E2E fixture only; not a production task."]
+  });
   if (method === "POST" && path === "/agents/plan") return sendJson(route, planFor(String(body.request || "")));
   if (method === "POST" && path === "/agents/mission") {
     const plan = planFor(String(body.request || ""));
@@ -325,6 +349,21 @@ async function waitForText(locator, expected, label) {
   });
 }
 
+const greetingBoundaryCases = [
+  ["2026-10-29T00:30:00Z", "HABARI ZA USIKU, BOSS FERISI"],
+  ["2026-10-29T02:00:00Z", "HABARI ZA ASUBUHI, BOSS FERISI"],
+  ["2026-10-29T08:59:00Z", "HABARI ZA ASUBUHI, BOSS FERISI"],
+  ["2026-10-29T09:00:00Z", "HABARI ZA MCHANA, BOSS FERISI"],
+  ["2026-10-29T12:59:00Z", "HABARI ZA MCHANA, BOSS FERISI"],
+  ["2026-10-29T13:00:00Z", "HABARI ZA JIONI, BOSS FERISI"],
+  ["2026-10-29T15:59:00Z", "HABARI ZA JIONI, BOSS FERISI"],
+  ["2026-10-29T16:00:00Z", "HABARI ZA USIKU, BOSS FERISI"],
+];
+for (const [instant, expected] of greetingBoundaryCases) {
+  assert.equal(getTanzaniaGreeting(new Date(instant)), expected, `Greeting must match Dar es Salaam time at ${instant}`);
+}
+completedChecks.push("Dar es Salaam greeting boundaries: night, morning, afternoon, evening and night");
+
 async function main() {
   const browser = await chromium.launch({ headless: true });
   const context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, acceptDownloads: true });
@@ -394,6 +433,12 @@ async function main() {
   await page.waitForFunction(() => document.querySelector(".sidebar nav button") !== null, undefined, { timeout: 10000 });
   // Dashboard owns its HUD titlebar and intentionally hides the generic page topbar.
   await page.locator(".cc-titlebar").waitFor({ state: "visible", timeout: 15000 });
+  const liveOperations = page.locator(".cc-exec-live-ops");
+  await liveOperations.waitFor({ state: "visible", timeout: 7000 });
+  await liveOperations.getByText("E2E verified coding task", { exact: true }).waitFor({ state: "visible", timeout: 7000 });
+  assert.equal(await liveOperations.locator(".cc-exec-live-count").count(), 4,
+    "The dashboard should show proactive task counts without opening More Operations.");
+  completedChecks.push("proactive executive briefing shows active mission and task-status counts by default");
   const expectedGreeting = await page.evaluate(() => {
     const hour = Number(new Intl.DateTimeFormat("en-GB", {
       timeZone: "Africa/Dar_es_Salaam", hour: "2-digit", hour12: false,
