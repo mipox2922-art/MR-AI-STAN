@@ -457,7 +457,10 @@ async def apply_coding_plan(plan: Any, signature: Any) -> dict[str, Any]:
         message=commit_message,
         expected_base_sha=str(proposal["base_sha"]),
     )
-    path_list = "\n".join(f"- `{item['path']}`" for item in committed["changed_files"])
+    path_list = "\\n".join(
+        f"- `{item.get('path') or 'unknown'}`" if isinstance(item, dict) else f"- `{str(item)}`"
+        for item in committed.get("changed_files", [])
+    ) or "- No changed-file paths returned"
     test_list = "\n".join(f"- {item}" for item in proposal.get("tests_to_run", [])) or "- CI workflow for this repository"
     manual_list = "\n".join(f"- {item}" for item in proposal.get("manual_checks", [])) or "- Review the changed code and test evidence"
     pr_body = (
