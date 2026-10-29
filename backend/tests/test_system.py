@@ -1,5 +1,5 @@
 from app.config import settings
-from app.routers.system import _service_status
+from app.routers.system import _default_ai_provider, _service_status
 
 
 def test_service_status_reports_unconfigured_ai_truthfully(monkeypatch):
@@ -64,3 +64,66 @@ def test_database_status_reports_current_connection():
     from app.routers.system import _database_status
 
     assert _database_status() == "ONLINE"
+
+def _set_ai_provider_settings(monkeypatch, **overrides):
+    defaults = {
+        "openrouter_api_key": "",
+        "openrouter_model": "openrouter/free",
+        "gemini_api_key": "",
+        "gemini_model": "gemini-3.8-flash",
+        "gemini_tier": "FREE",
+        "mistral_api_key": "",
+        "mistral_model": "mistral-small-latest",
+        "xai_api_key": "",
+        "grok_model": "grok-4.7",
+        "kimi_api_key": "",
+        "kimi_model": "kimi-k2",
+    }
+    defaults.update(overrides)
+    for name, value in defaults.items():
+        monkeypatch.setattr(settings, name, value)
+
+
+def test_free_gemini_is_preferred_over_mistral_and_grok(monkeypatch):
+    _set_ai_provider_settings(
+        monkeypatch,
+        gemini_api_key="configured-gemini-key",
+        mistral_api_key="configured-mistral-key",
+        xai_api_key="configured-xai-key",
+    )
+
+    assert _default_ai_provider() == ("gemini", "gemini-3.8-flash", "FREE")
+
+
+def test_free_openrouter_route_is_preferred_over_gemini(monkeypatch):
+    _set_ai_provider_settings(
+        monkeypatch,
+        openrouter_api_key="configured-openrouter-key",
+        gemini_api_key="configured-gemini-key",
+    )
+
+    assert _default_ai_provider() == ("openrouter", "openrouter/free", "OPENROUTER_FREE")
+
+
+def test_free_gemini_is_preferred_over_paid_openrouter_model(monkeypatch):
+    _set_ai_provider_settings(
+        monkeypatch,
+        openrouter_api_key="configured-openrouter-key",
+        openrouter_model="provider/paid-model",
+        gemini_api_key="configured-gemini-key",
+    )
+
+    assert _default_ai_provider() == ("gemini", "gemini-3.8-flash", "FREE")
+
+
+def test_paid_provider_is_not_labeled_free_when_no_free_route_exists(monkeypatch):
+    _set_ai_provider_settings(
+        monkeypatch,
+        openrouter_api_key="",
+        gemini_api_key="configured-gemini-key",
+        gemini_tier="PAID",
+        mistral_api_key="configured-mistral-key",
+        xai_api_key="configured-xai-key",
+    )
+
+    assert _default_ai_provider() == ("mistral", "mistral-small-latest", "MISTRAL_CONFIGURED")
