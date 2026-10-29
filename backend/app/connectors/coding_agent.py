@@ -470,11 +470,27 @@ async def apply_coding_plan(plan: Any, signature: Any) -> dict[str, Any]:
         + "**Verification boundary**\n\n"
         + "This PR was generated from a reviewed, signed patch proposal. No test is claimed as passed until GitHub Actions checks for the commit complete successfully. The agent did not merge this PR."
     )
-    pull_request = await create_pull_request(
-        committed["branch"],
-        title=("[MR AI] " + summary)[:240],
-        body=pr_body,
-    )
+    try:
+        pull_request = await create_pull_request(
+            committed["branch"],
+            title=("[MR AI] " + summary)[:240],
+            body=pr_body,
+        )
+    except CodingWorkspaceError as exc:
+        # A branch commit may exist even if repository permissions prevent PR creation.
+        # Return that evidence so the UI never claims a PR was opened.
+        return {
+            **committed,
+            "status": "COMMITTED_NO_PR",
+            "pull_request": {"status": "FAILED", "url": None, "error": str(exc)},
+            "summary": summary,
+            "provider": proposal["provider"],
+            "risk": proposal["risk"],
+            "tests_to_run": proposal.get("tests_to_run", []),
+            "manual_checks": proposal.get("manual_checks", []),
+            "plan_id": proposal["plan_id"],
+            "message": "Code is committed on an isolated branch, but GitHub did not allow the PR to open. No tests are claimed as passed.",
+        }
     return {
         **committed,
         "status": "PR_OPENED" if pull_request.get("status") == "OPENED" else "PR_EXISTS",
