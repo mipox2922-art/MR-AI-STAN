@@ -92,3 +92,35 @@ def test_run_schedule_now_moves_next_run_to_now():
     assert result["next_run_at"] is not None
     refreshed = db.query(ScheduledJob).one()
     assert refreshed.status == "ACTIVE"
+
+
+def test_overlapping_scheduler_cycle_is_skipped(monkeypatch):
+    import asyncio
+    from app import scheduler as scheduler_module
+
+    async def scenario():
+        entered = asyncio.Event()
+        release = asyncio.Event()
+        calls = 0
+
+        async def blocked_cycle():
+            nonlocal calls
+            calls += 1
+            entered.set()
+            await release.wait()
+            return 2, 3
+
+        monkeypatch.setattr(scheduler_module, "_run_scheduler_cycle_once", blocked_cycle)
+        first = asyncio.create_task(scheduler_module.run_scheduler_cycle())
+        await asyncio.wait_for(entered.wait(), timeout=1)
+
+        # A simultaneous caller (for example the GitHub wake-up while the
+        # in-process loop is running) must not start a second task scan.
+        second = await scheduler_module.run_scheduler_cycle()
+        assert second == (0, 0)
+
+        release.set()
+        assert await first == (2, 3)
+        assert calls == 1
+
+    asyncio.run(scenario())
