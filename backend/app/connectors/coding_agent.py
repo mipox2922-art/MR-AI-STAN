@@ -15,9 +15,11 @@ from ..providers.factory import get_provider
 from .coding_workspace import (
     CodingWorkspaceError,
     _validate_configuration,
+    coding_workspace_status,
     commit_files_atomically,
     create_pull_request,
     get_branch_head_sha,
+    inspect_files,
     list_source_files,
     validate_workspace_path,
 )
@@ -53,7 +55,7 @@ def _free_provider_name() -> str | None:
 
 
 def coding_agent_status() -> dict[str, Any]:
-    workspace = __import__("app.connectors.coding_workspace", fromlist=["coding_workspace_status"]).coding_workspace_status()
+    workspace = coding_workspace_status()
     provider = _free_provider_name()
     capable = bool(workspace.get("configured") and provider)
     return {
@@ -162,7 +164,7 @@ def _candidate_paths(request_text: str, files: list[dict[str, Any]]) -> list[dic
         if lower.endswith(("main.py", "app.jsx", "app.tsx", "api.js", "package.json", "pyproject.toml")):
             score += 1
         candidates.append({**item, "score": score})
-    candidates.sort(key=lambda row: (-int(row["score"]), str(row["path"]))
+    candidates.sort(key=lambda row: (-int(row["score"]), str(row["path"])))
     return candidates[:120]
 
 
@@ -269,9 +271,7 @@ async def plan_coding_task(request_text: str) -> dict[str, Any]:
     if not any(validate_workspace_path(path) for path in selected):
         raise CodingWorkspaceError("The selected files failed the Coding Agent path allowlist.", 400)
 
-    inspected = await __import__(
-        "app.connectors.coding_workspace", fromlist=["inspect_files"]
-    ).inspect_files(selected, branch=base_branch)
+    inspected = await inspect_files(selected, branch=base_branch)
     loaded = [row for row in inspected.get("files", []) if row.get("status") == "COMPLETED" and not row.get("truncated")]
     if not loaded:
         raise CodingWorkspaceError("The Coding Agent could not read the selected files from GitHub.", 502)
