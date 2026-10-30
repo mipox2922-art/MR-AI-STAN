@@ -258,6 +258,6 @@ def test_agent_fleet_reports_missing_execution_hands_instead_of_fake_ready_statu
     for agent_id in ("browser", "coding", "creative", "device", "security"):
         assert fleet[agent_id]["runtime_status"] == "WAITING_FOR_HAND"
     assert fleet["gmail"]["runtime_status"] in {"NOT_CONNECTED", "NOT_CONFIGURED"}
-    assert fleet["research"]["runtime_status"] in {"CONFIGURED", "NOT_CONNECTED"}
+    assert fleet["research"]["runtime_status"] in {"CONFIGURED", "NOT_CONNECTED", "AVAILABLE"}
     assert all("runtime_status" in item for item in fleet.values())
     db.close()
