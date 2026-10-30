@@ -204,9 +204,9 @@ def system_diagnostics(current_user=Depends(get_current_user)):
         },
         {
             "id": "web_search",
-            "label": "General web search",
-            "status": "CONFIGURED" if settings.searxng_url else "OPTIONAL",
-            "detail": "SearXNG URL is configured." if settings.searxng_url else "SearXNG is not configured. General web search through that connector is unavailable; Job Research uses separate public feeds.",
+            "label": "Research sources",
+            "status": "CONFIGURED" if settings.searxng_url else "AVAILABLE",
+            "detail": "SearXNG is configured for metasearch." if settings.searxng_url else "General research uses bounded public Wikipedia and Hacker News APIs. This is a limited fallback, not full-web metasearch.",
         },
         {
             "id": "gmail",
