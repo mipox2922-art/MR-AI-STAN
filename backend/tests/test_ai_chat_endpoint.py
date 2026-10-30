@@ -1,5 +1,7 @@
 from types import SimpleNamespace
 
+import pytest
+
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
@@ -9,6 +11,18 @@ from app.database import Base, get_db
 from app.dependencies import get_current_user
 from app.providers.base import AIProviderError
 from app.routers import ai as ai_router
+
+
+@pytest.fixture(autouse=True)
+def reset_provider_cooldowns_between_tests():
+    # Cooldowns are intentionally process-wide at runtime. Tests must not
+    # inherit a 429/failure from a previous test case.
+    from app.providers.resilience import reset_provider_runtime_state
+
+    reset_provider_runtime_state()
+    yield
+    reset_provider_runtime_state()
+
 
 
 def build_chat_client(tmp_path):
