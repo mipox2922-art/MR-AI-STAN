@@ -118,6 +118,8 @@ def test_gmail_assistant_saves_reply_draft_and_deduplicates(monkeypatch):
     assert record["status"] == "DRAFT_READY"
     assert record["reply_draft"].startswith("Thanks for reaching out")
     assert db.query(Task).filter(Task.user_id == user.id).count() == 1
+    draft_task = db.query(Task).filter(Task.user_id == user.id).one()
+    assert draft_task.status == "READY_FOR_REVIEW"
 
     again = asyncio.run(gmail_assistant.run_gmail_assistant_for_user(db, user.id, force=True))
     assert again["summary"]["messages_processed"] == 0
