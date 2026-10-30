@@ -686,7 +686,7 @@ async def execute_mission(
                             "step": index, "agent": agent_id, "name": step_name,
                             "tool": "coding_workspace", "status": "NOT_CONNECTED", "verified": False,
                             "evidence": {
-                                "message": "GitHub source files zimesomwa, lakini hakuna AI provider iliyo-configured kufanya code review. Hakuna test/build iliyotekelezwa.",
+                                "message": "GitHub source files zimesomwa, lakini hakuna explicitly free AI provider ya kufanya automatic code review. Paid providers hazitatumika kimyakimya. Hakuna test/build iliyotekelezwa.",
                                 "files": [{"path": row["path"], "sha": row.get("sha"), "size": row.get("size")} for row in files],
                             },
                         })
