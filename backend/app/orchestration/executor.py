@@ -117,12 +117,16 @@ def _is_safe_for_autonomous_execution(
             from ..core.intent import classify
             if classify(request).name in {"MEMORY_SEARCH", "MEMORY_SAVE"}:
                 continue
-        # The extension enforces its local domain allowlist. Only page reads,
-        # bounded scrolling and allowlisted navigation may start automatically.
+        # The owner may grant a narrow standing rule to fill non-sensitive fields.
+        # The extension still enforces the domain allowlist and blocks credential/payment fields.
         if agent_id == "browser" and "browser_hands" in tools:
             handoff = build_browser_handoff(request)
             if handoff and handoff.get("action") in {"GET_PAGE_DATA", "SCROLL", "NAVIGATE"}:
                 continue
+            if handoff and handoff.get("action") == "TYPE":
+                from ..core.authorizations import authorization_enabled
+                if authorization_enabled(db, user_id, "browser.fill_non_sensitive"):
+                    continue
         # Read-only source reviews may run without approval; mutations remain approval-gated.
         if agent_id == "coding" and _is_read_only_coding_review(request):
             continue
