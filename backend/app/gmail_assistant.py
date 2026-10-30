@@ -156,14 +156,10 @@ def configure_assistant(db: Session, user_id: int, *, enabled: bool | None = Non
 
 
 def _preferred_provider() -> str | None:
-    providers = (
-        ("gemini", settings.gemini_api_key),
-        ("openrouter", settings.openrouter_api_key),
-        ("kimi", settings.kimi_api_key),
-        ("mistral", settings.mistral_api_key),
-        ("grok", settings.xai_api_key),
-    )
-    return next((name for name, key in providers if str(key or "").strip()), None)
+    """Background Gmail automation may use only an explicitly free AI route."""
+    from .routers.system import _default_ai_provider
+
+    return _default_ai_provider()[0]
 
 
 def _parse_ai_result(raw: str) -> dict[str, Any]:
