@@ -66,7 +66,7 @@ def _service_status() -> dict:
         "memory": "ONLINE",
         "web_app": "ONLINE",
         "agents": "REGISTERED",
-        "web_search": "CONFIGURED" if settings.searxng_url else "NOT_CONFIGURED",
+        "web_search": "CONFIGURED" if settings.searxng_url else "AVAILABLE",
         "security": "NOT_CONFIGURED",
         "voice": "NOT_CONFIGURED",
         "extension": "NOT_CONNECTED",
