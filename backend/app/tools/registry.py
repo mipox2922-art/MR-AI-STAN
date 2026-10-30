@@ -169,10 +169,10 @@ def get_tool_registry() -> list[dict[str, Any]]:
             "id": "searxng",
             "name": "SearXNG Search",
             "category": "RESEARCH",
-            "status": "CONNECTED" if settings.searxng_url else "OPTIONAL_NOT_CONFIGURED",
-            "mode": "SELF_HOSTED",
+            "status": "CONNECTED" if settings.searxng_url else "AVAILABLE",
+            "mode": "SELF_HOSTED_WITH_PUBLIC_FALLBACK",
             "free": True,
-            "description": "Privacy-oriented metasearch through a configured self-hosted SearXNG instance.",
+            "description": "Uses configured SearXNG when available; otherwise tries DuckDuckGo's public HTML search without an API key. Runtime success is reported only after live results are received.",
         },
         {
             **_binary_status("adb", "adb"),
