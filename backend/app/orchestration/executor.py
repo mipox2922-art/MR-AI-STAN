@@ -67,6 +67,25 @@ def _is_read_only_gmail_request(request: str) -> bool:
     )
     return any(term in value for term in read_intents)
 
+def _is_read_only_web_research_request(request: str) -> bool:
+    """Permit explicit public-search commands only; never infer research from arbitrary chat."""
+    value = str(request or "").strip().casefold()
+    if not value:
+        return False
+    blocked_prefix = re.match(
+        r"^(?:send\b|tuma\b|apply\b|omba\s+kazi\b|submit\b|delete\b|futa\b|purchase\b|pay\b|login\b|log\s+in\b)",
+        value,
+        flags=re.IGNORECASE,
+    )
+    if blocked_prefix:
+        return False
+    return bool(re.match(
+        r"^(?:tafuta(?:\s+mtandaoni)?(?:\s+kuhusu)?|search(?:\s+(?:the\s+web|online|for))?|research|jua\s+kuhusu|nipe\s+taarifa(?:\s+kuhusu)?|onyesha)\b",
+        value,
+        flags=re.IGNORECASE,
+    ))
+
+
 def _is_read_only_job_request(request: str) -> bool:
     """Permit public job-feed research only; application submission is a side effect."""
     value = str(request or "").strip().casefold()
@@ -137,9 +156,8 @@ def _is_safe_for_autonomous_execution(
             # Only explicit read-only research or a recognized broker request
             # may start unattended. The planner's generic fallback agent is not
             # blanket authorization for arbitrary chat text.
-            from ..core.intent import classify
             from ..routers.business_broker import is_business_broker_request
-            if classify(request).name == "WEB_RESEARCH" or is_business_broker_request(request):
+            if _is_read_only_web_research_request(request) or is_business_broker_request(request):
                 continue
         # Gmail reads are automatic only when OAuth is currently connected.
         if agent_id == "gmail" and _is_read_only_gmail_request(request):
