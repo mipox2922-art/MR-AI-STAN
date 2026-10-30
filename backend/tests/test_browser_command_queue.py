@@ -12,7 +12,7 @@ from app.database import Base
 from app.models import ApprovalRequest, Task, TaskStep
 from app.orchestration.executor import execute_mission
 from app.orchestration.planner import select_agents
-from app.routers.agents import claim_browser_command, report_browser_command_result
+from app.routers.agents import claim_browser_command, report_browser_command_result, _browser_heartbeat_status
 from app.routers.tasks import task_payload
 
 
@@ -244,4 +244,18 @@ def test_resuming_a_waiting_mission_does_not_enqueue_a_duplicate_browser_action(
     assert len(commands) == 1
     assert commands[0].id == original.id
     assert commands[0].status == "QUEUED"
+    db.close()
+
+
+def test_authenticated_extension_poll_persists_live_browser_heartbeat():
+    db = make_db()
+    user = SimpleNamespace(id=919)
+
+    response = claim_browser_command(current_user=user, db=db)
+    status = _browser_heartbeat_status(db, user.id)
+
+    assert response == {"status": "EMPTY", "command": None}
+    assert status["connected"] is True
+    assert status["status"] == "CONNECTED"
+    assert status["last_seen"]
     db.close()
