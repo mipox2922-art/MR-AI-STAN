@@ -13,15 +13,15 @@ _COOLDOWNS: dict[str, float] = {}
 _LAST_FAILURE: dict[str, dict[str, str]] = {}
 _FAILURE_COUNTS: dict[str, int] = {}
 
-_RATE_LIMIT = re.compile(r"\\b(429|rate.?limit|too many requests|quota|resource exhausted)\\b", re.I)
-_AUTH_FAILURE = re.compile(r"\\b(401|403|unauthorized|invalid api.?key|permission denied)\\b", re.I)
-_SERVER_FAILURE = re.compile(r"\\b(500|502|503|504|timeout|timed out|connection|temporarily unavailable)\\b", re.I)
+_RATE_LIMIT = re.compile(r"\b(429|rate.?limit|too many requests|quota|resource exhausted)\b", re.I)
+_AUTH_FAILURE = re.compile(r"\b(401|403|unauthorized|invalid api.?key|permission denied)\b", re.I)
+_SERVER_FAILURE = re.compile(r"\b(500|502|503|504|timeout|timed out|connection|temporarily unavailable)\b", re.I)
 
 
 def _safe_detail(error: BaseException) -> str:
     raw = str(getattr(error, "detail", None) or error or type(error).__name__)
-    value = re.sub(r"(?i)bearer\\s+[^\\s,;]+", "Bearer [redacted]", raw)
-    value = re.sub(r"(?i)(api[_-]?key|token|secret)(\\s*[:=]\\s*)[^\\s,;]+", r"\\1\\2[redacted]", value)
+    value = re.sub(r"(?i)bearer\s+[^\s,;]+", "Bearer [redacted]", raw)
+    value = re.sub(r"(?i)(api[_-]?key|token|secret)(\s*[:=]\s*)[^\s,;]+", r"\1\2[redacted]", value)
     return value[:240]
 
 
