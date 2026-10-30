@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from ..config import settings
 from ..models import ActivityLog, ApprovalRequest, Task, TaskStep
 from ..core.memory_context import recall_relevant_memories
-from ..routers.system import system_status
+from ..routers.system import _default_ai_provider, system_status
 from ..tools.registry import registry_summary
 from ..tools.router import route_command
 from .handoffs import build_browser_handoff
@@ -679,14 +679,8 @@ async def execute_mission(
                         "evidence": {"message": "Hakuna source file iliyoweza kusomwa kupitia GitHub API.", "files": failures[:6]},
                     })
                 else:
-                    provider = (
-                        "gemini" if settings.gemini_api_key.strip()
-                        else "openrouter" if settings.openrouter_api_key.strip()
-                        else "kimi" if settings.kimi_api_key.strip()
-                        else "mistral" if settings.mistral_api_key.strip()
-                        else "grok" if settings.xai_api_key.strip()
-                        else None
-                    )
+                    # Autonomous code review uses only an explicitly free route.
+                    provider = _default_ai_provider()[0]
                     if not provider:
                         steps.append({
                             "step": index, "agent": agent_id, "name": step_name,
