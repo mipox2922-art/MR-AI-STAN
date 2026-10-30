@@ -119,7 +119,32 @@ def _browser_result_is_verified(command: dict, result: dict) -> bool:
 
     if action == "TYPE":
         element = result.get("element")
-        return isinstance(element, dict) and isinstance(result.get("valueLength"), int)
+        expected_value = (command.get("payload") or {}).get("value")
+        if not isinstance(element, dict) or not isinstance(expected_value, str):
+            return False
+        tag = str(element.get("tag") or "").casefold()
+        input_type = str(element.get("type") or "").casefold()
+        autocomplete = str(element.get("autocomplete") or "").casefold()
+        sensitive = (
+            input_type == "password"
+            or autocomplete in {"one-time-code", "cc-number", "cc-csc", "cc-exp"}
+            or any(term in " ".join([
+                str(element.get("id") or ""),
+                str(element.get("name") or ""),
+                str(element.get("ariaLabel") or ""),
+                str(element.get("placeholder") or ""),
+                autocomplete,
+            ]).casefold() for term in (
+                "password", "passcode", "otp", "credit-card", "card-number",
+                "cvv", "cvc", "security-code", "bank-pin",
+            ))
+        )
+        writable = tag in {"input", "textarea"} or element.get("contentEditable") is True
+        return bool(
+            writable
+            and not sensitive
+            and result.get("valueLength") == len(expected_value)
+        )
 
     return False
 
