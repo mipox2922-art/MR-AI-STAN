@@ -36,7 +36,7 @@ def _agent_runtime_status(agent_id: str, user: Any, db: Session, tool_status: di
         except Exception:
             return "NOT_CONNECTED"
     if agent_id == "research":
-        return "CONFIGURED" if tool_status.get("searxng") == "CONNECTED" else "NOT_CONNECTED"
+        return "CONNECTED" if tool_status.get("searxng") == "CONNECTED" else "AVAILABLE"
     if agent_id == "scheduler":
         return "AVAILABLE"
     # Registered does not imply a live execution connection.
