@@ -354,7 +354,7 @@ async def _process_followups(db: Session, user_id: int, auto_send_enabled: bool)
             provider = _preferred_provider()
             if not provider:
                 record["status"] = "NEEDS_AI_PROVIDER"
-                record["follow_up_note"] = "Follow-up is due, but no AI provider is configured."
+                record["follow_up_note"] = "Follow-up is due, but no explicitly free AI provider is configured. Paid providers are not selected automatically."
                 _save_record(db, user_id, record)
                 stats["errors"] += 1
                 continue
