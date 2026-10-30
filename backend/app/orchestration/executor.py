@@ -69,10 +69,11 @@ def _is_read_only_gmail_request(request: str) -> bool:
 def _is_read_only_web_research_request(request: str) -> bool:
     """Allow only explicit public-search commands into unattended research."""
     value = str(request or "").strip().casefold()
-    if not value or any(term in value for term in (
-        "send ", "tuma ", "apply ", "omba kazi", "submit", "delete ", "futa ",
-        "purchase", "pay ", "login", "log in", "password", "credential",
-    )):
+    if not value or re.match(
+        r"^(?:send\b|tuma\b|apply\b|omba\s+kazi\b|submit\b|delete\b|futa\b|purchase\b|pay\b|login\b|log\s+in\b|password\b|credential\b)",
+        value,
+        flags=re.IGNORECASE,
+    ):
         return False
     return bool(re.match(
         r"^(?:tafuta(?:\s+mtandaoni)?|search(?:\s+(?:the\s+web|online|for))?|research|jua\s+kuhusu|nipe\s+taarifa(?:\s+kuhusu)?|onyesha)\b",
