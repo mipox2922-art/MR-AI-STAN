@@ -135,7 +135,7 @@ async function apiMock(route) {
   if (method === "GET" && path === "/orchestrator/authorizations") {
     return sendJson(route, { version: 1, rules: mockStandingRules, blocked_actions: [] });
   }
-  if (method === "PUT" && /^\\/orchestrator\\/authorizations\\/[a-z.]+$/.test(path)) {
+  if (method === "PUT" && path.startsWith("/orchestrator/authorizations/")) {
     const policyId = decodeURIComponent(path.split("/").pop());
     const rule = mockStandingRules.find(item => item.id === policyId);
     if (!rule) return sendJson(route, { detail: "Standing authorization policy not found." }, 404);
