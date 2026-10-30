@@ -95,7 +95,8 @@ async def execute(intent: Intent, user_id: int, db: Session) -> dict[str, Any]:
         }
     elif intent.name == "WEB_RESEARCH":
         if not settings.searxng_url:
-            return {"status": "NOT_CONNECTED", "reason": "SEARXNG_URL is not configured", "query": intent.parameters.get("query", "")}
+            from ..research.public_sources import search_public_sources
+            return await search_public_sources(str(intent.parameters.get("query", "")), limit=10)
         async with httpx.AsyncClient(timeout=10, follow_redirects=True) as client:
             response = await client.get(settings.searxng_url.rstrip("/") + "/search", params={"q": intent.parameters.get("query", ""), "format": "json"})
             response.raise_for_status()
