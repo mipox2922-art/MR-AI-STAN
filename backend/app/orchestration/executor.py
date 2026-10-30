@@ -75,7 +75,7 @@ def _is_read_only_web_research_request(request: str) -> bool:
     )):
         return False
     return bool(re.match(
-        r"^(?:tafuta(?:\\s+mtandaoni)?|search(?:\\s+(?:the\\s+web|online|for))?|research|jua\\s+kuhusu|nipe\\s+taarifa(?:\\s+kuhusu)?|onyesha)\\b",
+        r"^(?:tafuta(?:\s+mtandaoni)?|search(?:\s+(?:the\s+web|online|for))?|research|jua\s+kuhusu|nipe\s+taarifa(?:\s+kuhusu)?|onyesha)\b",
         value,
         flags=re.IGNORECASE,
     ))
