@@ -139,11 +139,14 @@ def _browser_result_is_verified(command: dict, result: dict) -> bool:
                 "cvv", "cvc", "security-code", "bank-pin",
             ))
         )
-        writable = tag in {"input", "textarea"} or element.get("contentEditable") is True
+        input_writable = tag == "input" and input_type in {"text", "search", "email", "tel", "url", "number"}
+        textarea_writable = tag == "textarea"
+        content_editable = element.get("contentEditable") is True
+        expected_length = len(expected_value.encode("utf-16-le")) // 2
         return bool(
-            writable
+            (input_writable or textarea_writable or content_editable)
             and not sensitive
-            and result.get("valueLength") == len(expected_value)
+            and result.get("valueLength") == expected_length
         )
 
     return False
