@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..dependencies import get_current_user
-from ..models import ActivityLog, ApprovalRequest, Task, TaskStep
+from ..models import ActivityLog, ApprovalRequest, Setting, Task, TaskStep
 from ..routers.system import system_status
 from ..agents.registry import AGENTS
 from ..orchestration.planner import build_plan
@@ -65,6 +65,54 @@ def executive_briefing(
 
 BROWSER_COMMAND_TTL_SECONDS = 180
 BROWSER_RESULT_MAX_BYTES = 30000
+BROWSER_HEARTBEAT_KEY = "browser_hands.last_seen"
+BROWSER_HEARTBEAT_TTL_SECONDS = 90
+
+
+def _record_browser_heartbeat(db: Session, user_id: int) -> str:
+    """Persist authenticated extension polling as a per-owner live heartbeat."""
+    now = datetime.now(timezone.utc)
+    row = db.query(Setting).filter(
+        Setting.user_id == user_id,
+        Setting.key == BROWSER_HEARTBEAT_KEY,
+    ).order_by(Setting.id.desc()).first()
+    if row is not None:
+        try:
+            previous = datetime.fromisoformat(str(row.value or "").replace("Z", "+00:00"))
+            if previous.tzinfo is None:
+                previous = previous.replace(tzinfo=timezone.utc)
+            if (now - previous).total_seconds() < 20:
+                return previous.isoformat()
+        except (TypeError, ValueError):
+            pass
+        row.value = now.isoformat()
+    else:
+        db.add(Setting(user_id=user_id, key=BROWSER_HEARTBEAT_KEY, value=now.isoformat()))
+    db.commit()
+    return now.isoformat()
+
+
+def _browser_heartbeat_status(db: Session, user_id: int) -> dict:
+    row = db.query(Setting).filter(
+        Setting.user_id == user_id,
+        Setting.key == BROWSER_HEARTBEAT_KEY,
+    ).order_by(Setting.id.desc()).first()
+    if row is None or not row.value:
+        return {"status": "WAITING_FOR_HAND", "connected": False, "last_seen": None}
+    try:
+        seen = datetime.fromisoformat(str(row.value).replace("Z", "+00:00"))
+        if seen.tzinfo is None:
+            seen = seen.replace(tzinfo=timezone.utc)
+    except (TypeError, ValueError):
+        return {"status": "WAITING_FOR_HAND", "connected": False, "last_seen": None}
+    age = max(0.0, (datetime.now(timezone.utc) - seen).total_seconds())
+    connected = age <= BROWSER_HEARTBEAT_TTL_SECONDS
+    return {
+        "status": "CONNECTED" if connected else "WAITING_FOR_HAND",
+        "connected": connected,
+        "last_seen": seen.isoformat(),
+        "age_seconds": int(age),
+    }
 
 
 def _parse_browser_command(task: Task) -> dict:
@@ -358,12 +406,22 @@ def _reconcile_browser_command(
     }
 
 
+@router.get("/browser/status")
+def browser_hand_status(
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Expose the last authenticated Chrome-extension heartbeat for this owner."""
+    return _browser_heartbeat_status(db, current_user.id)
+
+
 @router.get("/browser/next")
 def claim_browser_command(
     current_user=Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """Atomically claim one persisted browser command for this authenticated user."""
+    _record_browser_heartbeat(db, current_user.id)
     stale_cutoff = datetime.utcnow() - timedelta(seconds=BROWSER_COMMAND_TTL_SECONDS)
     stale_commands = db.query(Task).filter(
         Task.user_id == current_user.id,
