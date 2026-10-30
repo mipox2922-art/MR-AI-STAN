@@ -321,7 +321,10 @@ class _DuckDuckGoResultsParser(HTMLParser):
         if tag == "a" and "result__a" in classes:
             raw_url = str(attrs.get("href") or "").strip()
             parsed = urlparse(raw_url)
-            if parsed.hostname and parsed.hostname.lower().endswith("duckduckgo.com"):
+            if (
+                (parsed.hostname and parsed.hostname.lower().endswith("duckduckgo.com"))
+                or parsed.path.startswith("/l/")
+            ):
                 target = parse_qs(parsed.query).get("uddg", [""])[0]
             else:
                 target = raw_url
