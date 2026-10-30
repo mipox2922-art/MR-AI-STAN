@@ -134,9 +134,13 @@ def _is_safe_for_autonomous_execution(
         # Business brokerage is read-only discovery plus owner-scoped record/draft/task creation.
         # The broker returns NOT_CONNECTED when the selected source is not configured; it never fabricates leads.
         if agent_id == "research" and "searxng" in tools:
-            # Search is read-only and has bounded public API fallbacks; source errors
-            # are persisted as failures instead of forcing a manual approval queue.
-            continue
+            # Only explicit read-only research or a recognized broker request
+            # may start unattended. The planner's generic fallback agent is not
+            # blanket authorization for arbitrary chat text.
+            from ..core.intent import classify
+            from ..routers.business_broker import is_business_broker_request
+            if classify(request).name == "WEB_RESEARCH" or is_business_broker_request(request):
+                continue
         # Gmail reads are automatic only when OAuth is currently connected.
         if agent_id == "gmail" and _is_read_only_gmail_request(request):
             try:
@@ -153,7 +157,7 @@ def _is_safe_for_autonomous_execution(
 def _web_search_query(request: str) -> str:
     value = request.strip()
     value = re.sub(
-        r"^(?:tafuta(?:\s+mtandaoni)?|search(?:\s+(?:the\s+web|online|for))?|research|jua\s+kuhusu|nipe\s+taarifa(?:\s+kuhusu)?|onyesha)\s*",
+        r"^(?:tafuta(?:\s+mtandaoni)?(?:\s+kuhusu)?|search(?:\s+(?:the\s+web|online|for))?|research|jua\s+kuhusu|nipe\s+taarifa(?:\s+kuhusu)?|onyesha)\s*",
         "",
         value,
         flags=re.IGNORECASE,
