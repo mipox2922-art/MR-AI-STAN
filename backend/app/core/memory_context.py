@@ -13,7 +13,7 @@ _SECRET_KEY = re.compile(
     re.I,
 )
 _SECRET_VALUE = re.compile(
-    r"(?:bearer\\s+[a-z0-9._-]{16,}|sk-[a-z0-9_-]{16,}|AIza[0-9A-Za-z_-]{20,})",
+    r"(?:bearer\s+[a-z0-9._-]{16,}|sk-[a-z0-9_-]{16,}|AIza[0-9A-Za-z_-]{20,})",
     re.I,
 )
 _STOP_WORDS = {
