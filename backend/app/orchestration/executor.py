@@ -66,6 +66,21 @@ def _is_read_only_gmail_request(request: str) -> bool:
     )
     return any(term in value for term in read_intents)
 
+def _is_read_only_web_research_request(request: str) -> bool:
+    """Allow only explicit public-search commands into unattended research."""
+    value = str(request or "").strip().casefold()
+    if not value or any(term in value for term in (
+        "send ", "tuma ", "apply ", "omba kazi", "submit", "delete ", "futa ",
+        "purchase", "pay ", "login", "log in", "password", "credential",
+    )):
+        return False
+    return bool(re.match(
+        r"^(?:tafuta(?:\\s+mtandaoni)?|search(?:\\s+(?:the\\s+web|online|for))?|research|jua\\s+kuhusu|nipe\\s+taarifa(?:\\s+kuhusu)?|onyesha)\\b",
+        value,
+        flags=re.IGNORECASE,
+    ))
+
+
 def _is_read_only_job_request(request: str) -> bool:
     """Permit public job-feed research only; application submission is a side effect."""
     value = str(request or "").strip().casefold()
@@ -134,7 +149,8 @@ def _is_safe_for_autonomous_execution(
         # The broker returns NOT_CONNECTED when the selected source is not configured; it never fabricates leads.
         if agent_id == "research" and "searxng" in tools:
             from ..routers.business_broker import is_business_broker_request
-            if is_business_broker_request(request) or settings.searxng_url:
+            # General web search has a built-in no-key fallback when SearXNG is absent.
+            if is_business_broker_request(request) or _is_read_only_web_research_request(request):
                 continue
         # Gmail reads are automatic only when OAuth is currently connected.
         if agent_id == "gmail" and _is_read_only_gmail_request(request):
@@ -516,29 +532,31 @@ async def execute_mission(
                 _persist_step_progress(db, mission, steps)
                 continue
 
-            if not settings.searxng_url:
+            query = _web_search_query(request)
+            try:
+                from ..routers.tools import _search_searxng
+                result = await _search_searxng(query)
+                results = result.get("results") or []
+                successful = str(result.get("status", "")).upper() == "COMPLETED" and bool(results)
                 steps.append({"step": index, "agent": agent_id, "name": step_name,
-                    "tool": "searxng", "status": "NOT_CONNECTED", "verified": False,
-                    "evidence": {"message": "SearXNG is not configured; web research was not executed."}})
-            else:
-                query = _web_search_query(request)
-                try:
-                    from ..routers.tools import _search_searxng
-                    result = await _search_searxng(query)
-                    successful = str(result.get("status", "")).upper() == "COMPLETED"
-                    steps.append({"step": index, "agent": agent_id, "name": step_name,
-                        "tool": "searxng", "status": "COMPLETED" if successful else str(result.get("status", "FAILED")).upper(),
-                        "verified": successful, "evidence": {
-                            "query": query,
-                            "source": result.get("source"),
-                            "result_count": len(result.get("results") or []),
-                            "results": (result.get("results") or [])[:10],
-                            "message": "Live search results received from configured SearXNG." if successful else result.get("message", "Search did not complete."),
-                        }})
-                except Exception as exc:
-                    steps.append({"step": index, "agent": agent_id, "name": step_name, "tool": "searxng",
-                        "status": "FAILED", "verified": False,
-                        "evidence": {"query": query, "message": f"Web research failed: {type(exc).__name__}."}})
+                    "tool": str(result.get("source") or "web_search"), "status": "COMPLETED" if successful else "NOT_CONNECTED",
+                    "verified": successful, "evidence": {
+                        "query": query,
+                        "source": result.get("source"),
+                        "fallback_used": result.get("fallback_used", False),
+                        "source_warnings": result.get("source_warnings") or [],
+                        "result_count": len(results),
+                        "results": results[:10],
+                        "message": (
+                            "Live public web search results received and saved as mission evidence."
+                            if successful else
+                            result.get("message", "Search did not return verifiable results.")
+                        ),
+                    }})
+            except Exception as exc:
+                steps.append({"step": index, "agent": agent_id, "name": step_name, "tool": "web_search",
+                    "status": "FAILED", "verified": False,
+                    "evidence": {"query": query, "message": f"Web research failed: {type(exc).__name__}."}})
             _persist_step_progress(db, mission, steps)
             continue
 
