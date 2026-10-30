@@ -1,6 +1,3 @@
-import asyncio
-from types import SimpleNamespace
-
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
@@ -136,3 +133,12 @@ def test_browser_type_verification_checks_expected_value_and_non_sensitive_targe
         command,
         _type_result(len("Boss Ferisi"), tag="div", content_editable=False),
     ) is False
+    assert _browser_result_is_verified(
+        command,
+        _type_result(len("Boss Ferisi"), input_type="hidden"),
+    ) is False
+
+    emoji_value = "Boss 🚀"
+    utf16_length = len(emoji_value.encode("utf-16-le")) // 2
+    emoji_command = {"action": "TYPE", "payload": {"value": emoji_value}}
+    assert _browser_result_is_verified(emoji_command, _type_result(utf16_length)) is True
