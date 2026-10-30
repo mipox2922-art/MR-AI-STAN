@@ -326,7 +326,7 @@ class _DuckDuckGoResultsParser(HTMLParser):
                 self._depth = 1
                 return
         if "result__snippet" in classes and self.results:
-            self._mode = "snippet"
+            self._mode = "content"
             self._depth = 1
             return
         if self._mode and tag not in self._VOID_TAGS:
