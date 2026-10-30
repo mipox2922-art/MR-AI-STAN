@@ -218,3 +218,44 @@ def test_job_application_requests_are_not_autonomous():
 def test_empty_or_ambiguous_job_request_is_not_autonomous():
     assert not _is_read_only_job_request("")
     assert not _is_read_only_job_request("help me with my career")
+
+
+def test_mission_persists_relevant_owner_memory_for_resume_and_agent_context(monkeypatch):
+    import app.routers.jobs as jobs_module
+
+    db = make_db()
+    user = SimpleNamespace(id=47)
+    db.add(Memory(
+        user_id=user.id,
+        key="career_preferences",
+        value="Boss ana uzoefu wa graphic design, printing na anapendelea kazi za remote.",
+    ))
+    db.add(Memory(
+        user_id=999,
+        key="career_preferences",
+        value="Different account private career data.",
+    ))
+    db.commit()
+
+    async def fake_research(query, limit=15):
+        return {
+            "status": "COMPLETED",
+            "query": query,
+            "count": 0,
+            "results": [],
+            "sources": ["RemoteOK"],
+            "source_warnings": [],
+        }
+
+    monkeypatch.setattr(jobs_module, "research_public_jobs", fake_research)
+    result = asyncio.run(execute_mission("Tafuta kazi za graphic design", user, db))
+
+    mission = db.query(Task).filter_by(user_id=user.id, agent="orchestrator").one()
+    packet = json.loads(mission.result)
+
+    assert result["status"] == "COMPLETED"
+    assert len(packet["memory_context"]) == 1
+    assert packet["memory_context"][0]["key"] == "career_preferences"
+    assert "graphic design" in packet["memory_context"][0]["value"].lower()
+    assert "Different account" not in mission.result
+    db.close()
