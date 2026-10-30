@@ -91,7 +91,7 @@ def test_read_only_web_research_commands_are_allowed(request_text):
 
 
 @pytest.mark.parametrize(
-    "request",
+    "request_text",
     [
         "send email to the client",
         "apply for remote jobs",
