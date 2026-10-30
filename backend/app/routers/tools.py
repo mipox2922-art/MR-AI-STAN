@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import json
 from datetime import datetime, timezone
+from html.parser import HTMLParser
 from typing import Any
+from urllib.parse import parse_qs, urlparse
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException
@@ -23,6 +25,7 @@ from ..connectors.coding_workspace import (
 from ..dependencies import get_current_user
 from ..tools.registry import registry_summary
 from ..tools.router import route_command
+from ..research.public_sources import search_public_sources
 from ..routers.system import system_status
 from ..models import ActivityLog, Task, TaskStep
 from ..database import get_db
@@ -36,45 +39,10 @@ def list_tools(current_user=Depends(get_current_user)) -> dict[str, Any]:
 
 @router.post("/search")
 async def search_web(payload: dict[str, Any], current_user=Depends(get_current_user)) -> dict[str, Any]:
-    query = str(payload.get("query", "")).strip()
+    query = str(payload.get("query", "")).strip()[:300]
     if not query:
         raise HTTPException(status_code=400, detail="query is required")
-
-    if not settings.searxng_url:
-        return {
-            "status": "NOT_CONNECTED",
-            "query": query,
-            "results": [],
-            "message": "Configure SEARXNG_URL to connect a self-hosted SearXNG instance.",
-        }
-
-    endpoint = settings.searxng_url.rstrip("/") + "/search"
-    try:
-        async with httpx.AsyncClient(timeout=10, follow_redirects=True) as client:
-            response = await client.get(
-                endpoint,
-                params={"q": query, "format": "json"},
-            )
-            response.raise_for_status()
-            data = response.json()
-    except (httpx.HTTPError, ValueError) as exc:
-        raise HTTPException(status_code=502, detail=f"SearXNG search failed: {type(exc).__name__}")
-
-    results = []
-    for item in data.get("results", [])[:20]:
-        results.append({
-            "title": item.get("title", ""),
-            "url": item.get("url", ""),
-            "content": item.get("content", ""),
-            "engine": item.get("engine", ""),
-        })
-
-    return {
-        "status": "COMPLETED",
-        "query": query,
-        "results": results,
-        "source": "configured_searxng",
-    }
+    return await _search_searxng(query)
 
 
 @router.get("/coding/status")
@@ -327,42 +295,190 @@ def route_tool(
         raise HTTPException(status_code=400, detail="command is required")
     return route_command(command)
 
-async def _search_searxng(query: str) -> dict[str, Any]:
-    if not settings.searxng_url:
+class _DuckDuckGoResultsParser(HTMLParser):
+    """Extract standard result links/snippets without accepting non-web schemes."""
+
+    _VOID_TAGS = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source", "track", "wbr"}
+
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.results: list[dict[str, str]] = []
+        self._mode: str | None = None
+        self._depth = 0
+
+    def handle_starttag(self, tag, attrs):
+        attrs = dict(attrs)
+        classes = set(str(attrs.get("class") or "").split())
+        if tag == "a" and "result__a" in classes:
+            raw_url = str(attrs.get("href") or "").strip()
+            parsed = urlparse(raw_url)
+            if (
+                (parsed.hostname and parsed.hostname.lower().endswith("duckduckgo.com"))
+                or parsed.path.startswith("/l/")
+            ):
+                target = parse_qs(parsed.query).get("uddg", [""])[0]
+            else:
+                target = raw_url
+            target_parsed = urlparse(target)
+            if target_parsed.scheme in {"http", "https"} and target_parsed.hostname:
+                self.results.append({"title": "", "url": target, "content": ""})
+                self._mode = "title"
+                self._depth = 1
+                return
+        if "result__snippet" in classes and self.results:
+            self._mode = "content"
+            self._depth = 1
+            return
+        if self._mode and tag not in self._VOID_TAGS:
+            self._depth += 1
+
+    def handle_endtag(self, tag):
+        if not self._mode or tag in self._VOID_TAGS:
+            return
+        self._depth -= 1
+        if self._depth <= 0:
+            self._mode = None
+            self._depth = 0
+
+    def handle_data(self, data):
+        if not self.results or not self._mode or not str(data).strip():
+            return
+        self.results[-1][self._mode] += str(data)
+
+
+async def _search_duckduckgo_html(query: str) -> dict[str, Any]:
+    """Free no-key search fallback; only the query is sent to DuckDuckGo."""
+    parser = _DuckDuckGoResultsParser()
+    try:
+        async with httpx.AsyncClient(
+            timeout=12,
+            follow_redirects=True,
+            headers={"User-Agent": "MR-AI-STAN/1.0 (public web research)"},
+        ) as client:
+            response = await client.get(
+                "https://html.duckduckgo.com/html/",
+                params={"q": str(query or "").strip()[:300]},
+            )
+            response.raise_for_status()
+            parser.feed(response.text)
+    except (httpx.HTTPError, ValueError) as exc:
         return {
             "status": "NOT_CONNECTED",
             "query": query,
+            "count": 0,
             "results": [],
-            "message": "Configure SEARXNG_URL to connect a self-hosted SearXNG instance.",
+            "sources": [],
+            "source": "duckduckgo_html",
+            "source_warnings": [f"DuckDuckGo: {type(exc).__name__}"],
         }
-
-    endpoint = settings.searxng_url.rstrip("/") + "/search"
-    try:
-        async with httpx.AsyncClient(timeout=10, follow_redirects=True) as client:
-            response = await client.get(
-                endpoint,
-                params={"q": query, "format": "json"},
-            )
-            response.raise_for_status()
-            data = response.json()
-    except (httpx.HTTPError, ValueError) as exc:
-        raise HTTPException(status_code=502, detail=f"SearXNG search failed: {type(exc).__name__}")
 
     results = [
         {
-            "title": item.get("title", ""),
-            "url": item.get("url", ""),
-            "content": item.get("content", ""),
-            "engine": item.get("engine", ""),
+            "title": item["title"].strip()[:500],
+            "url": item["url"],
+            "content": item["content"].strip()[:2000],
+            "engine": "duckduckgo",
+            "source": "DuckDuckGo",
         }
-        for item in data.get("results", [])[:20]
-    ]
+        for item in parser.results
+        if item.get("title", "").strip() and item.get("url")
+    ][:20]
     return {
-        "status": "COMPLETED",
+        "status": "COMPLETED" if results else "NO_RESULTS",
         "query": query,
+        "count": len(results),
         "results": results,
-        "source": "configured_searxng",
+        "sources": ["DuckDuckGo"] if results else [],
+        "source": "duckduckgo_html",
+        "source_warnings": [],
     }
+
+
+async def _search_searxng(query: str) -> dict[str, Any]:
+    """Search SearXNG, then DuckDuckGo, then bounded public read APIs."""
+    normalized = str(query or "").strip()[:300]
+    if not normalized:
+        return {
+            "status": "REJECTED",
+            "query": normalized,
+            "count": 0,
+            "results": [],
+            "sources": [],
+            "source_warnings": ["Query is empty."],
+        }
+
+    warnings: list[str] = []
+    if settings.searxng_url:
+        endpoint = settings.searxng_url.rstrip("/") + "/search"
+        try:
+            async with httpx.AsyncClient(timeout=10, follow_redirects=True) as client:
+                response = await client.get(endpoint, params={"q": normalized, "format": "json"})
+                response.raise_for_status()
+                data = response.json()
+            results = [
+                {
+                    "title": str(item.get("title") or "")[:500],
+                    "url": str(item.get("url") or ""),
+                    "content": str(item.get("content") or "")[:2000],
+                    "engine": str(item.get("engine") or ""),
+                    "source": str(item.get("engine") or "SearXNG"),
+                }
+                for item in (data.get("results") or [])[:20]
+                if isinstance(item, dict)
+                and urlparse(str(item.get("url") or "")).scheme in {"http", "https"}
+                and urlparse(str(item.get("url") or "")).hostname
+            ]
+            if results:
+                return {
+                    "status": "COMPLETED",
+                    "query": normalized,
+                    "count": len(results),
+                    "results": results,
+                    "sources": ["SearXNG"],
+                    "source": "configured_searxng",
+                    "fallback_used": False,
+                    "source_warnings": [],
+                }
+            warnings.append("SearXNG: no usable results")
+        except (httpx.HTTPError, ValueError, TypeError) as exc:
+            warnings.append(f"SearXNG: {type(exc).__name__}")
+
+    duckduckgo = await _search_duckduckgo_html(normalized)
+    if duckduckgo.get("status") == "COMPLETED" and duckduckgo.get("results"):
+        duckduckgo["fallback_used"] = True
+        duckduckgo["primary_source"] = "configured_searxng" if settings.searxng_url else None
+        duckduckgo["source_warnings"] = warnings + (duckduckgo.get("source_warnings") or [])
+        return duckduckgo
+    warnings.extend(duckduckgo.get("source_warnings") or ["DuckDuckGo: no usable results"])
+
+    # Last fallback uses two bounded, no-key public APIs. It is explicitly
+    # limited to Wikipedia and Hacker News, not represented as full-web search.
+    try:
+        public_result = await search_public_sources(normalized, limit=20)
+    except Exception as exc:
+        public_result = {
+            "status": "SOURCE_ERROR",
+            "query": normalized,
+            "count": 0,
+            "results": [],
+            "sources": [],
+            "source_warnings": [f"Public APIs: {type(exc).__name__}"],
+        }
+    public_result["fallback_used"] = True
+    public_result["primary_source"] = "configured_searxng" if settings.searxng_url else None
+    public_result["secondary_source"] = "duckduckgo_html"
+    public_result["source_warnings"] = warnings + (public_result.get("source_warnings") or [])
+    if public_result.get("status") in {"COMPLETED", "NO_RESULTS"}:
+        public_result["source"] = "public_api_fallback"
+        return public_result
+
+    public_result["status"] = "NOT_CONNECTED"
+    public_result["message"] = (
+        "SearXNG, DuckDuckGo and the limited public APIs did not return usable results. "
+        "No research result is claimed."
+    )
+    return public_result
+
 
 @router.post("/dispatch")
 async def dispatch_tool(

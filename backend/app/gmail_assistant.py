@@ -156,14 +156,10 @@ def configure_assistant(db: Session, user_id: int, *, enabled: bool | None = Non
 
 
 def _preferred_provider() -> str | None:
-    providers = (
-        ("gemini", settings.gemini_api_key),
-        ("openrouter", settings.openrouter_api_key),
-        ("kimi", settings.kimi_api_key),
-        ("mistral", settings.mistral_api_key),
-        ("grok", settings.xai_api_key),
-    )
-    return next((name for name, key in providers if str(key or "").strip()), None)
+    """Background Gmail automation may use only an explicitly free AI route."""
+    from .routers.system import _default_ai_provider
+
+    return _default_ai_provider()[0]
 
 
 def _parse_ai_result(raw: str) -> dict[str, Any]:
@@ -243,6 +239,8 @@ def _ensure_tracking_task(db: Session, user_id: int, record: dict[str, Any]) -> 
         task = db.query(Task).filter(Task.id == int(record["task_id"]), Task.user_id == user_id).first()
     if task is None:
         sent = record.get("status") == "SENT_WAITING_REPLY"
+        draft_ready = record.get("status") in {"DRAFT_READY", "FOLLOW_UP_DRAFT_READY"}
+        task_status = "PENDING" if sent else "READY_FOR_REVIEW" if draft_ready else "WAITING_FOR_HAND"
         task = Task(
             user_id=user_id,
             title=("[GMAIL] Fuatilia: " if sent else "[GMAIL] Kagua/jibu: ") + re.sub(r"\s+", " ", str(record.get("subject") or "(no subject)")).strip()[:170],
@@ -250,7 +248,7 @@ def _ensure_tracking_task(db: Session, user_id: int, record: dict[str, Any]) -> 
             + "; thread_id=" + str(record.get("thread_id") or "")
             + "; sender=" + str(record.get("from") or "unknown")
             + "; summary=" + str(record.get("summary") or "Review Gmail assistant record."),
-            status="PENDING" if sent else "WAITING_FOR_HAND",
+            status=task_status,
             priority=str(record.get("priority") or "NORMAL"),
             deadline=(_parse_time(record.get("follow_up_at")) or (_now() + timedelta(days=FOLLOW_UP_DAYS))).replace(tzinfo=None),
             agent="gmail",
@@ -270,7 +268,8 @@ def _ensure_tracking_task(db: Session, user_id: int, record: dict[str, Any]) -> 
         record["task_id"] = task.id
     else:
         sent = record.get("status") == "SENT_WAITING_REPLY"
-        task.status = "PENDING" if sent else "WAITING_FOR_HAND"
+        draft_ready = record.get("status") in {"DRAFT_READY", "FOLLOW_UP_DRAFT_READY"}
+        task.status = "PENDING" if sent else "READY_FOR_REVIEW" if draft_ready else "WAITING_FOR_HAND"
         task.deadline = (_parse_time(record.get("follow_up_at")) or (_now() + timedelta(days=FOLLOW_UP_DAYS))).replace(tzinfo=None)
         task.result = json.dumps({
             "message_id": record.get("message_id"),
@@ -355,7 +354,7 @@ async def _process_followups(db: Session, user_id: int, auto_send_enabled: bool)
             provider = _preferred_provider()
             if not provider:
                 record["status"] = "NEEDS_AI_PROVIDER"
-                record["follow_up_note"] = "Follow-up is due, but no AI provider is configured."
+                record["follow_up_note"] = "Follow-up is due, but no explicitly free AI provider is configured. Paid providers are not selected automatically."
                 _save_record(db, user_id, record)
                 stats["errors"] += 1
                 continue

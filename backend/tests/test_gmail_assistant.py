@@ -103,6 +103,30 @@ def install_fake_ai(monkeypatch, *, action="reply", confidence=0.95):
     monkeypatch.setattr("app.routers.ai.generate_reply_with_fallback", generate)
 
 
+def test_gmail_background_provider_prefers_explicit_free_openrouter(monkeypatch):
+    monkeypatch.setattr(gmail_assistant.settings, "openrouter_api_key", "test-openrouter-key")
+    monkeypatch.setattr(gmail_assistant.settings, "openrouter_model", "openrouter/free")
+    monkeypatch.setattr(gmail_assistant.settings, "gemini_api_key", "test-gemini-key")
+    monkeypatch.setattr(gmail_assistant.settings, "gemini_tier", "FREE")
+    monkeypatch.setattr(gmail_assistant.settings, "mistral_api_key", "paid-mistral-key")
+    monkeypatch.setattr(gmail_assistant.settings, "kimi_api_key", "paid-kimi-key")
+    monkeypatch.setattr(gmail_assistant.settings, "xai_api_key", "paid-grok-key")
+
+    assert gmail_assistant._preferred_provider() == "openrouter"
+
+
+def test_gmail_background_provider_does_not_select_paid_keys(monkeypatch):
+    monkeypatch.setattr(gmail_assistant.settings, "openrouter_api_key", "test-openrouter-key")
+    monkeypatch.setattr(gmail_assistant.settings, "openrouter_model", "provider/paid-model")
+    monkeypatch.setattr(gmail_assistant.settings, "gemini_api_key", "test-gemini-key")
+    monkeypatch.setattr(gmail_assistant.settings, "gemini_tier", "PAID")
+    monkeypatch.setattr(gmail_assistant.settings, "mistral_api_key", "paid-mistral-key")
+    monkeypatch.setattr(gmail_assistant.settings, "kimi_api_key", "paid-kimi-key")
+    monkeypatch.setattr(gmail_assistant.settings, "xai_api_key", "paid-grok-key")
+
+    assert gmail_assistant._preferred_provider() is None
+
+
 def test_gmail_assistant_saves_reply_draft_and_deduplicates(monkeypatch):
     db, user = make_db()
     sent = install_fake_gmail(monkeypatch)
@@ -118,6 +142,8 @@ def test_gmail_assistant_saves_reply_draft_and_deduplicates(monkeypatch):
     assert record["status"] == "DRAFT_READY"
     assert record["reply_draft"].startswith("Thanks for reaching out")
     assert db.query(Task).filter(Task.user_id == user.id).count() == 1
+    draft_task = db.query(Task).filter(Task.user_id == user.id).one()
+    assert draft_task.status == "READY_FOR_REVIEW"
 
     again = asyncio.run(gmail_assistant.run_gmail_assistant_for_user(db, user.id, force=True))
     assert again["summary"]["messages_processed"] == 0

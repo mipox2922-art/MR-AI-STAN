@@ -17,7 +17,7 @@ def test_service_status_reports_unconfigured_ai_truthfully(monkeypatch):
     assert services["openrouter"] == "NOT_CONFIGURED"
     assert services["mistral"] == "NOT_CONFIGURED"
     assert services["grok"] == "NOT_CONFIGURED"
-    assert services["web_search"] == "NOT_CONFIGURED"
+    assert services["web_search"] == "AVAILABLE"
     assert services["security"] == "NOT_CONFIGURED"
 
 
@@ -116,7 +116,7 @@ def test_free_gemini_is_preferred_over_paid_openrouter_model(monkeypatch):
     assert _default_ai_provider() == ("gemini", "gemini-3.8-flash", "FREE")
 
 
-def test_paid_provider_is_not_labeled_free_when_no_free_route_exists(monkeypatch):
+def test_paid_provider_is_not_selected_for_unattended_default_when_no_free_route_exists(monkeypatch):
     _set_ai_provider_settings(
         monkeypatch,
         openrouter_api_key="",
@@ -126,7 +126,7 @@ def test_paid_provider_is_not_labeled_free_when_no_free_route_exists(monkeypatch
         xai_api_key="configured-xai-key",
     )
 
-    assert _default_ai_provider() == ("mistral", "mistral-small-latest", "MISTRAL_CONFIGURED")
+    assert _default_ai_provider() == (None, None, None)
 
 
 def test_system_status_requires_authentication_without_bearer_token():

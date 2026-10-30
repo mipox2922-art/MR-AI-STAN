@@ -109,13 +109,26 @@ try {
   const extensionId = new URL(worker.url()).host;
   assert.match(extensionId, /^[a-p]{32}$/, "Chromium must load the actual unpacked MV3 extension.");
 
-  await worker.evaluate(async ({ accessToken, apiUrl }) => {
+  // Playwright exposes MV3 service workers through a generic Worker handle,
+  // where extension-only chrome.* bindings may be absent in the evaluation
+  // context. Configure the extension through its real popup page instead.
+  const extensionSettingsPage = await context.newPage();
+  await extensionSettingsPage.goto("chrome-extension://" + extensionId + "/popup.html", {
+    waitUntil: "domcontentloaded",
+  });
+  await extensionSettingsPage.waitForFunction(
+    () => Boolean(globalThis.chrome?.storage?.local),
+    null,
+    { timeout: 10000 }
+  );
+  await extensionSettingsPage.evaluate(async ({ accessToken, apiUrl }) => {
     await chrome.storage.local.set({
       mr_ai_token: accessToken,
       mr_ai_api_url: apiUrl,
       mr_ai_browser_allowlist: ["127.0.0.1"],
     });
   }, { accessToken: token, apiUrl: API_URL });
+  await extensionSettingsPage.close();
 
   const dashboard = context.pages()[0] || await context.newPage();
   await dashboard.goto(BASE_URL, { waitUntil: "domcontentloaded" });

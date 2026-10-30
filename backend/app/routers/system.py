@@ -66,7 +66,7 @@ def _service_status() -> dict:
         "memory": "ONLINE",
         "web_app": "ONLINE",
         "agents": "REGISTERED",
-        "web_search": "CONFIGURED" if settings.searxng_url else "NOT_CONFIGURED",
+        "web_search": "CONFIGURED" if settings.searxng_url else "AVAILABLE",
         "security": "NOT_CONFIGURED",
         "voice": "NOT_CONFIGURED",
         "extension": "NOT_CONNECTED",
@@ -92,16 +92,8 @@ def _default_ai_provider() -> tuple[str | None, str | None, str | None]:
         return "openrouter", openrouter_model, "OPENROUTER_FREE"
     if gemini_free:
         return "gemini", settings.gemini_model, "FREE"
-    if openrouter_key:
-        return "openrouter", openrouter_model, "OPENROUTER_CONFIGURED"
-    if settings.mistral_api_key.strip():
-        return "mistral", settings.mistral_model, "MISTRAL_CONFIGURED"
-    if settings.xai_api_key.strip():
-        return "grok", settings.grok_model, "GROK_CONFIGURED"
-    if gemini_key:
-        return "gemini", settings.gemini_model, settings.gemini_tier
-    if settings.kimi_api_key.strip():
-        return "kimi", settings.kimi_model, "KIMI_CONFIGURED"
+    # The dashboard's unattended/default route must never silently select a
+    # potentially billable provider. Paid providers remain manually selectable.
     return None, None, None
 
 
@@ -151,7 +143,7 @@ def system_status(current_user=Depends(get_current_user)):
             "provider": selected_provider,
             "model": selected_model,
             "tier": selected_tier,
-            "configured": selected_provider is not None,
+            "configured": any((settings.gemini_api_key.strip(), settings.kimi_api_key.strip(), settings.openrouter_api_key.strip(), settings.mistral_api_key.strip(), settings.xai_api_key.strip())),
             "ready": False,
         },
         "capabilities": {
@@ -204,9 +196,9 @@ def system_diagnostics(current_user=Depends(get_current_user)):
         },
         {
             "id": "web_search",
-            "label": "General web search",
-            "status": "CONFIGURED" if settings.searxng_url else "OPTIONAL",
-            "detail": "SearXNG URL is configured." if settings.searxng_url else "SearXNG is not configured. General web search through that connector is unavailable; Job Research uses separate public feeds.",
+            "label": "Research sources",
+            "status": "CONFIGURED" if settings.searxng_url else "AVAILABLE",
+            "detail": "SearXNG is configured for metasearch." if settings.searxng_url else "General research uses bounded public Wikipedia and Hacker News APIs. This is a limited fallback, not full-web metasearch.",
         },
         {
             "id": "gmail",
