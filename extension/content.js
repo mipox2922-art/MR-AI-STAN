@@ -24,7 +24,12 @@
       id: element.id || "",
       classes: typeof element.className === "string" ? element.className : "",
       text: (element.innerText || element.textContent || "").trim().slice(0, 240),
-      ariaLabel: element.getAttribute?.("aria-label") || ""
+      ariaLabel: element.getAttribute?.("aria-label") || "",
+      name: element.getAttribute?.("name") || "",
+      placeholder: element.getAttribute?.("placeholder") || "",
+      type: String(element.type || "").toLowerCase(),
+      autocomplete: String(element.getAttribute?.("autocomplete") || "").toLowerCase(),
+      contentEditable: Boolean(element.isContentEditable)
     };
   }
 
