@@ -134,9 +134,9 @@ def _is_safe_for_autonomous_execution(
         # Business brokerage is read-only discovery plus owner-scoped record/draft/task creation.
         # The broker returns NOT_CONNECTED when the selected source is not configured; it never fabricates leads.
         if agent_id == "research" and "searxng" in tools:
-            from ..routers.business_broker import is_business_broker_request
-            if is_business_broker_request(request) or settings.searxng_url:
-                continue
+            # Search is read-only and has bounded public API fallbacks; source errors
+            # are persisted as failures instead of forcing a manual approval queue.
+            continue
         # Gmail reads are automatic only when OAuth is currently connected.
         if agent_id == "gmail" and _is_read_only_gmail_request(request):
             try:
@@ -527,29 +527,34 @@ async def execute_mission(
                 _persist_step_progress(db, mission, steps)
                 continue
 
-            if not settings.searxng_url:
+            query = _web_search_query(request)
+            try:
+                from ..routers.tools import _search_searxng
+                result = await _search_searxng(query)
+                result_status = str(result.get("status") or "FAILED").upper()
+                successful = result_status in {"COMPLETED", "NO_RESULTS"}
                 steps.append({"step": index, "agent": agent_id, "name": step_name,
-                    "tool": "searxng", "status": "NOT_CONNECTED", "verified": False,
-                    "evidence": {"message": "SearXNG is not configured; web research was not executed."}})
-            else:
-                query = _web_search_query(request)
-                try:
-                    from ..routers.tools import _search_searxng
-                    result = await _search_searxng(query)
-                    successful = str(result.get("status", "")).upper() == "COMPLETED"
-                    steps.append({"step": index, "agent": agent_id, "name": step_name,
-                        "tool": "searxng", "status": "COMPLETED" if successful else str(result.get("status", "FAILED")).upper(),
-                        "verified": successful, "evidence": {
-                            "query": query,
-                            "source": result.get("source"),
-                            "result_count": len(result.get("results") or []),
-                            "results": (result.get("results") or [])[:10],
-                            "message": "Live search results received from configured SearXNG." if successful else result.get("message", "Search did not complete."),
-                        }})
-                except Exception as exc:
-                    steps.append({"step": index, "agent": agent_id, "name": step_name, "tool": "searxng",
-                        "status": "FAILED", "verified": False,
-                        "evidence": {"query": query, "message": f"Web research failed: {type(exc).__name__}."}})
+                    "tool": "public_research_sources", "status": "COMPLETED" if successful else result_status,
+                    "verified": successful, "evidence": {
+                        "query": query,
+                        "source": result.get("source") or result.get("source_mode"),
+                        "sources": result.get("sources") or [],
+                        "source_warnings": result.get("source_warnings") or [],
+                        "result_count": len(result.get("results") or []),
+                        "results": (result.get("results") or [])[:10],
+                        "limitations": result.get("limitations") or [],
+                        "message": (
+                            "Live research results were received from " + ", ".join(result.get("sources") or ["configured search"]) + "."
+                            if successful and result.get("results")
+                            else "The configured public sources returned no matching results."
+                            if result_status == "NO_RESULTS"
+                            else "All configured research sources failed; no result was fabricated."
+                        ),
+                    }})
+            except Exception as exc:
+                steps.append({"step": index, "agent": agent_id, "name": step_name, "tool": "public_research_sources",
+                    "status": "FAILED", "verified": False,
+                    "evidence": {"query": query, "message": f"Web research failed: {type(exc).__name__}."}})
             _persist_step_progress(db, mission, steps)
             continue
 
