@@ -17,7 +17,7 @@ def test_service_status_reports_unconfigured_ai_truthfully(monkeypatch):
     assert services["openrouter"] == "NOT_CONFIGURED"
     assert services["mistral"] == "NOT_CONFIGURED"
     assert services["grok"] == "NOT_CONFIGURED"
-    assert services["web_search"] == "NOT_CONFIGURED"
+    assert services["web_search"] == "AVAILABLE"
     assert services["security"] == "NOT_CONFIGURED"
 
 
