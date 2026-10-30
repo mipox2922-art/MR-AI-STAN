@@ -11,7 +11,7 @@ def test_duckduckgo_parser_extracts_only_http_search_results():
     parser = tools_router._DuckDuckGoResultsParser()
     parser.feed("""
         <div class="result">
-          <a class="result__a" href="https://example.org/report"><b>Example</b> Report</a>
+          <a class="result__a" href="/l/?uddg=https%3A%2F%2Fexample.org%2Freport"><b>Example</b> Report</a>
           <a class="result__snippet">Public source <b>evidence</b> here</a>
         </div>
         <a class="result__a" href="javascript:alert(1)">Bad link</a>
