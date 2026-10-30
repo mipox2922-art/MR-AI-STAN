@@ -164,13 +164,73 @@ def _write_json_setting(db: Session, user_id: int, key: str, value: dict[str, An
         db.add(Setting(user_id=user_id, key=key, value=encoded))
 
 
+def _resume_section(profile: dict[str, Any], heading: str) -> str:
+    """Extract a named Markdown CV section, rather than treating the whole CV as prose."""
+    resume = str(profile.get("resume_text") or "").strip()[:6000]
+    if not resume:
+        return ""
+    target = " ".join(re.sub("[^a-z0-9]+", " ", heading.casefold()).split())
+    collecting = False
+    section_lines: list[str] = []
+    for line in resume.splitlines():
+        stripped = line.strip()
+        is_heading = stripped.startswith("#") or (stripped.startswith("**") and stripped.endswith("**"))
+        if is_heading:
+            candidate = stripped.lstrip("#").strip().strip("*").strip()
+            candidate = " ".join(re.sub("[^a-z0-9]+", " ", candidate.casefold()).split())
+            if collecting:
+                break
+            if candidate == target:
+                collecting = True
+                continue
+        if collecting:
+            section_lines.append(stripped)
+    return chr(10).join(line for line in section_lines if line)[:1800]
+
+
+def _profile_skill_terms(profile: dict[str, Any]) -> list[str]:
+    """Combine saved skills with skills explicitly stated in the CV Technical Skills section."""
+    raw_skills = profile.get("skills") or []
+    if isinstance(raw_skills, str):
+        raw_skills = re.split("[,;\\n]", raw_skills)
+    terms: list[str] = []
+    seen: set[str] = set()
+
+    def add(value: str) -> None:
+        cleaned = " ".join(value.split()).strip(" .;:-")
+        key = cleaned.casefold()
+        if len(cleaned) >= 2 and key not in seen:
+            seen.add(key)
+            terms.append(cleaned[:100])
+
+    for item in raw_skills if isinstance(raw_skills, list) else []:
+        add(str(item))
+    technical = _resume_section(profile, "TECHNICAL SKILLS")
+    for line in technical.splitlines():
+        line = line.strip()
+        if line.startswith(("-", "*", "•")):
+            line = line[1:].strip()
+        if not line:
+            continue
+        parts = line.split(":", 1)
+        if len(parts) == 2:
+            add(parts[0])
+            candidates = re.split("[,;/|]", parts[1])
+        else:
+            candidates = re.split("[,;/|]", line)
+        for item in candidates:
+            add(item)
+    return terms[:40]
+
+
 def _profile_ready(profile: dict[str, Any]) -> bool:
     return bool(
         str(profile.get("full_name") or "").strip()
         and str(profile.get("email") or "").strip()
         and (
-            profile.get("skills")
+            _profile_skill_terms(profile)
             or str(profile.get("experience_summary") or "").strip()
+            or _resume_section(profile, "PROFESSIONAL SUMMARY")
         )
     )
 
@@ -181,12 +241,16 @@ def _build_application_draft(job: dict[str, Any], profile: dict[str, Any]) -> di
     name = str(profile.get("full_name") or "").strip()[:120]
     company = str(job.get("company") or "the hiring team").strip()[:160]
     title = str(job.get("title") or "the advertised role").strip()[:180]
-    skills = profile.get("skills") or []
-    if isinstance(skills, str):
-        skills = [part.strip() for part in skills.split(",") if part.strip()]
-    skills_text = ", ".join(str(item).strip() for item in skills[:12] if str(item).strip())
-    summary = str(profile.get("experience_summary") or "").strip()[:1500]
+    skills = _profile_skill_terms(profile)
+    skills_text = ", ".join(skills[:12])
+    summary = str(profile.get("experience_summary") or "").strip()
+    if not summary:
+        summary = _resume_section(profile, "PROFESSIONAL SUMMARY")
+    summary = summary[:1500]
     portfolio = str(profile.get("portfolio_url") or "").strip()
+    if not portfolio:
+        urls = re.findall(r"https://[^ )\]>]+", str(profile.get("resume_text") or "")[:6000])
+        portfolio = next((url.rstrip(".,;") for url in urls if url.startswith("https://")), "")
     paragraphs = [
         f"Dear {company} Hiring Team,",
         f"I am applying for the {title} position. My relevant skills include {skills_text}."
@@ -194,17 +258,19 @@ def _build_application_draft(job: dict[str, Any], profile: dict[str, Any]) -> di
     ]
     if summary:
         paragraphs.append(summary)
+    if _resume_section(profile, "TECHNICAL SKILLS") and skills_text:
+        paragraphs.append(f"My CV lists the following technical and creative skills: {skills_text}.")
     paragraphs.append(
-        "I would welcome the opportunity to discuss how my actual skills and experience can support your team. "
+        "I would welcome the opportunity to discuss how my actual skills and project experience can support your team. "
         "I can provide further details or work samples on request."
     )
     if portfolio:
         paragraphs.append(f"Portfolio or work samples: {portfolio}")
-    paragraphs.append(f"Kind regards,\n{name}")
+    paragraphs.append(f"Kind regards,{chr(10)}{name}")
     return {
         "subject": f"Application for {title}",
-        "cover_letter": "\n\n".join(paragraphs),
-        "source_note": "Draft generated only from the candidate information saved in MR AI. Review it before sending; no application was submitted.",
+        "cover_letter": (chr(10) + chr(10)).join(paragraphs),
+        "source_note": "Draft generated from the saved application profile and CV text where available. Review it before sending; no application was submitted.",
     }
 
 
@@ -278,9 +344,7 @@ def _job_url_from_task(task: Task) -> str | None:
 
 
 def _match_score(job: dict[str, Any], profile: dict[str, Any]) -> int | None:
-    skills = profile.get("skills") or []
-    if isinstance(skills, str):
-        skills = [part.strip() for part in skills.split(",") if part.strip()]
+    skills = _profile_skill_terms(profile)
     if not skills:
         return None
     text = " ".join([
@@ -289,8 +353,9 @@ def _match_score(job: dict[str, Any], profile: dict[str, Any]) -> int | None:
         str(job.get("company") or ""),
         " ".join(str(item) for item in (job.get("tags") or [])),
     ]).casefold()
-    terms = {str(item).strip().casefold() for item in skills if str(item).strip()}
+    terms = {item.casefold() for item in skills}
     matched = sum(1 for term in terms if term and term in text)
+    # Five matching skills are enough for 100%, even when the CV lists many skills.
     return min(100, round(100 * matched / max(1, min(5, len(terms)))))
 
 

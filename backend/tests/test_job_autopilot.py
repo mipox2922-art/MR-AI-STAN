@@ -182,3 +182,79 @@ def test_job_autopilot_retries_source_outage_after_short_backoff(monkeypatch):
     assert stored["last_run_status"] == "SOURCE_ERROR"
     assert stored["last_run_error_count"] == 4
 
+
+
+
+def test_resume_text_alone_supplies_skills_summary_and_portfolio_for_matching_and_draft():
+    profile = {
+        "full_name": "MR FERISI",
+        "email": "mr343ai@gmail.com",
+        "resume_text": """# MR FERISI
+## PROFESSIONAL SUMMARY
+Creative digital professional with practical project-based experience in website development and branding.
+## TECHNICAL SKILLS
+- Web Development: HTML, CSS, JavaScript.
+- Frontend: React and JSX.
+- Backend: Python and FastAPI (project-based).
+- Graphic Design: Logos, banners, posters and branding.
+## SELECTED DIGITAL PROJECTS
+MO SaaS: https://mo-tec.github.io/SaaS/
+MOOG Digital: https://moog-digital.blogspot.com/
+""",
+    }
+    job = {
+        "title": "React Web Developer",
+        "company": "Example Studio",
+        "description": "Build web applications using JavaScript, React, HTML and CSS.",
+        "tags": ["frontend", "web development"],
+    }
+
+    assert jobs._profile_ready(profile) is True
+    assert jobs._match_score(job, profile) == 100
+    draft = jobs._build_application_draft(job, profile)
+    assert draft is not None
+    assert "practical project-based experience in website development and branding" in draft["cover_letter"]
+    assert "React" in draft["cover_letter"]
+    assert "https://mo-tec.github.io/SaaS/" in draft["cover_letter"]
+
+
+def test_resume_text_is_used_when_refreshing_waiting_draft():
+    db = make_db()
+    task = Task(
+        user_id=23,
+        title="Application prep: React Web Developer",
+        description="Company: Example Studio\\nRole: React Web Developer\\nJob URL: https://jobs.example.test/role",
+        status="WAITING_FOR_PROFILE",
+        priority="NORMAL",
+        agent="jobs",
+        source="autopilot",
+        result=json.dumps({
+            "workflow": "JOB_APPLICATION",
+            "status": "WAITING_FOR_PROFILE",
+            "job": {
+                "title": "React Web Developer",
+                "company": "Example Studio",
+                "url": "https://jobs.example.test/role",
+                "description": "React, JavaScript and CSS.",
+                "tags": ["frontend"],
+            },
+            "application_draft": None,
+            "submission": {"status": "NOT_SUBMITTED"},
+        }),
+    )
+    db.add(task)
+    db.commit()
+    profile = {
+        "full_name": "MR FERISI",
+        "email": "mr343ai@gmail.com",
+        "resume_text": """## PROFESSIONAL SUMMARY
+Project-based web development.
+## TECHNICAL SKILLS
+- Frontend: React, JavaScript, CSS.""",
+    }
+
+    assert jobs._refresh_waiting_application_drafts(db, 23, profile) == 1
+    packet = json.loads(db.query(Task).one().result)
+    assert packet["status"] == "READY_FOR_REVIEW"
+    assert "Project-based web development" in packet["application_draft"]["cover_letter"]
+    assert packet["match_score"] is not None
