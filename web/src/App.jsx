@@ -22,6 +22,8 @@ import {
   getActivity,
   getGmailStatus,
   getCurrentPage,
+  getStandingAuthorizations,
+  updateStandingAuthorization,
 } from "./api";
 import {
   getActiveTaskForAgent,
@@ -325,6 +327,39 @@ function agentSwahiliDescription(id, fallback) {
 
 function AgentsPanel({ agents, tasks = [], onPlan }) {
   const [request, setRequest] = useState("");
+  const [standingRules, setStandingRules] = useState([]);
+  const [standingLoading, setStandingLoading] = useState(true);
+  const [standingBusy, setStandingBusy] = useState("");
+  const [standingError, setStandingError] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    getStandingAuthorizations()
+      .then(result => {
+        if (active) setStandingRules(Array.isArray(result?.rules) ? result.rules : []);
+      })
+      .catch(error => {
+        if (active) setStandingError(error.message || "Could not load standing authorizations.");
+      })
+      .finally(() => {
+        if (active) setStandingLoading(false);
+      });
+    return () => { active = false; };
+  }, []);
+
+  async function changeStandingRule(policyId, enabled) {
+    if (standingBusy) return;
+    setStandingBusy(policyId);
+    setStandingError("");
+    try {
+      const result = await updateStandingAuthorization(policyId, enabled);
+      setStandingRules(Array.isArray(result?.rules) ? result.rules : []);
+    } catch (error) {
+      setStandingError(error.message || "Standing authorization update failed.");
+    } finally {
+      setStandingBusy("");
+    }
+  }
   const [planResult, setPlanResult] = useState(null);
   const [missionResult, setMissionResult] = useState(null);
   const [busy, setBusy] = useState("");
@@ -449,6 +484,51 @@ function AgentsPanel({ agents, tasks = [], onPlan }) {
           );
         })}
       </div>
+
+      <section className="standing-auth-panel" aria-labelledby="standing-auth-title">
+        <div className="standing-auth-head">
+          <div>
+            <span className="eyebrow">OWNER CONTROL // PERSISTENT RULES</span>
+            <h3 id="standing-auth-title">Standing Authorizations</h3>
+            <p>Ruhusa hizi zinahifadhiwa kwa akaunti yako. Kila rule ina mipaka yake; haiwezi kuvuka hard safety checks.</p>
+          </div>
+          <span className="badge">OWNER CONTROLLED</span>
+        </div>
+        {standingLoading && <p className="standing-auth-message">Inapakia ruhusa...</p>}
+        {standingError && <p className="standing-auth-error" role="alert">{standingError}</p>}
+        {!standingLoading && (
+          <div className="standing-auth-grid">
+            {standingRules.map(rule => (
+              <article className="standing-auth-card" key={rule.id}>
+                <div className="standing-auth-card-head">
+                  <div>
+                    <strong>{rule.title}</strong>
+                    <small>{String(rule.agent || "").toUpperCase()} · {rule.source === "owner_rule" ? "SAVED OWNER RULE" : "DEFAULT / EXISTING OPT-IN"}</small>
+                  </div>
+                  <label className="standing-auth-toggle">
+                    <span className="sr-only">Enable {rule.title}</span>
+                    <input
+                      type="checkbox"
+                      checked={rule.enabled === true}
+                      disabled={Boolean(standingBusy)}
+                      onChange={event => changeStandingRule(rule.id, event.target.checked)}
+                    />
+                  </label>
+                </div>
+                <p>{rule.description}</p>
+                <ul>
+                  {(rule.guardrails || []).map(item => <li key={item}>{item}</li>)}
+                </ul>
+                {standingBusy === rule.id && <small className="standing-auth-message">Inahifadhi ruhusa...</small>}
+              </article>
+            ))}
+          </div>
+        )}
+        <div className="standing-auth-blocked">
+          <strong>HAZIRUHUSIWI NA STANDING RULES</strong>
+          <span>Job submission, sensitive Gmail, payments, form submission, delete, publish na destructive device actions bado zinahitaji ukaguzi/idhini maalumu.</span>
+        </div>
+      </section>
 
       <div className="planner agent-planner">
         <div className="panel-title">PANGA NA UENDESHE KAZI</div>

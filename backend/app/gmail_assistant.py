@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from .config import settings
 from .models import ActivityLog, Setting, Task, TaskStep
+from .core.authorizations import authorization_enabled, set_standing_authorization
 
 logger = logging.getLogger("mr_ai.gmail_assistant")
 ENABLED_KEY = "gmail_assistant.enabled"
@@ -142,7 +143,8 @@ def configure_assistant(db: Session, user_id: int, *, enabled: bool | None = Non
     if enabled is not None:
         _write(db, user_id, ENABLED_KEY, "true" if enabled else "false")
     if auto_send_enabled is not None:
-        _write(db, user_id, AUTO_SEND_KEY, "true" if auto_send_enabled else "false")
+        # The legacy Gmail switch and central standing authorization are one owner action.
+        set_standing_authorization(db, user_id, "gmail.routine_reply", auto_send_enabled)
     db.add(ActivityLog(
         user_id=user_id,
         action="GMAIL_ASSISTANT_CONFIGURED",
@@ -425,7 +427,10 @@ async def run_gmail_assistant_for_user(db: Session, user_id: int, *, force: bool
     if not _bool(_read(db, user_id, ENABLED_KEY, "true"), True):
         return {"status": "PAUSED", "enabled": False, "summary": {"messages_processed": 0, "drafts_created": 0, "replies_sent": 0}}
 
-    auto_send = _bool(_read(db, user_id, AUTO_SEND_KEY, "false"), False)
+    auto_send = (
+        _bool(_read(db, user_id, AUTO_SEND_KEY, "false"), False)
+        and authorization_enabled(db, user_id, "gmail.routine_reply")
+    )
     now = _now()
     last_scan = _parse_time(_read(db, user_id, LAST_SCAN_KEY, ""))
     if not force and last_scan and (now - last_scan).total_seconds() < SCAN_INTERVAL_SECONDS:

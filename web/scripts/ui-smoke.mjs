@@ -18,6 +18,22 @@ let radarScanRequests = 0;
 let delayedChatRequests = 0;
 let delayedChatRequestBodies = [];
 let mockAIState = "IDLE";
+let mockStandingRules = [
+  {
+    id: "browser.fill_non_sensitive", agent: "browser",
+    title: "Fill non-sensitive browser fields",
+    description: "Fill fields on allowlisted domains without submitting forms.",
+    enabled: false, source: "default_or_existing_opt_in",
+    guardrails: ["Domain allowlist required", "Sensitive fields blocked"],
+  },
+  {
+    id: "gmail.routine_reply", agent: "gmail",
+    title: "Send routine Gmail replies",
+    description: "Gmail VIP routine replies only, subject to safety checks.",
+    enabled: false, source: "default_or_existing_opt_in",
+    guardrails: ["Confidence >= 0.85", "Sensitive email remains draft-only"],
+  },
+];
 const providerHealthRequests = [];
 let mockJobAutopilot = {
   config: {
@@ -116,6 +132,17 @@ async function apiMock(route) {
   if (method === "POST" && path === "/auth/register") return sendJson(route, { access_token: "smoke-register-token", token_type: "bearer" });
   if (method === "GET" && path === "/system/status") return sendJson(route, systemStatus);
   if (method === "GET" && path === "/system/diagnostics") return sendJson(route, { status: "CONFIGURATION_CHECKED", checks: [{ id: "database", label: "Persistent database", status: "PASS", detail: "Mock database check" }, { id: "ai_provider", label: "AI provider configuration", status: "CONFIGURED", detail: "Mock provider" }], truth_boundary: "Mock check only." });
+  if (method === "GET" && path === "/orchestrator/authorizations") {
+    return sendJson(route, { version: 1, rules: mockStandingRules, blocked_actions: [] });
+  }
+  if (method === "PUT" && path.startsWith("/orchestrator/authorizations/")) {
+    const policyId = decodeURIComponent(path.split("/").pop());
+    const rule = mockStandingRules.find(item => item.id === policyId);
+    if (!rule) return sendJson(route, { detail: "Standing authorization policy not found." }, 404);
+    rule.enabled = body.enabled === true;
+    rule.source = "owner_rule";
+    return sendJson(route, { version: 1, rules: mockStandingRules, blocked_actions: [] });
+  }
   if (method === "GET" && path === "/agents") return sendJson(route, agents);
   if (method === "GET" && path === "/tasks") return sendJson(route, mockTasks);
   if (method === "POST" && path === "/tasks") {

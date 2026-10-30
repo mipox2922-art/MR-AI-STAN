@@ -262,6 +262,17 @@ export function recordActivityEvent(event) {
   });
 }
 
+export function getStandingAuthorizations() {
+  return request("/orchestrator/authorizations");
+}
+
+export function updateStandingAuthorization(policyId, enabled) {
+  return request("/orchestrator/authorizations/" + encodeURIComponent(policyId), {
+    method: "PUT",
+    body: JSON.stringify({ enabled }),
+  });
+}
+
 export function getTasks() {
   return request("/tasks");
 }

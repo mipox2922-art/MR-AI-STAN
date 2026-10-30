@@ -8747,3 +8747,109 @@ body.dashboard-canvas-active #root {
   .coding-agent-actions { flex-direction: column; }
 }
 
+
+
+/* Owner-controlled standing authorization rules */
+.standing-auth-panel {
+  margin: 18px 0 22px;
+  padding: 16px;
+  border: 1px solid var(--line, rgba(0,243,255,.16));
+  border-radius: 12px;
+  background: rgba(3, 13, 19, .72);
+}
+.standing-auth-head,
+.standing-auth-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+.standing-auth-head h3 {
+  margin: 4px 0 5px;
+  font-size: 16px;
+}
+.standing-auth-head p,
+.standing-auth-card p {
+  margin: 0;
+  color: var(--muted, #8aa);
+  font-size: 12px;
+  line-height: 1.55;
+}
+.standing-auth-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+.standing-auth-card {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--line, rgba(0,243,255,.14));
+  border-radius: 9px;
+  background: rgba(0, 8, 13, .58);
+}
+.standing-auth-card-head > div {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+.standing-auth-card-head strong {
+  font-size: 12px;
+  line-height: 1.4;
+}
+.standing-auth-card-head small {
+  color: var(--muted, #8aa);
+  font-size: 9px;
+  letter-spacing: .07em;
+  overflow-wrap: anywhere;
+}
+.standing-auth-card ul {
+  margin: 9px 0 0;
+  padding-left: 16px;
+  color: #a5c1c5;
+  font-size: 10px;
+  line-height: 1.5;
+}
+.standing-auth-card li + li { margin-top: 3px; }
+.standing-auth-toggle {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+}
+.standing-auth-toggle input {
+  width: 18px;
+  height: 18px;
+  accent-color: #00ddeb;
+  cursor: pointer;
+}
+.standing-auth-blocked {
+  display: grid;
+  gap: 4px;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 125, 125, .2);
+  color: #d9a9a9;
+  font-size: 10px;
+  line-height: 1.5;
+}
+.standing-auth-blocked strong {
+  color: #ffb4b4;
+  letter-spacing: .08em;
+}
+.standing-auth-message { color: #88c9d0; font-size: 10px; }
+.standing-auth-error { color: #ff9a9a; font-size: 11px; }
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+@media (max-width: 760px) {
+  .standing-auth-grid { grid-template-columns: minmax(0, 1fr); }
+  .standing-auth-head { flex-direction: column; }
+}
