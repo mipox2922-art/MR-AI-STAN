@@ -243,6 +243,8 @@ def _ensure_tracking_task(db: Session, user_id: int, record: dict[str, Any]) -> 
         task = db.query(Task).filter(Task.id == int(record["task_id"]), Task.user_id == user_id).first()
     if task is None:
         sent = record.get("status") == "SENT_WAITING_REPLY"
+        draft_ready = record.get("status") in {"DRAFT_READY", "FOLLOW_UP_DRAFT_READY"}
+        task_status = "PENDING" if sent else "READY_FOR_REVIEW" if draft_ready else "WAITING_FOR_HAND"
         task = Task(
             user_id=user_id,
             title=("[GMAIL] Fuatilia: " if sent else "[GMAIL] Kagua/jibu: ") + re.sub(r"\s+", " ", str(record.get("subject") or "(no subject)")).strip()[:170],
@@ -250,7 +252,7 @@ def _ensure_tracking_task(db: Session, user_id: int, record: dict[str, Any]) -> 
             + "; thread_id=" + str(record.get("thread_id") or "")
             + "; sender=" + str(record.get("from") or "unknown")
             + "; summary=" + str(record.get("summary") or "Review Gmail assistant record."),
-            status="PENDING" if sent else "WAITING_FOR_HAND",
+            status=task_status,
             priority=str(record.get("priority") or "NORMAL"),
             deadline=(_parse_time(record.get("follow_up_at")) or (_now() + timedelta(days=FOLLOW_UP_DAYS))).replace(tzinfo=None),
             agent="gmail",
@@ -270,7 +272,8 @@ def _ensure_tracking_task(db: Session, user_id: int, record: dict[str, Any]) -> 
         record["task_id"] = task.id
     else:
         sent = record.get("status") == "SENT_WAITING_REPLY"
-        task.status = "PENDING" if sent else "WAITING_FOR_HAND"
+        draft_ready = record.get("status") in {"DRAFT_READY", "FOLLOW_UP_DRAFT_READY"}
+        task.status = "PENDING" if sent else "READY_FOR_REVIEW" if draft_ready else "WAITING_FOR_HAND"
         task.deadline = (_parse_time(record.get("follow_up_at")) or (_now() + timedelta(days=FOLLOW_UP_DAYS))).replace(tzinfo=None)
         task.result = json.dumps({
             "message_id": record.get("message_id"),
