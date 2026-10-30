@@ -81,7 +81,9 @@ async def search_public_sources(query: str, limit: int = 12) -> dict[str, Any]:
     sources = []
     warnings = []
     for name, response in zip(("Wikipedia", "Hacker News"), responses):
-        if isinstance(response, BaseException):
+        if isinstance(response, asyncio.CancelledError):
+            raise response
+        if isinstance(response, Exception):
             warnings.append(name + ": " + type(response).__name__)
             continue
         sources.append(name)
@@ -101,7 +103,7 @@ async def search_public_sources(query: str, limit: int = 12) -> dict[str, Any]:
         "source_warnings": warnings,
         "source_mode": "public_api_fallback",
         "limitations": [
-            "SearXNG is not configured; this fallback searches Wikipedia and Hacker News only.",
+            "This fallback searches Wikipedia and Hacker News only; it is not full-web metasearch.",
             "Open source URLs and check publication date and context before relying on a result.",
         ],
     }
