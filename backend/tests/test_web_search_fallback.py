@@ -78,7 +78,7 @@ def test_web_search_falls_back_when_configured_searxng_is_unavailable(monkeypatc
 
 
 @pytest.mark.parametrize(
-    "request",
+    "request_text",
     [
         "tafuta mtandaoni AI tools",
         "search the web for graphic design clients",
@@ -86,8 +86,8 @@ def test_web_search_falls_back_when_configured_searxng_is_unavailable(monkeypatc
         "jua kuhusu remote work",
     ],
 )
-def test_read_only_web_research_commands_are_allowed(request):
-    assert _is_read_only_web_research_request(request) is True
+def test_read_only_web_research_commands_are_allowed(request_text):
+    assert _is_read_only_web_research_request(request_text) is True
 
 
 @pytest.mark.parametrize(
@@ -100,5 +100,5 @@ def test_read_only_web_research_commands_are_allowed(request):
         "password reset",
     ],
 )
-def test_side_effecting_or_sensitive_commands_are_not_autonomous_web_research(request):
-    assert _is_read_only_web_research_request(request) is False
+def test_side_effecting_or_sensitive_commands_are_not_autonomous_web_research(request_text):
+    assert _is_read_only_web_research_request(request_text) is False
