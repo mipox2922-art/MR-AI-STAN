@@ -1,3 +1,5 @@
+import asyncio
+
 import pytest
 
 from app.config import settings
@@ -22,8 +24,7 @@ def test_duckduckgo_parser_extracts_only_http_search_results():
     assert "Public source" in parser.results[0]["content"]
 
 
-@pytest.mark.asyncio
-async def test_web_search_uses_free_builtin_fallback_when_searxng_is_not_configured(monkeypatch):
+def test_web_search_uses_free_builtin_fallback_when_searxng_is_not_configured(monkeypatch):
     monkeypatch.setattr(settings, "searxng_url", "")
 
     async def fake_search(query):
@@ -35,7 +36,7 @@ async def test_web_search_uses_free_builtin_fallback_when_searxng_is_not_configu
         }
 
     monkeypatch.setattr(tools_router, "_search_duckduckgo_html", fake_search)
-    result = await tools_router._search_searxng("public web research")
+    result = asyncio.run(tools_router._search_searxng("public web research"))
 
     assert result["status"] == "COMPLETED"
     assert result["source"] == "duckduckgo_html"
@@ -43,8 +44,7 @@ async def test_web_search_uses_free_builtin_fallback_when_searxng_is_not_configu
     assert result["results"][0]["url"] == "https://example.org"
 
 
-@pytest.mark.asyncio
-async def test_web_search_falls_back_when_configured_searxng_is_unavailable(monkeypatch):
+def test_web_search_falls_back_when_configured_searxng_is_unavailable(monkeypatch):
     import httpx
 
     monkeypatch.setattr(settings, "searxng_url", "https://searx.example.test")
@@ -70,7 +70,7 @@ async def test_web_search_falls_back_when_configured_searxng_is_unavailable(monk
         }
 
     monkeypatch.setattr(tools_router, "_search_duckduckgo_html", fake_search)
-    result = await tools_router._search_searxng("research fallback")
+    result = asyncio.run(tools_router._search_searxng("research fallback"))
 
     assert result["status"] == "COMPLETED"
     assert result["fallback_used"] is True
