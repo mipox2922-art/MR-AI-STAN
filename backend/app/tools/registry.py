@@ -172,7 +172,7 @@ def get_tool_registry() -> list[dict[str, Any]]:
             "status": "CONNECTED" if settings.searxng_url else "OPTIONAL_NOT_CONFIGURED",
             "mode": "SELF_HOSTED",
             "free": True,
-            "description": "Privacy-oriented metasearch through a configured self-hosted SearXNG instance.",
+            "description": "Optional self-hosted metasearch. When it is absent, Research Agent uses bounded public Wikipedia and Hacker News APIs and labels those sources explicitly.",
         },
         {
             **_binary_status("adb", "adb"),
