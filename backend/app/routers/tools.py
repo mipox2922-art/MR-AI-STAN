@@ -23,6 +23,7 @@ from ..connectors.coding_workspace import (
 from ..dependencies import get_current_user
 from ..tools.registry import registry_summary
 from ..tools.router import route_command
+from ..research.public_sources import search_public_sources
 from ..routers.system import system_status
 from ..models import ActivityLog, Task, TaskStep
 from ..database import get_db
@@ -41,12 +42,7 @@ async def search_web(payload: dict[str, Any], current_user=Depends(get_current_u
         raise HTTPException(status_code=400, detail="query is required")
 
     if not settings.searxng_url:
-        return {
-            "status": "NOT_CONNECTED",
-            "query": query,
-            "results": [],
-            "message": "Configure SEARXNG_URL to connect a self-hosted SearXNG instance.",
-        }
+        return await search_public_sources(query)
 
     endpoint = settings.searxng_url.rstrip("/") + "/search"
     try:
@@ -328,13 +324,9 @@ def route_tool(
     return route_command(command)
 
 async def _search_searxng(query: str) -> dict[str, Any]:
+    """Prefer configured SearXNG; otherwise use bounded no-key public APIs."""
     if not settings.searxng_url:
-        return {
-            "status": "NOT_CONNECTED",
-            "query": query,
-            "results": [],
-            "message": "Configure SEARXNG_URL to connect a self-hosted SearXNG instance.",
-        }
+        return await search_public_sources(query)
 
     endpoint = settings.searxng_url.rstrip("/") + "/search"
     try:
@@ -345,24 +337,30 @@ async def _search_searxng(query: str) -> dict[str, Any]:
             )
             response.raise_for_status()
             data = response.json()
-    except (httpx.HTTPError, ValueError) as exc:
-        raise HTTPException(status_code=502, detail=f"SearXNG search failed: {type(exc).__name__}")
-
-    results = [
-        {
-            "title": item.get("title", ""),
-            "url": item.get("url", ""),
-            "content": item.get("content", ""),
-            "engine": item.get("engine", ""),
+        results = [
+            {
+                "title": item.get("title", ""),
+                "url": item.get("url", ""),
+                "content": item.get("content", ""),
+                "engine": item.get("engine", ""),
+                "source": item.get("engine", "SearXNG"),
+            }
+            for item in data.get("results", [])[:20]
+            if isinstance(item, dict) and str(item.get("url") or "").startswith("https://")
+        ]
+        return {
+            "status": "COMPLETED" if results else "NO_RESULTS",
+            "query": query,
+            "count": len(results),
+            "results": results,
+            "sources": ["SearXNG"],
+            "source": "configured_searxng",
+            "source_warnings": [],
         }
-        for item in data.get("results", [])[:20]
-    ]
-    return {
-        "status": "COMPLETED",
-        "query": query,
-        "results": results,
-        "source": "configured_searxng",
-    }
+    except (httpx.HTTPError, ValueError) as exc:
+        fallback = await search_public_sources(query)
+        fallback.setdefault("source_warnings", []).insert(0, "SearXNG: " + type(exc).__name__)
+        return fallback
 
 @router.post("/dispatch")
 async def dispatch_tool(
