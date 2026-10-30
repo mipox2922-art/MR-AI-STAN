@@ -259,3 +259,47 @@ def test_mission_persists_relevant_owner_memory_for_resume_and_agent_context(mon
     assert "graphic design" in packet["memory_context"][0]["value"].lower()
     assert "Different account" not in mission.result
     db.close()
+
+
+def test_research_mission_runs_public_sources_without_searxng_or_manual_approval(monkeypatch):
+    import app.routers.tools as tools_module
+
+    db = make_db()
+    user = SimpleNamespace(id=48)
+    calls = []
+
+    async def fake_search(query):
+        calls.append(query)
+        return {
+            "status": "COMPLETED",
+            "query": query,
+            "count": 1,
+            "sources": ["Wikipedia"],
+            "source_warnings": [],
+            "results": [{
+                "title": "Artificial intelligence",
+                "url": "https://en.wikipedia.org/wiki/Artificial_intelligence",
+                "content": "A field of computer science.",
+                "source": "Wikipedia",
+            }],
+            "source_mode": "public_api_fallback",
+            "limitations": ["Test fixture only."],
+        }
+
+    monkeypatch.setattr(tools_module, "_search_searxng", fake_search)
+    result = asyncio.run(execute_mission("Tafuta kuhusu artificial intelligence", user, db))
+
+    mission = db.query(Task).filter_by(user_id=user.id, agent="orchestrator").one()
+    step = db.query(TaskStep).filter_by(task_id=mission.id).one()
+    packet = json.loads(mission.result)
+    evidence = packet["steps"][0]["evidence"]
+
+    assert calls == ["artificial intelligence"]
+    assert result["status"] == "COMPLETED"
+    assert mission.status == "COMPLETED"
+    assert step.state == "verified"
+    assert evidence["source"] == "public_api_fallback"
+    assert evidence["sources"] == ["Wikipedia"]
+    assert evidence["results"][0]["url"] == "https://en.wikipedia.org/wiki/Artificial_intelligence"
+    assert db.query(ApprovalRequest).count() == 0
+    db.close()
