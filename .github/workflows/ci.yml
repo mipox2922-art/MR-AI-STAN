@@ -21,6 +21,25 @@ jobs:
         run: python -m compileall -q backend/app
       - name: Validate PostgreSQL backup utility syntax
         run: bash -n scripts/postgres-backup-migrate.sh
+      - name: Validate PostgreSQL workflow YAML and embedded Bash scripts
+        run: |
+          python -m pip install --quiet pyyaml
+          python - <<'PY'
+          import subprocess
+          from pathlib import Path
+          import yaml
+
+          workflow = yaml.safe_load(Path('.github/workflows/postgres-backup-migration.yml').read_text())
+          steps = workflow['jobs']['postgres-backup-migration']['steps']
+          checked = 0
+          for index, step in enumerate(steps, start=1):
+              script = step.get('run')
+              if script and step.get('shell') == 'bash':
+                  subprocess.run(['bash', '-n'], input=script, text=True, check=True)
+                  checked += 1
+          assert checked >= 3, f'Expected embedded Bash steps to be checked, got {checked}'
+          print(f'PostgreSQL migration workflow YAML and {checked} Bash steps: OK')
+          PY
       - name: Run backend tests
         env:
           SECRET_KEY: ci-only-secret-for-mr-ai-stan-tests-not-for-production-2026
