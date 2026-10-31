@@ -50,6 +50,10 @@ if [[ ! -s "$BACKUP_FILE.toc" ]]; then
   exit 1
 fi
 sha256sum "$BACKUP_FILE" > "$BACKUP_FILE.sha256"
+SOURCE_DATABASE_SIZE_BYTES="$(psql -X -qAt -v ON_ERROR_STOP=1 "$SOURCE_DATABASE_URL" -c "SELECT pg_database_size(current_database())")"
+BACKUP_SIZE_BYTES="$(wc -c < "$BACKUP_FILE" | tr -d '[:space:]')"
+echo "Source PostgreSQL database size: $SOURCE_DATABASE_SIZE_BYTES bytes"
+echo "Compressed custom-format backup size: $BACKUP_SIZE_BYTES bytes"
 echo "PASS: backup created, archive validated, and SHA-256 recorded."
 
 if [[ "$MODE" == "backup" ]]; then
@@ -58,6 +62,20 @@ fi
 
 SOURCE_ID="$(psql -X -qAt -v ON_ERROR_STOP=1 "$SOURCE_DATABASE_URL" -c "SELECT current_database() || '|' || COALESCE(inet_server_addr()::text, 'local') || '|' || COALESCE(inet_server_port()::text, '')")"
 TARGET_ID="$(psql -X -qAt -v ON_ERROR_STOP=1 "$TARGET_DATABASE_URL" -c "SELECT current_database() || '|' || COALESCE(inet_server_addr()::text, 'local') || '|' || COALESCE(inet_server_port()::text, '')")"
+SOURCE_VERSION_NUM="$(psql -X -qAt -v ON_ERROR_STOP=1 "$SOURCE_DATABASE_URL" -c "SHOW server_version_num")"
+TARGET_VERSION_NUM="$(psql -X -qAt -v ON_ERROR_STOP=1 "$TARGET_DATABASE_URL" -c "SHOW server_version_num")"
+if [[ ! "$SOURCE_VERSION_NUM" =~ ^[0-9]+$ || ! "$TARGET_VERSION_NUM" =~ ^[0-9]+$ ]]; then
+  echo "Could not determine source/target PostgreSQL server versions." >&2
+  exit 1
+fi
+SOURCE_MAJOR="$((SOURCE_VERSION_NUM / 10000))"
+TARGET_MAJOR="$((TARGET_VERSION_NUM / 10000))"
+if (( TARGET_MAJOR < SOURCE_MAJOR )); then
+  echo "Target PostgreSQL $TARGET_MAJOR is older than source PostgreSQL $SOURCE_MAJOR." >&2
+  echo "Choose a target running the same or a newer PostgreSQL major version." >&2
+  exit 2
+fi
+echo "PASS: source PostgreSQL $SOURCE_MAJOR -> target PostgreSQL $TARGET_MAJOR version compatibility."
 if [[ "$SOURCE_ID" == "$TARGET_ID" || "${SOURCE_DATABASE_URL%%\?*}" == "${TARGET_DATABASE_URL%%\?*}" ]]; then
   echo "Source and target resolve to the same PostgreSQL database; refusing migration." >&2
   exit 2
