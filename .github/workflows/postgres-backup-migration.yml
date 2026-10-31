@@ -1,0 +1,59 @@
+name: PostgreSQL backup and migration
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "backup = create/verify an export; migrate = export and restore to an empty target"
+        type: choice
+        options:
+          - backup
+          - migrate
+        default: backup
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  postgres-backup-migration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      SOURCE_DATABASE_URL: ${{ secrets.MR_AI_SOURCE_DATABASE_URL }}
+      TARGET_DATABASE_URL: ${{ secrets.MR_AI_TARGET_DATABASE_URL }}
+      BACKUP_FILE: artifacts/mr-ai-stan-postgres.dump
+      MODE: ${{ inputs.mode }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate database secrets and run PostgreSQL 18 backup/migration
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "$SOURCE_DATABASE_URL" ]]; then
+            echo "::error::Add the encrypted repository secret MR_AI_SOURCE_DATABASE_URL before running this workflow."
+            exit 2
+          fi
+          if [[ "$MODE" == "migrate" && -z "$TARGET_DATABASE_URL" ]]; then
+            echo "::error::Add the encrypted repository secret MR_AI_TARGET_DATABASE_URL before migration."
+            exit 2
+          fi
+          docker run --rm \
+            -e SOURCE_DATABASE_URL \
+            -e TARGET_DATABASE_URL \
+            -e BACKUP_FILE \
+            -v "$GITHUB_WORKSPACE:/workspace" \
+            -w /workspace \
+            postgres:18 \
+            bash scripts/postgres-backup-migrate.sh "$MODE"
+
+      - name: Upload encrypted-run backup artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mr-ai-stan-postgres-backup
+          path: artifacts/
+          if-no-files-found: ignore
+          retention-days: 90
