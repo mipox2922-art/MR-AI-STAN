@@ -197,3 +197,73 @@ def test_gmail_assistant_pause_prevents_inbox_processing(monkeypatch):
     assert sent == []
     assert db.query(Task).filter(Task.user_id == user.id).count() == 0
     db.close()
+
+
+
+def test_followup_thread_polling_is_throttled_between_scheduler_cycles(monkeypatch):
+    from datetime import datetime, timedelta, timezone
+    from app.connectors import gmail
+
+    db, user = make_db()
+    now = datetime(2026, 10, 31, 12, 0, tzinfo=timezone.utc)
+    monkeypatch.setattr(gmail_assistant, "_now", lambda: now)
+    record = {
+        "message_id": "sent-message-1",
+        "thread_id": "thread-1",
+        "from": "colleague@example.com",
+        "status": "SENT_WAITING_REPLY",
+        "sent_at": (now - timedelta(days=1)).isoformat(),
+        "follow_up_at": (now + timedelta(days=2)).isoformat(),
+        "last_thread_check_at": (now - timedelta(minutes=5)).isoformat(),
+    }
+    gmail_assistant._save_record(db, user.id, record)
+
+    async def unexpected_thread_fetch(*args, **kwargs):
+        raise AssertionError("Gmail thread must not be fetched inside the 30-minute interval")
+
+    monkeypatch.setattr(gmail, "get_thread", unexpected_thread_fetch)
+    stats = asyncio.run(gmail_assistant._process_followups(db, user.id, False))
+
+    assert stats["checked"] == 0
+    assert stats["errors"] == 0
+    db.close()
+
+
+def test_followup_thread_poll_persists_attempt_before_network_request(monkeypatch):
+    from datetime import datetime, timedelta, timezone
+    from app.connectors import gmail
+
+    db, user = make_db()
+    now = datetime(2026, 10, 31, 12, 0, tzinfo=timezone.utc)
+    monkeypatch.setattr(gmail_assistant, "_now", lambda: now)
+    record = {
+        "message_id": "sent-message-2",
+        "thread_id": "thread-2",
+        "from": "colleague@example.com",
+        "status": "SENT_WAITING_REPLY",
+        "sent_at": (now - timedelta(days=1)).isoformat(),
+        "follow_up_at": (now + timedelta(days=2)).isoformat(),
+    }
+    gmail_assistant._save_record(db, user.id, record)
+    calls = []
+
+    async def get_thread(db_arg, user_id, thread_id):
+        calls.append(thread_id)
+        return {"status": "COMPLETED", "id": thread_id, "messages": []}
+
+    monkeypatch.setattr(gmail, "get_thread", get_thread)
+    stats = asyncio.run(gmail_assistant._process_followups(db, user.id, False))
+
+    saved = gmail_assistant._load_record(db, user.id, "sent-message-2")
+    assert calls == ["thread-2"]
+    assert stats["checked"] == 1
+    assert saved["last_thread_check_at"] == now.isoformat().replace("+00:00", "Z")
+    db.close()
+
+
+def test_followup_error_is_classified_without_logging_raw_error_text(caplog):
+    from app.gmail_assistant import _gmail_error_category
+
+    error = RuntimeError("Gmail API request failed: HTTP 503 secret-user-message-body")
+    assert _gmail_error_category(error) == "GOOGLE_UNAVAILABLE"
+    assert "secret-user-message-body" not in caplog.text
