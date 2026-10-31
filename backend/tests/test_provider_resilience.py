@@ -102,3 +102,27 @@ def test_provider_status_endpoint_reports_only_safe_runtime_metadata(tmp_path, m
     assert any(row["provider"] == "mistral" and row["configured"] for row in payload["providers"])
     assert "fake-secret-value" not in response.text
     assert payload["fallback_policy"]["paid_fallbacks_enabled"] is False
+
+
+
+def test_prompt_preparation_releases_database_connection_before_provider_call(monkeypatch):
+    events = []
+
+    class FakeDB:
+        def commit(self):
+            events.append("commit")
+
+    def build_prompt(db, conversation_id, user_message, tool_context, user_id=None):
+        events.append("build_prompt")
+        assert conversation_id == 12
+        assert user_message == "Habari"
+        assert user_id == 7
+        return "prepared prompt"
+
+    monkeypatch.setattr(ai_router, "build_model_prompt", build_prompt)
+    prompt = ai_router._prepare_prompt_for_provider(
+        FakeDB(), 12, "Habari", {"source": "test"}, 7
+    )
+
+    assert prompt == "prepared prompt"
+    assert events == ["build_prompt", "commit"]
