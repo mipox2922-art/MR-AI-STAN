@@ -261,9 +261,44 @@ def test_followup_thread_poll_persists_attempt_before_network_request(monkeypatc
     db.close()
 
 
-def test_followup_error_is_classified_without_logging_raw_error_text(caplog):
+def test_followup_error_is_classified_without_copying_provider_response_body():
     from app.gmail_assistant import _gmail_error_category
 
     error = RuntimeError("Gmail API request failed: HTTP 503 secret-user-message-body")
     assert _gmail_error_category(error) == "GOOGLE_UNAVAILABLE"
-    assert "secret-user-message-body" not in caplog.text
+    assert _gmail_error_category(RuntimeError("invalid_grant")) == "REAUTH_REQUIRED"
+
+
+
+def test_followup_failure_is_throttled_and_saved_as_safe_category(monkeypatch):
+    from datetime import datetime, timedelta, timezone
+    from app.connectors import gmail
+
+    db, user = make_db()
+    now = datetime(2026, 10, 31, 12, 0, tzinfo=timezone.utc)
+    monkeypatch.setattr(gmail_assistant, "_now", lambda: now)
+    record = {
+        "message_id": "sent-message-3",
+        "thread_id": "thread-3",
+        "from": "colleague@example.com",
+        "status": "SENT_WAITING_REPLY",
+        "sent_at": (now - timedelta(days=1)).isoformat(),
+        "follow_up_at": (now + timedelta(days=2)).isoformat(),
+    }
+    gmail_assistant._save_record(db, user.id, record)
+    calls = []
+
+    async def fail_thread(*args, **kwargs):
+        calls.append(1)
+        raise RuntimeError("Google token refresh failed temporarily: HTTP 503 (server_error).")
+
+    monkeypatch.setattr(gmail, "get_thread", fail_thread)
+    first = asyncio.run(gmail_assistant._process_followups(db, user.id, False))
+    saved = gmail_assistant._load_record(db, user.id, "sent-message-3")
+    second = asyncio.run(gmail_assistant._process_followups(db, user.id, False))
+
+    assert first["errors"] == 1
+    assert saved["last_gmail_error_category"] == "GOOGLE_UNAVAILABLE"
+    assert second["errors"] == 0
+    assert calls == [1]
+    db.close()
