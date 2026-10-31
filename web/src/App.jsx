@@ -105,6 +105,25 @@ function readBrowserDataStatus() {
   };
 }
 
+async function settleWithConcurrency(requests, concurrency = 3) {
+  const results = new Array(requests.length);
+  let nextIndex = 0;
+  const worker = async () => {
+    while (true) {
+      const index = nextIndex++;
+      if (index >= requests.length) return;
+      try {
+        results[index] = { status: "fulfilled", value: await requests[index]() };
+      } catch (reason) {
+        results[index] = { status: "rejected", reason };
+      }
+    }
+  };
+  const workerCount = Math.max(1, Math.min(requests.length, concurrency));
+  await Promise.all(Array.from({ length: workerCount }, () => worker()));
+  return results;
+}
+
 function radarDiagnosticsFrom(result) {
   const incoming = result?.sensor_status || {};
   const counts = result?.counts || {};
@@ -642,15 +661,15 @@ function App() {
     setConnectionState(current => current === "ONLINE" ? current : "CONNECTING");
 
     try {
-      const results = await Promise.allSettled([
-        getStatus(),
-        getAgents(),
-        getTasks(),
-        getMemories(),
-        getActivity(),
-        getGmailStatus(),
-        getAIState(),
-      ]);
+      const results = await settleWithConcurrency([
+        getStatus,
+        getAgents,
+        getTasks,
+        getMemories,
+        getActivity,
+        getGmailStatus,
+        getAIState,
+      ], 3);
 
       const unauthorized = results.some(
         result => result.status === "rejected" && result.reason?.status === 401
@@ -730,7 +749,7 @@ function App() {
     if (mode !== "sleep" && document.visibilityState === "visible") refresh();
     const timer = mode === "sleep" ? null : setInterval(() => {
       if (document.visibilityState === "visible") refresh();
-    }, 7000);
+    }, 10000);
     const clockTimer = setInterval(() => setClock(new Date()), 1000);
     const onVisibilityChange = () => {
       if (document.visibilityState === "visible" && mode !== "sleep") refresh();
