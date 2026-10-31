@@ -4,6 +4,11 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.config import settings
+import asyncio
+import pytest
+
+from app.connectors import gmail as gmail_module
+from app.models import Integration
 from app.connectors.gmail import (
     GMAIL_REFRESH_KEY,
     GMAIL_STATE_KEY,
@@ -11,6 +16,8 @@ from app.connectors.gmail import (
     _load_refresh_token,
     _normalize_message,
     _store_refresh_token,
+    _access_token,
+    connection_status,
     build_authorization_url,
 )
 from app.database import Base
@@ -118,3 +125,79 @@ def test_invalid_oauth_state_does_not_consume_the_valid_pending_state():
         .first()
     )
     assert row is None, "A valid one-time OAuth state should be consumed"
+
+
+
+def test_transient_google_token_error_does_not_force_reauthorization(monkeypatch):
+    db = make_db()
+    _store_refresh_token(db, 7, "refresh-secret-value")
+
+    class Response:
+        is_error = True
+        status_code = 503
+
+        @staticmethod
+        def json():
+            return {"error": "server_error"}
+
+    class Client:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        async def post(self, *args, **kwargs):
+            return Response()
+
+    monkeypatch.setattr(gmail_module.httpx, "AsyncClient", lambda **kwargs: Client())
+    try:
+        asyncio.run(_access_token(db, 7))
+    except GmailConnectorError as exc:
+        assert "HTTP 503" in str(exc)
+    else:
+        raise AssertionError("A transient Google error must be surfaced")
+
+    integration = db.query(Integration).filter(Integration.user_id == 7, Integration.name == "gmail").first()
+    assert integration is None or integration.status != "REAUTH_REQUIRED"
+    db.close()
+
+
+def test_invalid_grant_marks_gmail_as_reauthorization_required(monkeypatch):
+    db = make_db()
+    _store_refresh_token(db, 8, "revoked-refresh-token")
+
+    class Response:
+        is_error = True
+        status_code = 400
+
+        @staticmethod
+        def json():
+            return {"error": "invalid_grant"}
+
+    class Client:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        async def post(self, *args, **kwargs):
+            return Response()
+
+    monkeypatch.setattr(gmail_module.httpx, "AsyncClient", lambda **kwargs: Client())
+    with pytest.raises(GmailConnectorError, match="invalid_grant"):
+        asyncio.run(_access_token(db, 8))
+
+    status = connection_status_with_settings(db, 8)
+    assert status["connected"] is False
+    assert status["status"] == "REAUTH_REQUIRED"
+    db.close()
+
+
+def connection_status_with_settings(db, user_id):
+    from app.config import settings
+    settings.gmail_client_id = "client-id"
+    settings.gmail_client_secret = "client-secret"
+    settings.gmail_redirect_uri = "https://example.com/callback"
+    return connection_status(db, user_id)
