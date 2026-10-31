@@ -8,6 +8,8 @@ class Settings(BaseSettings):
     serverless_mode: bool = False
 
     database_url: str = "sqlite:///./mr_ai.db"
+    # Optional verified migration target. Empty preserves DATABASE_URL and rollback path.
+    database_url_override: str = ""
     database_ssl_ca_cert: str = ""
     scheduler_enabled: bool = True
     cloudflare_cron_secret: str = ""
