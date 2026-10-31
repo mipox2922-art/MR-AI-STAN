@@ -164,6 +164,9 @@ def test_transient_google_token_error_does_not_force_reauthorization(monkeypatch
 
 
 def test_invalid_grant_marks_gmail_as_reauthorization_required(monkeypatch):
+    monkeypatch.setattr(gmail_module.settings, "gmail_client_id", "client-id")
+    monkeypatch.setattr(gmail_module.settings, "gmail_client_secret", "client-secret")
+    monkeypatch.setattr(gmail_module.settings, "gmail_redirect_uri", "https://example.com/callback")
     db = make_db()
     _store_refresh_token(db, 8, "revoked-refresh-token")
 
@@ -189,15 +192,7 @@ def test_invalid_grant_marks_gmail_as_reauthorization_required(monkeypatch):
     with pytest.raises(GmailConnectorError, match="invalid_grant"):
         asyncio.run(_access_token(db, 8))
 
-    status = connection_status_with_settings(db, 8)
+    status = connection_status(db, 8)
     assert status["connected"] is False
     assert status["status"] == "REAUTH_REQUIRED"
     db.close()
-
-
-def connection_status_with_settings(db, user_id):
-    from app.config import settings
-    settings.gmail_client_id = "client-id"
-    settings.gmail_client_secret = "client-secret"
-    settings.gmail_redirect_uri = "https://example.com/callback"
-    return connection_status(db, user_id)
