@@ -43,7 +43,7 @@ Do not select a destination until the source database size is known. Neon can be
 
 ## Configure secrets safely
 
-In GitHub, open **Settings → Secrets and variables → Actions → New repository secret** and add:
+In GitHub, open [Repository Actions secrets](https://github.com/mipox2922-art/MR-AI-STAN/settings/secrets/actions) and add these three secrets before the first backup:
 
 - `MR_AI_SOURCE_DATABASE_URL`: the Render database's **External** connection URL from its Connect page. It must use TLS (`sslmode=require`).
 - `MR_AI_TARGET_DATABASE_URL`: the target provider's external PostgreSQL URL, also with TLS enabled.
@@ -56,8 +56,8 @@ The workflow obtains the GitHub runner's current public IPv4 address, temporaril
 
 ## Run the backup first
 
-1. Add the four secrets above in GitHub.
-2. Open **Actions → PostgreSQL backup and migration**.
+1. Add the three required backup secrets above in GitHub. `MR_AI_TARGET_DATABASE_URL` is not needed for backup-only mode.
+2. Open [PostgreSQL backup and migration workflow](https://github.com/mipox2922-art/MR-AI-STAN/actions/workflows/postgres-backup-migration.yml).
 3. Choose `backup` and run the workflow.
 4. Confirm the run succeeds and download the `mr-ai-stan-postgres-backup-encrypted` artifact.
 5. Keep the encrypted `.gpg` file and checksum in private durable storage. GitHub workflow artifacts are retained for 90 days only.
@@ -65,14 +65,14 @@ The workflow obtains the GitHub runner's current public IPv4 address, temporaril
 
 ## Restore and verify
 
-After creating an empty destination database and setting `MR_AI_TARGET_DATABASE_URL`:
+After creating an empty destination database, add the fourth encrypted repository secret `MR_AI_TARGET_DATABASE_URL` with the target provider's external connection URL, then:
 
 1. Run the same workflow with mode `migrate`.
 2. Confirm the run reports matching source/target row counts for every user table.
 3. Download and retain the encrypted backup artifact. Keep the passphrase separate from the dump file.
-4. Only after verification, change the Render backend service's `DATABASE_URL` to the target provider's URL.
+4. Set `DATABASE_URL_OVERRIDE` on the Render backend to the target URL. The code now prefers that value while retaining the original `DATABASE_URL` unchanged as a rollback source. It is intentionally excluded from Blueprint sync (`sync: false`).
 5. Confirm `https://mr-ai-stan.onrender.com/health` returns HTTP 200, `database_engine=postgresql`, and `database=reachable`. Then test authenticated login, Gmail status, chat, tasks, and scheduler.
-6. Keep the original Render database intact until the new database has passed production verification. Do not delete the old database as part of this workflow.
+6. Keep the original Render database intact until the new database has passed production verification. Roll back by clearing `DATABASE_URL_OVERRIDE`; the original `DATABASE_URL` remains available. Do not delete the old database as part of this workflow.
 
 ## What is not automated yet
 
