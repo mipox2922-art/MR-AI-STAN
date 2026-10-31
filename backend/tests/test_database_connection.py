@@ -5,6 +5,7 @@ from app.database import (
     database_pool_options,
     normalize_database_url,
     postgres_connect_args,
+    resolve_database_url,
 )
 
 
@@ -89,3 +90,23 @@ def test_postgres_pool_supports_parallel_dashboard_and_scheduler_requests():
     assert options["pool_size"] + options["max_overflow"] == 10
     assert options["pool_timeout"] == 10
     assert options["pool_recycle"] == 1800
+
+
+def test_database_url_override_selects_migration_target():
+    assert resolve_database_url(
+        "postgresql://old-host/old-db",
+        "postgresql://new-host/new-db",
+    ) == "postgresql://new-host/new-db"
+
+
+def test_empty_database_url_override_keeps_original_for_rollback():
+    original = "postgresql://old-host/old-db"
+    assert resolve_database_url(original, "") == original
+    assert resolve_database_url(original, "   ") == original
+
+
+def test_database_url_override_is_trimmed():
+    assert resolve_database_url(
+        "postgresql://old-host/old-db",
+        "  postgresql://new-host/new-db  ",
+    ) == "postgresql://new-host/new-db"

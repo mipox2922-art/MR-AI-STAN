@@ -15,6 +15,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: mr-ai-postgres-backup-migration
+  cancel-in-progress: false
+
 jobs:
   postgres-backup-migration:
     runs-on: ubuntu-latest
@@ -23,28 +27,119 @@ jobs:
       SOURCE_DATABASE_URL: ${{ secrets.MR_AI_SOURCE_DATABASE_URL }}
       TARGET_DATABASE_URL: ${{ secrets.MR_AI_TARGET_DATABASE_URL }}
       BACKUP_ENCRYPTION_PASSPHRASE: ${{ secrets.MR_AI_BACKUP_ENCRYPTION_PASSPHRASE }}
+      RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+      RENDER_POSTGRES_ID: dpg-db6inl5g1s2s739fdf40-a
       BACKUP_FILE: artifacts/mr-ai-stan-postgres.dump
       MODE: ${{ inputs.mode }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Validate database secrets and run PostgreSQL 18 backup/migration
+      - name: Validate secrets and temporarily allow only this runner
+        id: allowlist
         shell: bash
         run: |
           set -euo pipefail
           if [[ -z "$SOURCE_DATABASE_URL" ]]; then
-            echo "::error::Add the encrypted repository secret MR_AI_SOURCE_DATABASE_URL before running this workflow."
+            echo "::error::Add MR_AI_SOURCE_DATABASE_URL as an encrypted repository secret."
             exit 2
           fi
           if [[ "$MODE" == "migrate" && -z "$TARGET_DATABASE_URL" ]]; then
-            echo "::error::Add the encrypted repository secret MR_AI_TARGET_DATABASE_URL before migration."
+            echo "::error::Add MR_AI_TARGET_DATABASE_URL before migration."
             exit 2
           fi
           if [[ -z "$BACKUP_ENCRYPTION_PASSPHRASE" || "${#BACKUP_ENCRYPTION_PASSPHRASE}" -lt 32 ]]; then
-            echo "::error::Add MR_AI_BACKUP_ENCRYPTION_PASSPHRASE as a random value of at least 32 characters."
+            echo "::error::Add MR_AI_BACKUP_ENCRYPTION_PASSPHRASE (at least 32 random characters)."
             exit 2
           fi
+          if [[ -z "$RENDER_API_KEY" ]]; then
+            echo "::error::Add a scoped Render API key as the encrypted RENDER_API_KEY secret."
+            exit 2
+          fi
+
+          mkdir -p "$RUNNER_TEMP/mr-ai-postgres-migration"
+          original_file="$RUNNER_TEMP/mr-ai-postgres-migration/original-postgres.json"
+          response_file="$RUNNER_TEMP/mr-ai-postgres-migration/patch-response.json"
+
+          curl --fail --silent --show-error \
+            -H "Authorization: Bearer $RENDER_API_KEY" \
+            -H "Accept: application/json" \
+            "https://api.render.com/v1/postgres/$RENDER_POSTGRES_ID" \
+            --output "$original_file"
+
+          if [[ "$(jq -r '.id // empty' "$original_file")" != "$RENDER_POSTGRES_ID" ]]; then
+            echo "::error::Render API returned an unexpected PostgreSQL resource."
+            exit 1
+          fi
+          if [[ "$(jq -r '.status // empty' "$original_file")" != "available" ]]; then
+            echo "::error::The source PostgreSQL instance is not available."
+            exit 1
+          fi
+
+          runner_ip="$(curl --ipv4 --fail --silent --show-error https://api.ipify.org)"
+          if [[ ! "$runner_ip" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
+            echo "::error::Could not determine a valid GitHub runner IPv4 address."
+            exit 1
+          fi
+          echo "::add-mask::$runner_ip"
+
+          # Store cleanup state before PATCH: cleanup still runs if the request
+          # succeeds remotely but the runner loses the response.
+          echo "RUNNER_EGRESS_IP=$runner_ip" >> "$GITHUB_ENV"
+          echo "ORIGINAL_ALLOWLIST_FILE=$original_file" >> "$GITHUB_ENV"
+
+          payload="$RUNNER_TEMP/mr-ai-postgres-migration/temporary-allowlist.json"
+          jq --arg cidr "$runner_ip/32" -n \
+            --slurpfile source "$original_file" '
+              ($source[0].ipAllowList // [])
+              | map({cidrBlock: .cidrBlock, description: .description}) as $rules
+              | if any($rules[]; .cidrBlock == $cidr) then
+                  {ipAllowList: $rules}
+                else
+                  {ipAllowList: ($rules + [{
+                    cidrBlock: $cidr,
+                    description: "Temporary MR AI GitHub Actions backup runner"
+                  }])}
+                end
+            ' > "$payload"
+
+          if jq -e --arg cidr "$runner_ip/32" \
+            'any((.ipAllowList // [])[]; .cidrBlock == $cidr)' \
+            "$original_file" >/dev/null; then
+            echo "ALLOWLIST_CHANGED=false" >> "$GITHUB_ENV"
+            echo "The runner IP is already explicitly allowlisted; no access rule changed."
+          else
+            echo "ALLOWLIST_CHANGED=true" >> "$GITHUB_ENV"
+            status="$(curl --silent --show-error --output "$response_file" --write-out '%{http_code}' \
+              -X PATCH \
+              -H "Authorization: Bearer $RENDER_API_KEY" \
+              -H "Content-Type: application/json" \
+              -H "Accept: application/json" \
+              --data-binary "@$payload" \
+              "https://api.render.com/v1/postgres/$RENDER_POSTGRES_ID")"
+            if [[ "$status" != "200" ]]; then
+              echo "::error::Render rejected the temporary runner-only IP allowlist update (HTTP $status)."
+              exit 1
+            fi
+            curl --fail --silent --show-error \
+              -H "Authorization: Bearer $RENDER_API_KEY" \
+              -H "Accept: application/json" \
+              "https://api.render.com/v1/postgres/$RENDER_POSTGRES_ID" \
+              --output "$response_file"
+            if ! jq -e --arg cidr "$runner_ip/32" \
+              'any((.ipAllowList // [])[]; .cidrBlock == $cidr)' \
+              "$response_file" >/dev/null; then
+              echo "::error::Render did not confirm the temporary runner IP allowlist."
+              exit 1
+            fi
+            echo "PASS: only the current runner IPv4 /32 was added; existing rules were preserved."
+          fi
+
+      - name: Create and verify the PostgreSQL backup or restore
+        id: database
+        shell: bash
+        run: |
+          set -euo pipefail
           docker run --rm \
             -e SOURCE_DATABASE_URL \
             -e TARGET_DATABASE_URL \
@@ -55,6 +150,7 @@ jobs:
             bash scripts/postgres-backup-migrate.sh "$MODE"
 
       - name: Encrypt and verify the backup archive
+        id: encrypt
         if: success()
         shell: bash
         run: |
@@ -77,8 +173,66 @@ jobs:
           find artifacts -maxdepth 1 -type f ! -name '*.gpg' ! -name '*.gpg.sha256' -delete
           echo "PASS: AES-256 encrypted backup decrypted and byte-verified; only ciphertext remains."
 
+      - name: Restore the original Render IP allowlist
+        id: cleanup
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${ALLOWLIST_CHANGED:-false}" != "true" || -z "${RUNNER_EGRESS_IP:-}" ]]; then
+            echo "No temporary Render IP rule needs removal."
+            exit 0
+          fi
+
+          response_file="$RUNNER_TEMP/mr-ai-postgres-migration/cleanup-response.json"
+          current_file="$RUNNER_TEMP/mr-ai-postgres-migration/current-postgres.json"
+          payload="$RUNNER_TEMP/mr-ai-postgres-migration/restore-allowlist.json"
+          curl --fail --silent --show-error \
+            -H "Authorization: Bearer $RENDER_API_KEY" \
+            -H "Accept: application/json" \
+            "https://api.render.com/v1/postgres/$RENDER_POSTGRES_ID" \
+            --output "$current_file"
+
+          # Remove only the exact temporary rule added by this workflow. Keep
+          # any legitimate allowlist edits made by an administrator meanwhile.
+          jq --arg cidr "$RUNNER_EGRESS_IP/32" -n \
+            --slurpfile current "$current_file" '
+              ($current[0].ipAllowList // [])
+              | map(select(
+                  .cidrBlock != $cidr or
+                  .description != "Temporary MR AI GitHub Actions backup runner"
+                ))
+              | map({cidrBlock: .cidrBlock, description: .description})
+              | {ipAllowList: .}
+            ' > "$payload"
+
+          status="$(curl --silent --show-error --output "$response_file" --write-out '%{http_code}' \
+            -X PATCH \
+            -H "Authorization: Bearer $RENDER_API_KEY" \
+            -H "Content-Type: application/json" \
+            -H "Accept: application/json" \
+            --data-binary "@$payload" \
+            "https://api.render.com/v1/postgres/$RENDER_POSTGRES_ID")"
+          if [[ "$status" != "200" ]]; then
+            echo "::error::Could not restore the Render PostgreSQL IP allowlist (HTTP $status). Remove the temporary runner rule in Render Dashboard immediately."
+            exit 1
+          fi
+
+          curl --fail --silent --show-error \
+            -H "Authorization: Bearer $RENDER_API_KEY" \
+            -H "Accept: application/json" \
+            "https://api.render.com/v1/postgres/$RENDER_POSTGRES_ID" \
+            --output "$response_file"
+          if jq -e --arg cidr "$RUNNER_EGRESS_IP/32" \
+            'any((.ipAllowList // [])[]; .cidrBlock == $cidr and .description == "Temporary MR AI GitHub Actions backup runner")' \
+            "$response_file" >/dev/null; then
+            echo "::error::The temporary GitHub runner IP rule is still present in Render."
+            exit 1
+          fi
+          echo "PASS: temporary runner rule removed; other allowlist entries preserved."
+
       - name: Upload encrypted PostgreSQL backup only
-        if: success()
+        if: always() && steps.encrypt.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
           name: mr-ai-stan-postgres-backup-encrypted

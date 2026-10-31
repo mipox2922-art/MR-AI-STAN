@@ -30,6 +30,12 @@ def normalize_database_url(database_url: str) -> str:
     return database_url
 
 
+def resolve_database_url(database_url: str, override: str = "") -> str:
+    """Prefer an explicit migration target while keeping the original URL for rollback."""
+    candidate = override.strip()
+    return candidate if candidate else database_url
+
+
 def create_postgres_ssl_context(ca_certificate: str | None = None) -> ssl.SSLContext:
     """Create a verified TLS context, optionally trusting a provider CA certificate.
 
@@ -81,14 +87,18 @@ def postgres_connect_args(
     return {"ssl_context": create_postgres_ssl_context(configured_ca)}
 
 
-DATABASE_URL = normalize_database_url(settings.database_url)
+ACTIVE_DATABASE_URL = resolve_database_url(
+    settings.database_url,
+    settings.database_url_override,
+)
+DATABASE_URL = normalize_database_url(ACTIVE_DATABASE_URL)
 
 connect_args = {}
 
 if DATABASE_URL.startswith("sqlite"):
     connect_args = {"check_same_thread": False}
 elif DATABASE_URL.startswith("postgresql+pg8000://"):
-    connect_args = postgres_connect_args(settings.database_url)
+    connect_args = postgres_connect_args(ACTIVE_DATABASE_URL)
 
 def database_pool_options(database_url: str) -> dict[str, int]:
     """Return bounded pool settings appropriate for the configured database.

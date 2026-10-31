@@ -38,6 +38,10 @@ services:
         fromDatabase:
           name: mr-ai-stan-db
           property: connectionString
+      # Set only after the migration workflow verifies the target restore.
+      # Empty/unset keeps the original Render database as the rollback source.
+      - key: DATABASE_URL_OVERRIDE
+        sync: false
 
 databases:
   # Free for first-run validation; Render expires free Postgres after 30 days.
