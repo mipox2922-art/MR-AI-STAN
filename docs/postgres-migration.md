@@ -25,6 +25,7 @@ The application is therefore at risk of losing access to its production data. Th
 3. create a SHA-256 checksum;
 4. optionally restore to a **new, empty** target database;
 5. compare every user table's row count between source and target.
+6. report the source database size and compressed dump size to guide destination selection, and refuse a target running an older PostgreSQL major version than the source (PostgreSQL 18).
 
 The script does not print database URLs, does not commit credentials, does not modify the source, and refuses to restore into a target containing user tables. It deliberately does not use `--clean` or drop destination data.
 
@@ -39,7 +40,7 @@ Use an existing zero-cost PostgreSQL project only after checking both its databa
   https://neon.com/docs/introduction/plans
   https://neon.com/docs/introduction/limits
 
-Do not select a destination until the source database size is known. Neon can be unsuitable for an always-active database workload if its 100 CU-hour allowance is exceeded. Supabase Free can be unsuitable if the source database exceeds 500 MB. No paid plan is assumed by this runbook.
+Run `backup` first: the workflow prints the source database size and compressed dump size. Select a destination only after checking that the actual database size fits its storage quota, and that the destination runs PostgreSQL 18 or newer. The script refuses a major-version downgrade. Neon can be unsuitable for an always-active database workload if its 100 CU-hour allowance is exceeded. Supabase Free can be unsuitable if the source database exceeds 500 MB. No paid plan is assumed by this runbook.
 
 ## Configure secrets safely
 
