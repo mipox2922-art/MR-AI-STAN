@@ -16,6 +16,9 @@ TRUSTED_REF = "refs/heads/main"
 TRUSTED_WORKFLOW = (
     "mipox2922-art/MR-AI-STAN/.github/workflows/mr-ai-scheduler.yml@refs/heads/main"
 )
+TRUSTED_BACKUP_WORKFLOW = (
+    "mipox2922-art/MR-AI-STAN/.github/workflows/postgres-backup-migration.yml@refs/heads/main"
+)
 
 
 def _forbidden() -> HTTPException:
@@ -84,13 +87,19 @@ async def verify_github_actions_token(token: str) -> dict[str, Any]:
     except JWTError as exc:
         raise _forbidden() from exc
 
-    # A valid GitHub token from any other repo, branch, or workflow is not enough.
+    # Only these two workflows on main may call internal scheduled/export routes.
+    workflow_ref = claims.get("workflow_ref")
+    event_name = claims.get("event_name")
+    trusted_workflow_event = (
+        workflow_ref == TRUSTED_WORKFLOW and event_name in {"schedule", "workflow_dispatch"}
+    ) or (
+        workflow_ref == TRUSTED_BACKUP_WORKFLOW and event_name == "workflow_dispatch"
+    )
     if (
         claims.get("repository") != TRUSTED_REPOSITORY
         or claims.get("repository_owner") != "mipox2922-art"
         or claims.get("ref") != TRUSTED_REF
-        or claims.get("workflow_ref") != TRUSTED_WORKFLOW
-        or claims.get("event_name") not in {"schedule", "workflow_dispatch"}
+        or not trusted_workflow_event
     ):
         raise _forbidden()
 
