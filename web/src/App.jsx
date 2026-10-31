@@ -1103,7 +1103,7 @@ function App() {
                 onPowerCommand={handlePowerCommand}
                 mode={normalizedMode}
                 coreStatus={coreStatus}
-                provider={aiProvider || system?.ai?.provider || "openrouter"}
+                provider={aiProvider || system?.ai?.provider || null}
                 onProviderChange={setSelectedAIProvider}
                 tasks={tasks}
                 tasksAvailable={taskListAvailable}
