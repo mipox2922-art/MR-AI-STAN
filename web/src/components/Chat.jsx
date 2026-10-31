@@ -221,7 +221,7 @@ export default function Chat({
   onPowerCommand,
   mode = "normal",
   coreStatus = "IDLE",
-  provider = "openrouter",
+  provider = null,
   onProviderChange,
   tasks = [],
   tasksAvailable = false,
@@ -407,6 +407,17 @@ export default function Chat({
       ]);
       setMessage("");
       reportRuntimeState("IDLE");
+      return;
+    }
+
+    if (!String(provider || "").trim()) {
+      setMessages(prev => [
+        ...prev,
+        { role: "user", content: text },
+        { role: "assistant", content: "MR AI Chat haijaunganishwa na AI provider. Hakuna ombi lililotumwa. Sanidi provider ya bure kwenye Render Environment au chagua provider iliyounganishwa." },
+      ]);
+      setMessage("");
+      reportRuntimeState("ERROR");
       return;
     }
 
