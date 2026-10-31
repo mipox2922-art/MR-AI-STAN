@@ -1,0 +1,89 @@
+name: PostgreSQL backup and migration
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "backup = create/verify an export; migrate = export and restore to an empty target"
+        type: choice
+        options:
+          - backup
+          - migrate
+        default: backup
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  postgres-backup-migration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      SOURCE_DATABASE_URL: ${{ secrets.MR_AI_SOURCE_DATABASE_URL }}
+      TARGET_DATABASE_URL: ${{ secrets.MR_AI_TARGET_DATABASE_URL }}
+      BACKUP_ENCRYPTION_PASSPHRASE: ${{ secrets.MR_AI_BACKUP_ENCRYPTION_PASSPHRASE }}
+      BACKUP_FILE: artifacts/mr-ai-stan-postgres.dump
+      MODE: ${{ inputs.mode }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate database secrets and run PostgreSQL 18 backup/migration
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "$SOURCE_DATABASE_URL" ]]; then
+            echo "::error::Add the encrypted repository secret MR_AI_SOURCE_DATABASE_URL before running this workflow."
+            exit 2
+          fi
+          if [[ "$MODE" == "migrate" && -z "$TARGET_DATABASE_URL" ]]; then
+            echo "::error::Add the encrypted repository secret MR_AI_TARGET_DATABASE_URL before migration."
+            exit 2
+          fi
+          if [[ -z "$BACKUP_ENCRYPTION_PASSPHRASE" || "${#BACKUP_ENCRYPTION_PASSPHRASE}" -lt 32 ]]; then
+            echo "::error::Add MR_AI_BACKUP_ENCRYPTION_PASSPHRASE as a random value of at least 32 characters."
+            exit 2
+          fi
+          docker run --rm \
+            -e SOURCE_DATABASE_URL \
+            -e TARGET_DATABASE_URL \
+            -e BACKUP_FILE \
+            -v "$GITHUB_WORKSPACE:/workspace" \
+            -w /workspace \
+            postgres:18 \
+            bash scripts/postgres-backup-migrate.sh "$MODE"
+
+      - name: Encrypt and verify the backup archive
+        if: success()
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          tar -C artifacts -czf /tmp/mr-ai-stan-backup.tar.gz .
+          printf '%s' "$BACKUP_ENCRYPTION_PASSPHRASE" | gpg \
+            --batch --yes --pinentry-mode loopback --passphrase-fd 0 \
+            --symmetric --cipher-algo AES256 --s2k-digest-algo SHA256 \
+            --output artifacts/mr-ai-stan-postgres-backup.tar.gz.gpg \
+            /tmp/mr-ai-stan-backup.tar.gz
+          printf '%s' "$BACKUP_ENCRYPTION_PASSPHRASE" | gpg \
+            --batch --yes --pinentry-mode loopback --passphrase-fd 0 \
+            --decrypt --output /tmp/mr-ai-stan-backup-verified.tar.gz \
+            artifacts/mr-ai-stan-postgres-backup.tar.gz.gpg
+          cmp /tmp/mr-ai-stan-backup.tar.gz /tmp/mr-ai-stan-backup-verified.tar.gz
+          sha256sum artifacts/mr-ai-stan-postgres-backup.tar.gz.gpg \
+            > artifacts/mr-ai-stan-postgres-backup.tar.gz.gpg.sha256
+          rm -f /tmp/mr-ai-stan-backup.tar.gz /tmp/mr-ai-stan-backup-verified.tar.gz
+          find artifacts -maxdepth 1 -type f ! -name '*.gpg' ! -name '*.gpg.sha256' -delete
+          echo "PASS: AES-256 encrypted backup decrypted and byte-verified; only ciphertext remains."
+
+      - name: Upload encrypted PostgreSQL backup only
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mr-ai-stan-postgres-backup-encrypted
+          path: |
+            artifacts/mr-ai-stan-postgres-backup.tar.gz.gpg
+            artifacts/mr-ai-stan-postgres-backup.tar.gz.gpg.sha256
+          if-no-files-found: error
+          retention-days: 90

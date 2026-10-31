@@ -21,6 +21,7 @@ LAST_SUMMARY_KEY = "gmail_assistant.last_summary"
 MESSAGE_PREFIX = "gmail_assistant.message."
 SCAN_INTERVAL_SECONDS = 300
 FOLLOW_UP_DAYS = 3
+FOLLOWUP_THREAD_CHECK_INTERVAL_SECONDS = 30 * 60
 MAX_TRACKED_MESSAGES = 50
 
 _HIGH_RISK_TERMS = (
@@ -302,6 +303,26 @@ def _mark_task_replied(db: Session, user_id: int, record: dict[str, Any], eviden
     db.commit()
 
 
+def _gmail_error_category(exc: Exception) -> str:
+    """Return a safe, low-cardinality category without logging message contents."""
+    message = str(exc).casefold()
+    if "could not be decrypted" in message:
+        return "TOKEN_DECRYPTION_FAILED"
+    if "invalid_grant" in message or "token is invalid or revoked" in message or "re-authorize" in message:
+        return "REAUTH_REQUIRED"
+    if "invalid_client" in message or "unauthorized_client" in message or "invalid_scope" in message:
+        return "OAUTH_CONFIGURATION_ERROR"
+    if "429" in message or "rate limit" in message or "quota" in message:
+        return "RATE_LIMITED"
+    if any(code in message for code in ("http 500", "http 502", "http 503", "http 504")):
+        return "GOOGLE_UNAVAILABLE"
+    if "http 403" in message or "permission" in message or "forbidden" in message:
+        return "PERMISSION_DENIED"
+    if "timeout" in message or "timed out" in message or "connection" in message:
+        return "NETWORK_ERROR"
+    return "GMAIL_OR_AUTOMATION_ERROR"
+
+
 async def _process_followups(db: Session, user_id: int, auto_send_enabled: bool) -> dict[str, int]:
     from .connectors import gmail
     from .routers.ai import generate_reply_with_fallback
@@ -311,6 +332,19 @@ async def _process_followups(db: Session, user_id: int, auto_send_enabled: bool)
         if record.get("status") != "SENT_WAITING_REPLY" or not record.get("thread_id"):
             continue
         try:
+            last_check = _parse_time(record.get("last_thread_check_at"))
+            now = _now()
+            if (
+                last_check
+                and (now - last_check).total_seconds() < FOLLOWUP_THREAD_CHECK_INTERVAL_SECONDS
+            ):
+                continue
+
+            # Persist the attempt before network I/O so crashes and API errors are
+            # throttled too. Otherwise the five-second scheduler floods Gmail.
+            record["last_thread_check_at"] = now.isoformat().replace("+00:00", "Z")
+            _save_record(db, user_id, record)
+
             thread = await gmail.get_thread(db, user_id, str(record["thread_id"]))
             messages = thread.get("messages") or []
             stats["checked"] += 1
@@ -353,8 +387,9 @@ async def _process_followups(db: Session, user_id: int, auto_send_enabled: bool)
                 continue
             provider = _preferred_provider()
             if not provider:
-                record["status"] = "NEEDS_AI_PROVIDER"
-                record["follow_up_note"] = "Follow-up is due, but no explicitly free AI provider is configured. Paid providers are not selected automatically."
+                record["follow_up_note"] = "Follow-up is due, but no explicitly free AI provider is configured. Reply tracking remains active; paid providers are not selected automatically."
+                record["last_follow_up_error_category"] = "NO_ELIGIBLE_FREE_PROVIDER"
+                record["last_follow_up_error_at"] = _iso_now()
                 _save_record(db, user_id, record)
                 stats["errors"] += 1
                 continue
@@ -408,7 +443,20 @@ async def _process_followups(db: Session, user_id: int, auto_send_enabled: bool)
                 _save_record(db, user_id, record)
                 stats["drafted"] += 1
         except Exception as exc:
-            logger.warning("Gmail follow-up failed: user_id=%s error_type=%s", user_id, type(exc).__name__)
+            category = _gmail_error_category(exc)
+            record["last_gmail_error_category"] = category
+            record["last_gmail_error_at"] = _iso_now()
+            record["follow_up_note"] = (
+                "Gmail follow-up could not complete. Check the Gmail connection status "
+                "and reconnect only if the status says REAUTH_REQUIRED."
+            )
+            _save_record(db, user_id, record)
+            logger.warning(
+                "Gmail follow-up failed: user_id=%s category=%s exception_type=%s",
+                user_id,
+                category,
+                type(exc).__name__,
+            )
             stats["errors"] += 1
     return stats
 

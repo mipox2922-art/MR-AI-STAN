@@ -130,12 +130,39 @@ def _consume_oauth_state(db: Session, user_id: int, state: str) -> None:
 
 def connection_status(db: Session, user_id: int) -> dict[str, Any]:
     configured = is_configured()
-    connected = bool(_load_refresh_token(db, user_id)) if configured else False
+    if not configured:
+        return {
+            "configured": False,
+            "connected": False,
+            "scope": scopes(),
+            "status": "NOT_CONFIGURED",
+        }
+
+    integration = (
+        db.query(Integration)
+        .filter(Integration.user_id == user_id, Integration.name == "gmail")
+        .first()
+    )
+    integration_status = str(integration.status or "").upper() if integration else ""
+    try:
+        token_available = bool(_load_refresh_token(db, user_id))
+    except GmailConnectorError:
+        _mark_integration(db, user_id, "REAUTH_REQUIRED")
+        token_available = False
+        integration_status = "REAUTH_REQUIRED"
+
+    if integration_status in {"REAUTH_REQUIRED", "OAUTH_CONFIGURATION_ERROR"}:
+        connected = False
+        status = integration_status
+    else:
+        connected = token_available
+        status = "CONNECTED" if connected else "AVAILABLE"
+
     return {
-        "configured": configured,
+        "configured": True,
         "connected": connected,
         "scope": scopes(),
-        "status": "CONNECTED" if connected else "AVAILABLE" if configured else "NOT_CONFIGURED",
+        "status": status,
     }
 
 
@@ -209,6 +236,18 @@ def _mark_integration(db: Session, user_id: int, status: str) -> None:
     db.commit()
 
 
+def _oauth_error_code(response: httpx.Response) -> str:
+    """Extract only Google's short OAuth error identifier, never response text."""
+    try:
+        payload = response.json()
+    except (ValueError, TypeError):
+        return ""
+    value = payload.get("error") if isinstance(payload, dict) else ""
+    if isinstance(value, dict):
+        value = value.get("status") or value.get("code") or ""
+    return str(value or "").strip().lower()[:80]
+
+
 async def _access_token(db: Session, user_id: int) -> str:
     refresh_token = _load_refresh_token(db, user_id)
     if not refresh_token:
@@ -226,8 +265,23 @@ async def _access_token(db: Session, user_id: int) -> str:
         )
 
     if response.is_error:
-        _mark_integration(db, user_id, "REAUTH_REQUIRED")
-        raise GmailConnectorError("Gmail credentials were rejected. Re-authorize the connector.")
+        error_code = _oauth_error_code(response)
+        if error_code == "invalid_grant":
+            _mark_integration(db, user_id, "REAUTH_REQUIRED")
+            raise GmailConnectorError(
+                "Gmail refresh token is invalid or revoked (invalid_grant). Re-authorize the connector."
+            )
+        if error_code in {"invalid_client", "unauthorized_client", "invalid_scope"}:
+            _mark_integration(db, user_id, "OAUTH_CONFIGURATION_ERROR")
+            raise GmailConnectorError(
+                f"Gmail OAuth client configuration was rejected ({error_code}). Check the client ID, secret, and scopes."
+            )
+        # Do not permanently mark an integration as disconnected for 429/5xx
+        # errors: transient provider failures must be retried without needless OAuth.
+        suffix = f" ({error_code})" if error_code else ""
+        raise GmailConnectorError(
+            f"Google token refresh failed temporarily: HTTP {response.status_code}{suffix}."
+        )
 
     payload = response.json()
     token = payload.get("access_token")
