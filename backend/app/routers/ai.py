@@ -579,6 +579,24 @@ def _format_job_research_reply(orchestration_result: dict) -> str:
 
 
 # ==============================================================================
+def _prepare_prompt_for_provider(
+    db: Session,
+    conversation_id: int,
+    user_message: str,
+    tool_context: dict | None,
+    user_id: int,
+) -> str:
+    """Build context, then release the DB connection before remote model I/O."""
+    prompt = build_model_prompt(
+        db, conversation_id, user_message, tool_context, user_id=user_id
+    )
+    # Chat requests can wait up to 40s for an external provider. Committing here
+    # releases the checked-out SQLAlchemy connection while that network call runs.
+    # The user turn and assistant reply are persisted together after a response.
+    db.commit()
+    return prompt
+
+
 # MAIN CHAT ENDPOINT
 # ==============================================================================
 
@@ -632,11 +650,19 @@ async def chat(data: ChatRequest, current_user: User = Depends(get_current_user)
                 provider_name = "job_research"
             else:
                 answer, provider_name = await generate_reply_with_fallback(
-                    data.provider, build_model_prompt(db, conversation.id, data.message, context, user_id=current_user.id), timeout=40
+                    data.provider,
+                    _prepare_prompt_for_provider(
+                        db, conversation.id, data.message, context, current_user.id
+                    ),
+                    timeout=40,
                 )
         else:
             answer, provider_name = await generate_reply_with_fallback(
-                data.provider, build_model_prompt(db, conversation.id, data.message, context, user_id=current_user.id), timeout=40
+                data.provider,
+                _prepare_prompt_for_provider(
+                    db, conversation.id, data.message, context, current_user.id
+                ),
+                timeout=40,
             )
         try:
             save_messages_and_log(db, conversation.id, current_user.id, data.message, answer, provider_name)

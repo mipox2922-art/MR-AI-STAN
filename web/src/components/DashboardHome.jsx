@@ -1568,8 +1568,11 @@ export default function DashboardHome({
   const [providerHealth, setProviderHealth] = useState(null);
 
   async function checkAIProviderHealth(providerOverride = null) {
-    const targetProvider = String(providerOverride || aiProvider || system?.ai?.provider || "openrouter").trim().toLowerCase();
-    if (!targetProvider) return;
+    const targetProvider = String(providerOverride || aiProvider || system?.ai?.provider || "").trim().toLowerCase();
+    if (!targetProvider) {
+      setProviderHealth({ status: "NOT_CONFIGURED", provider: null, reason: "Hakuna AI provider ya bure iliyosanidiwa. Ongeza provider kwenye Render Environment." });
+      return;
+    }
     setProviderHealth({ status: "CHECKING", provider: targetProvider });
     try {
       // This probe checks provider reachability only. It must never clear or
@@ -1583,8 +1586,14 @@ export default function DashboardHome({
 
   // Keep runtime status tied to the same provider the Chat control is using.
   useEffect(() => {
-    const targetProvider = aiProvider || system?.ai?.provider || "openrouter";
-    if (!targetProvider || providerHealth?.provider === targetProvider) return;
+    const targetProvider = aiProvider || system?.ai?.provider || "";
+    if (!targetProvider) {
+      if (providerHealth?.status !== "NOT_CONFIGURED") {
+        setProviderHealth({ status: "NOT_CONFIGURED", provider: null, reason: "Hakuna AI provider ya bure iliyosanidiwa." });
+      }
+      return;
+    }
+    if (providerHealth?.provider === targetProvider) return;
     void checkAIProviderHealth(targetProvider);
   }, [aiProvider, system?.ai?.provider, providerHealth?.provider]);
 
@@ -1593,7 +1602,7 @@ export default function DashboardHome({
     if (snapshot?.mission) onRefresh?.();
   }
 
-  const selectedProvider = aiProvider || system?.ai?.provider || "openrouter";
+  const selectedProvider = aiProvider || system?.ai?.provider || null;
   const selectedProviderHealthMatches = providerHealth?.provider === selectedProvider;
   const aiLiveTested = selectedProviderHealthMatches && providerHealth?.status === "LIVE";
   const aiProviderTestFailed = selectedProviderHealthMatches && providerHealth?.status === "ERROR";
@@ -1610,9 +1619,11 @@ export default function DashboardHome({
         ? "TESTING PROVIDER..."
         : aiLiveTested
           ? "PROVIDER LIVE · CORE " + runtimeStatus
-          : system?.ai?.configured
-            ? "CONFIGURED · CORE " + runtimeStatus
-            : "NOT CONFIGURED";
+          : !selectedProvider
+            ? "NO ELIGIBLE FREE PROVIDER"
+            : system?.ai?.configured
+              ? "CONFIGURED · CORE " + runtimeStatus
+              : "NOT CONFIGURED";
   const topReadout = useMemo(() => ({
     model: selectionMatchesConfiguredProvider
       ? (system?.ai?.model || "N/A")
@@ -1707,7 +1718,7 @@ export default function DashboardHome({
             onPowerCommand={onPowerCommand}
             mode={mode}
             coreStatus={coreStatus}
-            provider={aiProvider || system?.ai?.provider || "openrouter"}
+            provider={aiProvider || system?.ai?.provider || null}
             onProviderChange={onAIProviderChange}
             tasks={tasks}
             tasksAvailable={tasksAvailable}

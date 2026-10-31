@@ -221,7 +221,7 @@ export default function Chat({
   onPowerCommand,
   mode = "normal",
   coreStatus = "IDLE",
-  provider = "openrouter",
+  provider = null,
   onProviderChange,
   tasks = [],
   tasksAvailable = false,
@@ -410,6 +410,17 @@ export default function Chat({
       return;
     }
 
+    if (!String(provider || "").trim()) {
+      setMessages(prev => [
+        ...prev,
+        { role: "user", content: text },
+        { role: "assistant", content: "MR AI Chat haijaunganishwa na AI provider. Hakuna ombi lililotumwa. Sanidi provider ya bure kwenye Render Environment au chagua provider iliyounganishwa." },
+      ]);
+      setMessage("");
+      reportRuntimeState("ERROR");
+      return;
+    }
+
     const conversationHistory = messages.slice(-10).map(item => ({
       role: item.role === "user" ? "user" : "assistant",
       content: item.role === "assistant" ? sanitizeAssistantMessage(item.content) : String(item.content || ""),
@@ -541,9 +552,10 @@ export default function Chat({
         </div>
         <span className="tool-routing-status" aria-live="polite" title={toolStatus}>{sending ? "NACHAMBUA OMBI..." : coreStatus}</span>
         <select
-          value={provider}
-          onChange={e => onProviderChange?.(e.target.value)}
+          value={provider || ""}
+          onChange={e => onProviderChange?.(e.target.value || null)}
         >
+          <option value="">CHOOSE AI PROVIDER</option>
           <option value="openrouter">OPENROUTER (FREE ROUTER)</option>
           <option value="mistral">MISTRAL</option>
           <option value="grok">GROK / xAI</option>
