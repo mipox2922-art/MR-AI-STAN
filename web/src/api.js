@@ -49,6 +49,7 @@ export function clearToken() {
 const DEFAULT_API_TIMEOUT_MS = 60000;
 const CHAT_API_TIMEOUT_MS = 98000;
 const TOOL_API_TIMEOUT_MS = 45000;
+const AI_HEALTH_TIMEOUT_MS = 70000;
 
 class ApiError extends Error {
   constructor(message, status) {
@@ -248,7 +249,7 @@ export function setAIState(state) {
 
 export function getAIHealth(provider = "gemini") {
   const params = new URLSearchParams({ provider });
-  return request("/ai/health?" + params.toString(), {}, TOOL_API_TIMEOUT_MS);
+  return request("/ai/health?" + params.toString(), {}, AI_HEALTH_TIMEOUT_MS);
 }
 
 export function getActivity() {
