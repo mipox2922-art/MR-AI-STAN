@@ -53,7 +53,9 @@ from ..core.orchestrator import run as run_orchestration
 logger = logging.getLogger("mr_ai.chat")
 
 # Timeouts (seconds)
-AI_PROVIDER_TIMEOUT = 30
+AI_PROVIDER_TIMEOUT = 65
+AI_CHAT_TOTAL_TIMEOUT = 85
+AI_PROVIDER_HEALTH_TIMEOUT = 65
 
 MR_AI_SYSTEM_PROMPT = (
     "You are MR AI STAN, the personal Digital Chief of Staff for BOSS FERISI, "
@@ -377,7 +379,7 @@ def _eligible_fallbacks(primary: str) -> list[str]:
     return allowed
 
 
-async def generate_reply_with_fallback(primary: str, prompt: str, timeout: int = 40) -> tuple[str, str]:
+async def generate_reply_with_fallback(primary: str, prompt: str, timeout: int = AI_CHAT_TOTAL_TIMEOUT) -> tuple[str, str]:
     """Use one request deadline and skip providers that are inside a cooldown."""
     selected = str(primary or "").strip().lower()
     names = [selected] + _eligible_fallbacks(selected)
@@ -398,7 +400,7 @@ async def generate_reply_with_fallback(primary: str, prompt: str, timeout: int =
             answer = await generate_with_timeout(
                 provider,
                 prompt,
-                timeout=max(0.01, min(25.0, remaining)),
+                timeout=max(0.01, min(float(AI_PROVIDER_TIMEOUT), remaining)),
                 max_retries=0,
             )
             record_provider_success(name)
@@ -654,7 +656,7 @@ async def chat(data: ChatRequest, current_user: User = Depends(get_current_user)
                     _prepare_prompt_for_provider(
                         db, conversation.id, data.message, context, current_user.id
                     ),
-                    timeout=40,
+                    timeout=AI_CHAT_TOTAL_TIMEOUT,
                 )
         else:
             answer, provider_name = await generate_reply_with_fallback(
@@ -662,7 +664,7 @@ async def chat(data: ChatRequest, current_user: User = Depends(get_current_user)
                 _prepare_prompt_for_provider(
                     db, conversation.id, data.message, context, current_user.id
                 ),
-                timeout=40,
+                timeout=AI_CHAT_TOTAL_TIMEOUT,
             )
         try:
             save_messages_and_log(db, conversation.id, current_user.id, data.message, answer, provider_name)
@@ -800,7 +802,7 @@ async def health_check(
         instance = get_provider(selected)
         result = await asyncio.wait_for(
             instance.generate("Reply with exactly the word LIVE.", system_instruction="Return only the word LIVE."),
-            timeout=25,
+            timeout=AI_PROVIDER_HEALTH_TIMEOUT,
         )
         normalized_probe = str(result or "").strip().strip("`*# ").upper().rstrip(".! \t\r\n")
         if normalized_probe != "LIVE":
