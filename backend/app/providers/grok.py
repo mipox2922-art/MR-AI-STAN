@@ -32,7 +32,7 @@ class GrokProvider(AIProvider):
             {"role": "user", "content": prompt},
         ]
         try:
-            async with httpx.AsyncClient(timeout=90) as client:
+            async with httpx.AsyncClient(timeout=60) as client:
                 response = await client.post(
                     f"{XAI_BASE_URL}/chat/completions",
                     headers={

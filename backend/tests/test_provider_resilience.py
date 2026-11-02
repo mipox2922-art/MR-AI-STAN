@@ -126,3 +126,34 @@ def test_prompt_preparation_releases_database_connection_before_provider_call(mo
 
     assert prompt == "prepared prompt"
     assert events == ["build_prompt", "commit"]
+
+
+
+def test_provider_attempt_timeout_matches_http_client_window(monkeypatch):
+    calls = []
+
+    class Provider:
+        pass
+
+    async def capture_timeout(provider, prompt, timeout, max_retries):
+        calls.append(timeout)
+        return "provider response"
+
+    monkeypatch.setattr(ai_router, "_eligible_fallbacks", lambda _primary: [])
+    monkeypatch.setattr(ai_router, "get_provider", lambda _name: Provider())
+    monkeypatch.setattr(ai_router, "generate_with_timeout", capture_timeout)
+
+    result = asyncio.run(
+        ai_router.generate_reply_with_fallback(
+            "openrouter", "prompt", timeout=ai_router.AI_CHAT_TOTAL_TIMEOUT
+        )
+    )
+
+    assert result == ("provider response", "openrouter")
+    assert calls == [float(ai_router.AI_PROVIDER_TIMEOUT)]
+    assert ai_router.AI_PROVIDER_TIMEOUT > 60
+    assert ai_router.AI_CHAT_TOTAL_TIMEOUT > ai_router.AI_PROVIDER_TIMEOUT
+
+
+def test_ai_provider_health_timeout_matches_provider_http_window():
+    assert ai_router.AI_PROVIDER_HEALTH_TIMEOUT > 60
