@@ -839,24 +839,28 @@ async function main() {
   }
   assert.equal(await runtimeStateLabels.filter({ hasText: /^LISTENING$/ }).count(), 0,
     "LISTENING must not be presented as live until voice input is connected.");
-  await page.locator(".chat-panel select").selectOption("mistral");
-  const coreInput = page.locator(".chat-panel .chat-input input");
-  await coreInput.fill("Nipe taarifa za mfumo");
-  await page.locator(".chat-panel .chat-input > button").last().click();
-  await page.locator(".chat-panel .messages").getByText("E2E response from mocked API", { exact: true }).waitFor({ state: "visible", timeout: 7000 });
-  completedChecks.push("AI Core state selector, provider selector and chat send");
+  // AI Core is intentionally the single-purpose runtime/state surface.
+  // The one real chat/provider selector lives in the Dashboard, not a duplicate Core panel.
+  await goTo("Dashboard");
+  const dashboardChat = page.locator(".cc-chat-panel .chat-panel");
+  await dashboardChat.locator("select").selectOption("mistral");
+  const dashboardChatInput = dashboardChat.locator(".chat-input input");
+  await dashboardChatInput.fill("Nipe taarifa za mfumo");
+  await dashboardChat.locator(".chat-input > button").last().click();
+  await dashboardChat.locator(".messages").getByText("E2E response from mocked API", { exact: true }).waitFor({ state: "visible", timeout: 7000 });
+  completedChecks.push("AI Core runtime states and Dashboard chat provider selection/send");
 
-  await coreInput.fill("Timeout regression test");
-  await page.locator(".chat-panel .chat-input > button").last().click();
+  await dashboardChatInput.fill("Timeout regression test");
+  await dashboardChat.locator(".chat-input > button").last().click();
   try {
-    await page.locator(".chat-panel .messages").getByText("Delayed chat response confirmed", { exact: true }).waitFor({ state: "visible", timeout: 25000 });
+    await dashboardChat.locator(".messages").getByText("Delayed chat response confirmed", { exact: true }).waitFor({ state: "visible", timeout: 25000 });
   } catch (error) {
-    const currentMessages = await page.locator(".chat-panel .messages").innerText().catch(() => "(messages unavailable)");
+    const currentMessages = await dashboardChat.locator(".messages").innerText().catch(() => "(messages unavailable)");
     throw new Error(`Delayed chat regression failed. delayedRequests=${delayedChatRequests}; requestBodies=${JSON.stringify(delayedChatRequestBodies)}; messages=${JSON.stringify(currentMessages)}; consoleErrors=${JSON.stringify(consoleErrors)}; failedResponses=${JSON.stringify(failedResponses)}; original=${error.message}`);
   }
   assert.equal(delayedChatRequests, 1, "The typed timeout-regression message should reach /ai/chat exactly once.");
   assert.equal(delayedChatRequestBodies.at(-1)?.message, "Timeout regression test", "The SEND button must submit the actual typed message, not a React click event.");
-  completedChecks.push("AI Core SEND submits typed text and accepts a response delayed beyond 12 seconds");
+  completedChecks.push("Dashboard Chat SEND submits typed text and accepts a response delayed beyond 12 seconds");
 
   await goTo("Agents");
   const missionInput = page.locator(".agent-planner-form input");
