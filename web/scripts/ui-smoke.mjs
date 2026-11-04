@@ -638,6 +638,7 @@ async function main() {
   const chatCallsBeforeProviderlessMission = delayedChatRequestBodies.length;
   const providerlessMission = "tafuta kazi za remote care assistant";
   await page.locator(".cc-chat-panel .chat-header select").selectOption("");
+  await page.waitForFunction(() => document.querySelector(".cc-chat-panel .chat-header select")?.value === "", undefined, { timeout: 3000 });
   await dashboardChatInput.fill(providerlessMission);
   await page.locator(".cc-chat-panel .chat-input > button").last().click();
   for (let attempt = 0; attempt < 80 && orchestratorRunRequests.length < 2; attempt += 1) {
