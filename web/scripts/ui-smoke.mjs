@@ -20,6 +20,7 @@ const taskSummaryProbe = getTaskSummary([
   { id: 6, agent: "coding", status: "RUNNING" },
   { id: 7, agent: "research", status: "FAILED" },
   { id: 8, agent: "memory", status: "COMPLETED", step_count: 1, verified_steps: 1 },
+  { id: 9, agent: "Haijathibitishwa", status: "RUNNING" },
 ]);
 assert.deepEqual(
   {
@@ -30,7 +31,7 @@ assert.deepEqual(
     completed: taskSummaryProbe.completed,
     workingNow: taskSummaryProbe.workingNow,
   },
-  { total: 8, inProgress: 2, waiting: 4, failed: 1, completed: 1, workingNow: 1 },
+  { total: 9, inProgress: 3, waiting: 4, failed: 1, completed: 1, workingNow: 1 },
   "Agent/task dashboard counts must match the real task lifecycle states."
 );
 completedChecks.push("task lifecycle summary counts profile, review, hand and approval states");
