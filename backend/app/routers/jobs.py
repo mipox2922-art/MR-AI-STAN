@@ -689,7 +689,7 @@ def _import_profile_from_owner_memory(db: Session, user_id: int) -> tuple[dict[s
         re.IGNORECASE,
     )
     secret_value = re.compile(
-        r"(?:bearer\\s+[a-z0-9._-]{16,}|sk-(?:or-v1-|proj-)?[a-z0-9_-]{16,}|AIza[0-9A-Za-z_-]{20,}|gh[pousr]_[A-Za-z0-9_]{25,})",
+        r"(?:bearer\s+[a-z0-9._-]{16,}|sk-(?:or-v1-|proj-)?[a-z0-9_-]{16,}|AIza[0-9A-Za-z_-]{20,}|gh[pousr]_[A-Za-z0-9_]{25,})",
         re.IGNORECASE,
     )
     rows = (
@@ -731,7 +731,7 @@ def _import_profile_from_owner_memory(db: Session, user_id: int) -> tuple[dict[s
                 continue
             if field == "skills":
                 if isinstance(value, str):
-                    values = re.split(r"[,;\\n]", value)
+                    values = re.split(r"[,;\n]", value)
                 elif isinstance(value, list):
                     values = value
                 else:
@@ -749,16 +749,16 @@ def _import_profile_from_owner_memory(db: Session, user_id: int) -> tuple[dict[s
     resume_text = str(profile.get("resume_text") or "").strip()
     if resume_text:
         if not profile.get("email"):
-            email_match = re.search(r"(?i)\\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}\\b", resume_text)
+            email_match = re.search(r"(?i)\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b", resume_text)
             if email_match:
                 profile["email"] = email_match.group(0)[:254]
                 imported.add("email")
         if not profile.get("full_name"):
-            explicit_name = re.search(r"(?im)^\\s*(?:full\\s+name|name)\\s*[:：-]\\s*([^\\r\\n]{2,120})", resume_text)
+            explicit_name = re.search(r"(?im)^\s*(?:full\s+name|name)\s*[:：-]\s*([^\r\n]{2,120})", resume_text)
             heading_name = None
             if not explicit_name:
                 for line in resume_text.splitlines()[:5]:
-                    heading = re.match(r"^\\s*#\\s*([A-Za-z][A-Za-z .'-]{2,100})\\s*$", line)
+                    heading = re.match(r"^\s*#\s*([A-Za-z][A-Za-z .'-]{2,100})\s*$", line)
                     if heading and heading.group(1).strip().casefold() not in {"cv", "resume", "curriculum vitae"}:
                         heading_name = heading.group(1).strip()
                         break
