@@ -245,8 +245,8 @@ async function apiMock(route) {
     timezone: "Africa/Dar_es_Salaam",
     agents: { total: 8, working: 1, waiting: 7, fleet: [] },
     tasks: {
-      total: 2, completed: 1, working: 1, waiting: 0, failed: 0,
-      counts: { COMPLETED: 1, IN_PROGRESS: 1 },
+      total: 1, completed: 0, working: 1, waiting: 0, failed: 0,
+      counts: { IN_PROGRESS: 1 },
       items: [{
         id: 910, title: "E2E verified coding task", source: "agent", requested_by: "Boss Ferisi",
         agent: "coding", status: "IN_PROGRESS", priority: "NORMAL", progress: 50,
@@ -702,7 +702,7 @@ async function main() {
     }
     if (label === "OPTIMIZE") {
       assert.match(output, /SAFE OPTIMIZATION REVIEW/);
-      assert.match(output, /HAKUNA MADHIBITIKO YALIYOFANYIKA/);
+      assert.match(output, /HAKUNA MADILIKO YALIYOFANYIKA/);
     }
   }
   assert.equal(delayedChatRequestBodies.length, quickCommandChatCount,
@@ -715,6 +715,12 @@ async function main() {
   await dashboardChatInput.fill("Nisaidie kwa smoke test");
   await page.locator(".cc-chat-panel .chat-input > button").last().click();
   await page.locator(".cc-chat-panel .messages").getByText("E2E response from mocked API", { exact: true }).waitFor({ state: "visible", timeout: 7000 });
+
+  await dashboardChatInput.fill("NANI ANA FANYA KAZI NOW");
+  await page.locator(".cc-chat-panel .chat-input > button").last().click();
+  await page.locator(".cc-chat-panel .messages").getByText("Mawakala wanaofanya kazi sasa:", { exact: true }).waitFor({ state: "visible", timeout: 7000 });
+  await page.locator(".cc-chat-panel .messages").getByText(/coding/).waitFor({ state: "visible", timeout: 7000 });
+  completedChecks.push("Swahili who-is-working question answers from the live executive task snapshot without generic AI text");
 
   // An explicit action must cross the mission-execution boundary. Tool routing
   // alone is metadata and must never be mistaken for an executed mission.
