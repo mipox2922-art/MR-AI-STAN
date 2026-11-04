@@ -362,6 +362,26 @@ function agentSwahiliDescription(id, fallback) {
   return descriptions[String(id || "").toLowerCase()] || fallback || "Mwakala maalumu wa MR AI.";
 }
 
+function getAgentRuntimeLabel(agent, task, activeTask) {
+  if (activeTask) return "INAENDELEA";
+  const taskStatus = String(task?.status || "").trim().toUpperCase();
+  if (taskStatus === "WAITING_APPROVAL") return "INASUBIRI IDHINI";
+  if (taskStatus === "WAITING_FOR_HAND") return "INASUBIRI MUUNGANISHO";
+  if (taskStatus === "WAITING_FOR_PROFILE") return "INASUBIRI WASIFU";
+  if (taskStatus === "READY_FOR_REVIEW") return "INASUBIRI UKAGUZI";
+  if (["FAILED", "ERROR"].includes(taskStatus)) return "IMESHINDWA";
+  if (task && isTaskWaiting(task)) return "INASUBIRI HATUA";
+
+  const runtime = String(agent?.runtime_status || agent?.status || "").trim().toUpperCase();
+  if (["NOT_CONNECTED", "NOT_CONFIGURED"].includes(runtime)) return "HAIJAUNGANISHWA";
+  if (runtime === "WAITING_FOR_HAND") return "INASUBIRI MUUNGANISHO";
+  if (runtime === "CONNECTED") return "IMEUNGANISHWA";
+  if (runtime === "READY") return "IKO TAYARI";
+  if (runtime === "AVAILABLE") return "INAPATIKANA";
+  if (runtime === "FAILED") return "IMESHINDWA";
+  return "WANASUBIRI KAZI";
+}
+
 function AgentsPanel({ agents, tasks = [], onPlan }) {
   const [request, setRequest] = useState("");
   const [standingRules, setStandingRules] = useState([]);
@@ -507,7 +527,7 @@ function AgentsPanel({ agents, tasks = [], onPlan }) {
         {agents.map(agent => {
           const activeTask = getActiveTaskForAgent(agent, tasks);
           const task = activeTask || getAssignedTaskForAgent(agent, tasks);
-          const state = activeTask ? "INAENDELEA" : "WANASUBIRI KAZI";
+          const state = getAgentRuntimeLabel(agent, task, activeTask);
           return (
             <article className="agent-card" key={agent.id}>
               <div className="agent-icon">{agent.id === "device" ? "⌁" : agent.id === "creative" ? "✦" : agent.id === "research" ? "◎" : agent.id === "security" ? "◈" : agent.id === "orchestrator" ? "MR" : "◆"}</div>
