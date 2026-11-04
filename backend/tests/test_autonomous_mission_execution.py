@@ -311,3 +311,4 @@ def test_mr_ai_dashboard_and_chat_reviews_are_read_only_but_fixes_are_not():
     assert _is_read_only_coding_review("Review the MR-AI-STAN repository")
     assert not _is_read_only_coding_review("Rekebisha MR AI chat")
     assert not _is_read_only_coding_review("Fix MR AI dashboard")
+    assert not _is_read_only_coding_review("Review MR AI dashboard and add a feature")
