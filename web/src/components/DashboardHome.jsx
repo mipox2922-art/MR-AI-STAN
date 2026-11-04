@@ -1189,7 +1189,7 @@ function AgentCrewRoster({ agents = [], tasks = [], onOpenAgents }) {
   );
 }
 
-function ExecutiveMorningBrief({ system, gmailStatus, tasks = [], agents = [], onOpenAgents, onOpenTasks, onOpenGmail, onOpenJobs, providerHealth, onCheckAIProviderHealth }) {
+function ExecutiveMorningBrief({ system, gmailStatus, tasks = [], agents = [], onTasksSnapshot, onOpenAgents, onOpenTasks, onOpenGmail, onOpenJobs, providerHealth, onCheckAIProviderHealth }) {
   const [briefing, setBriefing] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -1201,6 +1201,7 @@ function ExecutiveMorningBrief({ system, gmailStatus, tasks = [], agents = [], o
     try {
       const result = await getExecutiveBriefing();
       setBriefing(result);
+      if (Array.isArray(result?.tasks?.items)) onTasksSnapshot?.(result.tasks.items);
       setError("");
     } catch (err) {
       setError(err?.message || "Executive briefing is unavailable.");
@@ -1610,6 +1611,7 @@ export default function DashboardHome({
   onOpenJobs,
   onRadarScan,
   onOpenDevice,
+  onTasksSnapshot = null,
 }) {
   const telemetry = system?.telemetry || {};
   const services = system?.services || {};
@@ -1747,10 +1749,10 @@ export default function DashboardHome({
         </Panel>
       </div>
 
-      <QuickCommands system={system} working={working} />
+      <QuickCommands system={system} working={working} tasks={tasks} tasksAvailable={tasksAvailable} />
 
       <div className="cc-bottom-content">
-        <ExecutiveMorningBrief system={system} gmailStatus={gmailStatus} tasks={tasks} agents={agents} onOpenAgents={onOpenAgents} onOpenTasks={onOpenTasks} onOpenGmail={onOpenGmail} onOpenJobs={onOpenJobs} providerHealth={providerHealth} onCheckAIProviderHealth={checkAIProviderHealth} />
+        <ExecutiveMorningBrief system={system} gmailStatus={gmailStatus} tasks={tasks} agents={agents} onTasksSnapshot={onTasksSnapshot} onOpenAgents={onOpenAgents} onOpenTasks={onOpenTasks} onOpenGmail={onOpenGmail} onOpenJobs={onOpenJobs} providerHealth={providerHealth} onCheckAIProviderHealth={checkAIProviderHealth} />
 
         <details className="cc-dashboard-drawer cc-mission-drawer">
           <summary>
