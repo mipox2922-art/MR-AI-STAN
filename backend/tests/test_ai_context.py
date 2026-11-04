@@ -204,7 +204,7 @@ def test_model_prompt_forbids_unsupported_destructive_telemetry_recommendations(
     for required in (
         "single short sample",
         "backend-visible root filesystem",
-        "GPU telemetry is unavailable",
+        "GPU UNAVAILABLE means telemetry is unavailable",
         "Never recommend deleting services",
         "two dated measurements",
     ):
