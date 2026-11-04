@@ -698,7 +698,7 @@ async function main() {
     }
     if (label === "GENERATE REPORT") {
       assert.match(output, /MOG343 OPERATIONS/);
-      assert.match(output, /Tasks 0/);
+      assert.match(output, /Tasks \\d+ · completed \\d+ · active \\d+/);
     }
     if (label === "OPTIMIZE") {
       assert.match(output, /SAFE OPTIMIZATION REVIEW/);
