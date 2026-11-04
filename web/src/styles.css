@@ -8969,3 +8969,49 @@ body.dashboard-canvas-active #root {
   }
   .chat-coding-proposal-head strong { font-size: 9px; }
 }
+
+/* Keep the dashboard sidebar in normal flow.
+   The legacy absolute voice panel at top:561px overlapped the footer after
+   grouped navigation grew. Let nav scroll, while voice and footer stay visible. */
+@media (min-width: 761px) {
+  .app-shell.dashboard-canvas-shell .sidebar {
+    height: min(760px, calc(var(--dashboard-canvas-height, 864px) - 20px));
+    max-height: min(760px, calc(var(--dashboard-canvas-height, 864px) - 20px));
+    overflow: hidden;
+  }
+
+  .app-shell.dashboard-canvas-shell .sidebar nav {
+    flex: 1 1 0;
+    min-height: 0;
+    height: auto;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior-y: contain;
+  }
+
+  .app-shell.dashboard-canvas-shell .sidebar-voice {
+    position: relative;
+    left: auto;
+    top: auto;
+    right: auto;
+    bottom: auto;
+    width: auto;
+    height: auto;
+    min-height: 0;
+    max-height: none;
+    flex: 0 0 auto;
+    padding: 7px 8px;
+    overflow: visible;
+  }
+
+  .app-shell.dashboard-canvas-shell .sidebar-footer {
+    position: relative;
+    left: auto;
+    top: auto;
+    right: auto;
+    bottom: auto;
+    flex: 0 0 auto;
+    margin-top: 0;
+  }
+}
+
