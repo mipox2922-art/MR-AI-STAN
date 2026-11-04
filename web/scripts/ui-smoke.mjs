@@ -240,7 +240,7 @@ async function apiMock(route) {
       status: "COMPLETED",
       intent: "JOB_RESEARCH",
       execution_started: true,
-      task_id: 912,
+      task_id: 911 + orchestratorRunRequests.length,
       next_action: "Kagua nafasi zilizopatikana. Hakuna maombi yaliyotumwa.",
       job_results: {
         status: "COMPLETED",
@@ -633,6 +633,24 @@ async function main() {
     "The AI response must receive the mission result as verified runtime context.");
   assert.equal(executedMissionContext.mission_execution.execution_started, true);
   completedChecks.push("Chat sends explicit Swahili commands to the Orchestrator and passes execution evidence to the AI response");
+
+  // Tool-backed work must still run when no conversational provider is chosen.
+  const chatCallsBeforeProviderlessMission = delayedChatRequestBodies.length;
+  const providerlessMission = "tafuta kazi za remote care assistant";
+  await page.locator(".cc-chat-panel .chat-header select").selectOption("");
+  await dashboardChatInput.fill(providerlessMission);
+  await page.locator(".cc-chat-panel .chat-input > button").last().click();
+  for (let attempt = 0; attempt < 80 && orchestratorRunRequests.length < 2; attempt += 1) {
+    await new Promise(resolve => setTimeout(resolve, 100));
+  }
+  assert.deepEqual(orchestratorRunRequests, [missionCommand, providerlessMission],
+    "A tool-backed command must execute even when no AI provider is selected.");
+  await page.locator(".cc-chat-panel .messages").getByText("MR AI MISSION · COMPLETED", { exact: true }).waitFor({ state: "visible", timeout: 7000 });
+  await page.locator(".cc-chat-panel .messages").getByText("Remote Graphic Designer", { exact: false }).last().waitFor({ state: "visible", timeout: 7000 });
+  assert.equal(delayedChatRequestBodies.length, chatCallsBeforeProviderlessMission,
+    "A providerless mission must return its backend result without calling /ai/chat.");
+  completedChecks.push("tool-backed chat missions execute and report direct evidence without a selected AI provider");
+
 
 
   // Dashboard status must probe the exact provider selected in Chat.
