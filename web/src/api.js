@@ -881,6 +881,13 @@ export function saveJobApplicationProfile(profile) {
   }, TOOL_API_TIMEOUT_MS);
 }
 
+export function importJobApplicationProfileFromMemory() {
+  return request("/jobs/autopilot/profile/import-memory", {
+    method: "POST",
+    body: JSON.stringify({}),
+  }, TOOL_API_TIMEOUT_MS);
+}
+
 export function runJobAutopilotNow() {
   return request("/jobs/autopilot/run-now", {
     method: "POST",
