@@ -372,7 +372,7 @@ function getAgentRuntimeLabel(agent, task, activeTask) {
   if (["FAILED", "ERROR"].includes(taskStatus)) return "IMESHINDWA";
   if (task && isTaskWaiting(task)) return "INASUBIRI HATUA";
 
-  const runtime = String(agent?.runtime_status || agent?.status || "").trim().toUpperCase();
+  const runtime = String(agent?.status || agent?.runtime_status || "").trim().toUpperCase();
   if (["NOT_CONNECTED", "NOT_CONFIGURED"].includes(runtime)) return "HAIJAUNGANISHWA";
   if (runtime === "WAITING_FOR_HAND") return "INASUBIRI MUUNGANISHO";
   if (runtime === "CONNECTED") return "IMEUNGANISHWA";
@@ -421,6 +421,9 @@ function AgentsPanel({ agents, tasks = [], onPlan }) {
   const [missionResult, setMissionResult] = useState(null);
   const [busy, setBusy] = useState("");
   const workingTasks = tasks.filter(isTaskInProgress);
+  const workingAgentCount = new Set(
+    workingTasks.map(task => String(task.agent || "").trim().toLowerCase()).filter(Boolean)
+  ).size;
   const queuedTasks = tasks.filter(isTaskWaiting);
 
   async function buildMissionPlan() {
@@ -519,14 +522,14 @@ function AgentsPanel({ agents, tasks = [], onPlan }) {
           <span className="eyebrow">USIMAMIZI WA MAWAKALA</span>
           <h2>Mawakala wa MR AI</h2>
         </div>
-        <span className="badge">{agents.length} MAWAKALA · {workingTasks.length} KAZINI · {queuedTasks.length} ZINASUBIRI</span>
+        <span className="badge">{agents.length} MAWAKALA · {workingAgentCount} KAZINI · {queuedTasks.length} TASKS ZINASUBIRI</span>
       </div>
 
       <p className="agent-panel-intro">Hawa ni wataalamu waliosajiliwa. Hali ya KAZINI huonekana tu kazi inapoendelea kweli; kuwepo kwenye orodha hakumaanishi wakala anafanya kazi.</p>
       <div className="agent-grid">
         {agents.map(agent => {
           const activeTask = getActiveTaskForAgent(agent, tasks);
-          const task = activeTask || getAssignedTaskForAgent(agent, tasks);
+          const task = activeTask || getAssignedTaskForAgent(agent, tasks) || agent.current_task || null;
           const state = getAgentRuntimeLabel(agent, task, activeTask);
           return (
             <article className="agent-card" key={agent.id}>
