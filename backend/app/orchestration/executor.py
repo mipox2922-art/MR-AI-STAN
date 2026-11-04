@@ -46,7 +46,7 @@ def _is_read_only_coding_review(request: str) -> bool:
     )):
         return False
     return bool(re.match(
-        r"^(?:chambua|inspect|review|audit|kagua)\b.*\b(?:repo|repository|project|code|msimbo|source|software)\b",
+        r"^(?:chambua|inspect|review|audit|kagua|angalia)\b.*\b(?:mr\s*ai|mr-ai-stan|dashboard|chat|repo|repository|project|code|msimbo|source|software)\b",
         value,
         flags=re.IGNORECASE,
     ))
