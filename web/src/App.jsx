@@ -611,7 +611,6 @@ function App() {
   const [activities, setActivities] = useState([]);
   const [telemetryHistory, setTelemetryHistory] = useState([]);
   const [gmailStatus, setGmailStatus] = useState(null);
-  const [voiceTranscript, setVoiceTranscript] = useState("");
   const [clock, setClock] = useState(new Date());
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [bootVisible, setBootVisible] = useState(() => (
@@ -987,18 +986,10 @@ function App() {
         <div className="sidebar-voice">
           <div className="sidebar-voice-head">
             <span className="eyebrow">VOICE INPUT</span>
-            <span className="voice-state-dot">●</span>
-          </div>
-          <div className="sidebar-wave" aria-hidden="true">
-            {Array.from({ length: 13 }).map((_, index) => <span key={index} />)}
-          </div>
-          <div className="sidebar-voice-quote">
-            <strong>{voiceTranscript ? `"${voiceTranscript}"` : '"PRESS TO SPEAK"'}</strong>
-            <span>{voiceTranscript ? "Agizo limepokelewa." : "Bonyeza VOICE COMMAND kisha zungumza."}</span>
+            <span className="voice-state-dot" aria-hidden="true">●</span>
           </div>
           <VoiceControl
             onTranscript={text => {
-              setVoiceTranscript(text);
               const command = String(text || "")
                 .trim()
                 .toLowerCase()
