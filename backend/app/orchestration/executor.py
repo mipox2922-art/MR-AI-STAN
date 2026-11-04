@@ -41,7 +41,7 @@ def _is_read_only_coding_review(request: str) -> bool:
         return False
     if any(term in value for term in (
         "fix ", "debug ", "repair ", "implement ", "create ", "build ",
-        "modify ", "edit ", "write ", "commit ", "push ",
+        "modify ", "edit ", "write ", "commit ", "push ", "add ", "remove ", "refactor ", "ongeza ",
         "rekebisha ", "tengeneza ", "andika ", "badilisha ", "futa ",
     )):
         return False
