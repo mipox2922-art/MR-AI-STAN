@@ -145,6 +145,7 @@ def test_system_status_marks_provider_readiness_as_not_checked_and_scopes_teleme
     from app.routers import system as system_router
 
     monkeypatch.setattr(system_router, "psutil", None)
+    monkeypatch.setattr(settings, "openrouter_api_key", "configured-for-test")
     monkeypatch.setattr(
         system_router,
         "_default_ai_provider",
