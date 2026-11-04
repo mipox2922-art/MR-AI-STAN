@@ -19,6 +19,8 @@ let delayedChatRequests = 0;
 let delayedChatRequestBodies = [];
 let chatToolContexts = [];
 let orchestratorRunRequests = [];
+let codingPlanRequests = [];
+let codingApplyRequests = [];
 let mockAIState = "IDLE";
 let mockStandingRules = [
   {
@@ -279,7 +281,62 @@ async function apiMock(route) {
   if (method === "POST" && path === "/tools/search") {
     return sendJson(route, { status: "COMPLETED", query: body.query, results: [{ title: "Smoke Search Result", url: "https://example.com/", content: "Mocked search result for UI wiring", engine: "ui-smoke" }] });
   }
-  if (method === "POST" && path === "/tools/route") return sendJson(route, { status: "ROUTED", route: { agent: "research", tool: "searxng" }, result: { status: "COMPLETED", results: [] }, message: "Mock tool routing only." });
+  if (method === "POST" && path === "/tools/route") {
+    const command = String(body.command || "");
+    if (/^(?:fix|debug|repair|rekebisha|sahihisha|boresha|improve|update|implement)\b/i.test(command)) {
+      return sendJson(route, { status: "ROUTED", route: { agent: "coding", tool: "coding" }, execution: "LOCAL_HAND" });
+    }
+    return sendJson(route, { status: "ROUTED", route: { agent: "research", tool: "searxng" }, result: { status: "COMPLETED", results: [] }, message: "Mock tool routing only." });
+  }
+  if (method === "POST" && path === "/tools/coding/agent/plan") {
+    codingPlanRequests.push(String(body.request || ""));
+    return sendJson(route, {
+      status: "PLAN_READY",
+      proposal_signature: "ui-smoke-signed-proposal",
+      plan: {
+        plan_id: "ui-smoke-coding-plan",
+        request: String(body.request || ""),
+        summary: "Fix the chat command execution path.",
+        risk: "LOW",
+        repository: "mipox2922-art/MR-AI-STAN",
+        base_branch: "main",
+        base_sha: "a".repeat(40),
+        provider: "gemini",
+        files_reviewed: [{ path: "web/src/components/Chat.jsx", sha: "fixture-sha", size: 1200 }],
+        changes: [{
+          path: "web/src/components/Chat.jsx",
+          action: "update",
+          diff: "--- a/web/src/components/Chat.jsx\n+++ b/web/src/components/Chat.jsx\n@@\n- old route\n+ real mission route",
+        }],
+        tests_to_run: ["npm run build", "node scripts/ui-smoke.mjs"],
+        manual_checks: [],
+      },
+    });
+  }
+  if (method === "POST" && path === "/tools/coding/agent/apply") {
+    codingApplyRequests.push({
+      plan_id: body.plan?.plan_id,
+      signature: body.proposal_signature,
+    });
+    return sendJson(route, {
+      status: "PR_OPENED",
+      summary: "Fix the chat command execution path.",
+      commit_sha: "c".repeat(40),
+      commit_url: "https://github.com/mipox2922-art/MR-AI-STAN/commit/" + "c".repeat(40),
+      branch: "mr-ai/coding-agent/ui-smoke",
+      pull_request: { number: 63, url: "https://github.com/mipox2922-art/MR-AI-STAN/pull/63" },
+      task_id: 913,
+      ci: "PENDING",
+    });
+  }
+  if (method === "GET" && /^\/tools\/coding\/agent\/checks\/[a-f0-9]+$/i.test(path)) {
+    return sendJson(route, {
+      status: "PENDING",
+      combined_status: "PENDING",
+      checks: [{ name: "frontend", status: "in_progress", conclusion: null, details_url: "https://github.com/mipox2922-art/MR-AI-STAN/actions" }],
+      task: { id: 913, status: "IN_PROGRESS", progress: 55, error: null },
+    });
+  }
   if (method === "POST" && path === "/tools/dispatch") return sendJson(route, { status: "COMPLETED", route: { agent: "orchestrator", tool: "system_telemetry" }, result: systemStatus });
   if (method === "GET" && path === "/broker/status") return sendJson(route, {
     status: "AVAILABLE",
@@ -651,6 +708,30 @@ async function main() {
   assert.equal(delayedChatRequestBodies.length, chatCallsBeforeProviderlessMission,
     "A providerless mission must return its backend result without calling /ai/chat.");
   completedChecks.push("tool-backed chat missions execute and report direct evidence without a selected AI provider");
+
+  // Direct code fixes are sent to the signed Coding Agent patch workflow, not
+  // left as WAITING_FOR_HAND or falsely reported as completed.
+  const codingCommand = "Rekebisha MR AI chat";
+  await dashboardChatInput.fill(codingCommand);
+  await page.locator(".cc-chat-panel .chat-input > button").last().click();
+  for (let attempt = 0; attempt < 80 && codingPlanRequests.length === 0; attempt += 1) {
+    await new Promise(resolve => setTimeout(resolve, 100));
+  }
+  assert.deepEqual(codingPlanRequests, [codingCommand],
+    "Explicit coding commands must create a Coding Agent patch preview.");
+  await page.locator(".cc-chat-panel .messages").getByText("CODING AGENT · PATCH READY", { exact: true }).waitFor({ state: "visible", timeout: 7000 });
+  await page.locator(".cc-chat-panel .messages").getByText("Fix the chat command execution path.", { exact: true }).waitFor({ state: "visible", timeout: 7000 });
+  assert.equal(codingApplyRequests.length, 0, "Preparing a patch must not write source files or open a PR.");
+  await page.locator(".cc-chat-panel .messages").getByRole("button", { name: "APPLY REVIEWED PATCH + OPEN PR", exact: true }).click();
+  for (let attempt = 0; attempt < 80 && codingApplyRequests.length === 0; attempt += 1) {
+    await new Promise(resolve => setTimeout(resolve, 100));
+  }
+  assert.deepEqual(codingApplyRequests, [{ plan_id: "ui-smoke-coding-plan", signature: "ui-smoke-signed-proposal" }],
+    "Applying requires the exact signed proposal and must happen only after the owner clicks Apply.");
+  await page.locator(".cc-chat-panel .messages").getByText("OPEN PULL REQUEST #63", { exact: true }).waitFor({ state: "visible", timeout: 7000 });
+  await page.locator(".cc-chat-panel .messages").getByText(/GitHub CI: PENDING/).waitFor({ state: "visible", timeout: 7000 });
+  completedChecks.push("Chat coding request creates a signed diff preview, waits for owner Apply, opens an isolated PR and reports CI as pending");
+
 
 
 
