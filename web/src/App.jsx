@@ -1102,7 +1102,6 @@ function App() {
               onOpenJobs={() => setActive("jobs")}
               onOpenDevice={() => setActive("device")}
               onRadarScan={handleRadarScan}
-              clock={clock}
             />
           )}
 
