@@ -78,6 +78,18 @@ async function getCvAvailabilityReply() {
       : "Nimeona CV imehifadhiwa kwenye Job Autopilot, lakini profile haijakamilika bado. Kagua taarifa zinazokosekana kwenye Job Research → Job Autopilot. Hakuna ombi lililotumwa.";
   }
 
+  const hasStructuredProfile = Boolean(
+    String(profile.full_name || "").trim() ||
+    String(profile.email || "").trim() ||
+    String(profile.experience_summary || "").trim() ||
+    (Array.isArray(profile.skills) && profile.skills.length > 0)
+  );
+  if (hasStructuredProfile) {
+    return autopilot.profile_ready === true
+      ? "Job Autopilot ina taarifa za profile yako, lakini maandishi kamili ya CV hayajahifadhiwa hapo. Profile iko tayari kwa draft; hakuna ombi lililotumwa."
+      : "Job Autopilot ina baadhi ya taarifa za profile yako, lakini bado haijakamilika. Kagua sehemu zinazokosekana kwenye Job Research → Job Autopilot.";
+  }
+
   const rows = Array.isArray(memories)
     ? memories
     : (Array.isArray(memories?.items) ? memories.items : []);
@@ -101,6 +113,8 @@ function getTaskStatusReply(value, tasks, tasksAvailable, briefing = null) {
     /\b(?:kazi|tasks?)\b.{0,70}\b(?:zimekamilika|completed|finished|done|status|progress|zinaendelea)\b/.test(text) ||
     /\b(?:what work have you done|what have you done so far|how many tasks|completed tasks|task status|task summary)\b/.test(text) ||
     /\bmuhtasari wa kazi\b|\bhali ya kazi\b|\bkazi zilizokamilika\b/.test(text);
+    /\b(?:muhtasari|mutasari)\s*(?:wa\s*)?kazi\b/.test(text) ||
+    /\b(?:jumla ya kazi|kazi zote|task totals?)\b/.test(text);
   if (!asksStatus) return null;
 
   const authoritative = briefing?.tasks && typeof briefing.tasks === "object" ? briefing.tasks : null;
