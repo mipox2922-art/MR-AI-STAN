@@ -15,7 +15,7 @@ TOOL_RULES: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("gmail", ("gmail", "email", "mail", "barua pepe", "inbox", "reply email")),
     ("scheduler", ("schedule", "ratiba", "reminder", "kumbusha", "kesho", "kila siku", "every day")),
     ("memory", ("kumbuka", "remember", "memory", "sahau", "forget")),
-    ("coding", ("code", "coding", "program", "repo", "github", "build", "bug", "debug", "website ya project")),
+    ("coding", ("code", "coding", "program", "repo", "github", "build", "bug", "debug", "website ya project", "fix", "repair", "implement", "rekebisha", "sahihisha", "boresha", "kagua", "angalia", "msimbo", "mr-ai-stan", "mr ai", "dashboard", "add", "remove", "change", "modify", "refactor", "ongeza", "badilisha")),
     ("security", ("security", "usalama", "vulnerability", "malware", "threat", "audit", "port scan")),
     ("openstreetmap", ("map", "ramani", "location", "locate me", "mahali nilipo")),
 )

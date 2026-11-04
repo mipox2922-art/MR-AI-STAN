@@ -41,12 +41,12 @@ def _is_read_only_coding_review(request: str) -> bool:
         return False
     if any(term in value for term in (
         "fix ", "debug ", "repair ", "implement ", "create ", "build ",
-        "modify ", "edit ", "write ", "commit ", "push ",
+        "modify ", "edit ", "write ", "commit ", "push ", "add ", "remove ", "refactor ", "ongeza ",
         "rekebisha ", "tengeneza ", "andika ", "badilisha ", "futa ",
     )):
         return False
     return bool(re.match(
-        r"^(?:chambua|inspect|review|audit|kagua)\b.*\b(?:repo|repository|project|code|msimbo|source|software)\b",
+        r"^(?:chambua|inspect|review|audit|kagua|angalia)\b.*\b(?:mr\s*ai|mr-ai-stan|dashboard|chat|repo|repository|project|code|msimbo|source|software)\b",
         value,
         flags=re.IGNORECASE,
     ))
