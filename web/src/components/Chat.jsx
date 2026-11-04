@@ -240,7 +240,7 @@ function isExplicitMissionCommand(value) {
   if (/^(?:what|why|how|ni nini|kwa nini|jinsi ya|nawezaje|explain|eleza|fafanua)\b/.test(text)) {
     return false;
   }
-  const command = /^(?:(?:boss|mr ai|tafadhali|please|naomba|can you|could you|i need you to|i want you to)\s+)*(?:fanya|tekeleza|endesha|tafuta|tafutia|nitafutie|kagua|angalia|rekebisha|sahihisha|chunguza|jenga|tengeneza|fungua|soma|jibu|tuma|hifadhi|kumbuka|sahau|panga|weka|futa|scan|search|find|research|look up|open|read|check|inspect|review|audit|fix|debug|repair|build|create|make|run|execute|reply|send|remember|save|schedule|remind|deploy|test|update|install|show|list|summarize|summarise|draft|write|generate|design|draw|click|navigate|scroll|type)\b/;
+  const command = /^(?:(?:boss|mr ai|tafadhali|please|naomba|can you|could you|i need you to|i want you to)\s+)*(?:fanya|tekeleza|endesha|tafuta|tafutia|nitafutie|kagua|angalia|rekebisha|sahihisha|boresha|improve|chunguza|jenga|tengeneza|fungua|soma|jibu|tuma|hifadhi|kumbuka|sahau|panga|weka|futa|scan|search|find|research|look up|open|read|check|inspect|review|audit|fix|debug|repair|build|create|make|run|execute|reply|send|remember|save|schedule|remind|deploy|test|update|install|show|list|summarize|summarise|draft|write|generate|design|draw|click|navigate|scroll|type)\b/;
   const swahiliRequest = /^(?:nataka|naomba)\s+(?:u|uni)?(?:fanye|tekeleze|endesha|tafute|tafutie|kague|angalie|rekebishe|sahihishe|chunguze|jenge|tengeneze|fungue|some|jibu|tume|hifadhi|kumbuke|pange|weke|fute)\b/;
   return command.test(text) || swahiliRequest.test(text);
 }
