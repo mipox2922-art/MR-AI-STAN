@@ -324,6 +324,16 @@ export default function Chat({
   const [codingBusy, setCodingBusy] = useState("");
   const [codingError, setCodingError] = useState("");
   const [codingExecution, setCodingExecution] = useState(null);
+  const [providerOverride, setProviderOverride] = useState(undefined);
+  const selectedProvider = providerOverride === undefined ? provider : providerOverride;
+
+  useEffect(() => {
+    if (providerOverride === undefined) return;
+    const parentHasSynced = providerOverride === null
+      ? provider == null
+      : provider === providerOverride;
+    if (parentHasSynced) setProviderOverride(undefined);
+  }, [provider, providerOverride]);
 
   const codingCommitSha = codingExecution?.commit_sha;
   const codingTaskId = codingExecution?.task_id;
@@ -711,7 +721,7 @@ export default function Chat({
           : null,
         available_telemetry: telemetry || null,
       };
-      if (!String(provider || "").trim()) {
+      if (!String(selectedProvider || "").trim()) {
         const missionExecution = dispatch?.mission_execution;
         const response = missionExecution
           ? formatMissionExecutionReply(missionExecution)
@@ -721,7 +731,7 @@ export default function Chat({
         return;
       }
 
-      const result = await chat(text, provider, requestContext, sessionId);
+      const result = await chat(text, selectedProvider, requestContext, sessionId);
       const safeResponse = finalizeAssistantReply(result?.response, messages, mode);
       setMessages(prev => [
         ...prev,
@@ -774,8 +784,12 @@ export default function Chat({
         </div>
         <span className="tool-routing-status" aria-live="polite" title={toolStatus}>{sending ? "NACHAMBUA OMBI..." : coreStatus}</span>
         <select
-          value={provider || "none"}
-          onChange={e => onProviderChange?.(e.target.value === "none" ? null : e.target.value)}
+          value={selectedProvider || "none"}
+          onChange={event => {
+            const nextProvider = event.target.value === "none" ? null : event.target.value;
+            setProviderOverride(nextProvider);
+            onProviderChange?.(nextProvider);
+          }}
         >
           <option value="none">NO AI PROVIDER / TOOL MODE</option>
           <option value="openrouter">OPENROUTER (FREE ROUTER)</option>
