@@ -34,7 +34,6 @@ import {
   isTaskWaiting,
   normalizeMode,
 } from "./utils/taskLogic";
-import Chat from "./components/Chat";
 import CommandBoot from "./components/CommandBoot";
 import Core from "./components/Core";
 import BrowserHands from "./components/BrowserHands";
@@ -43,7 +42,6 @@ import CreativeStudio from "./components/CreativeStudio";
 import TrackingMap from "./components/TrackingMap";
 import SecurityHub from "./components/SecurityHub";
 import ToolBox from "./components/ToolBox";
-import WebIntelligence from "./components/WebIntelligence";
 import CommandPalette from "./components/CommandPalette";
 import DashboardHome from "./components/DashboardHome";
 import GmailPanel from "./components/GmailPanel";
@@ -56,25 +54,45 @@ import BusinessBroker from "./components/BusinessBroker";
 
 const BUILD_ID = import.meta.env.VITE_BUILD_ID || "MR-AI-STAN";
 
-const NAV = [
-  ["dashboard", "⌂", "Dashboard"],
-  ["core", "◉", "AI Core"],
-  ["agents", "◆", "Agents"],
-  ["jobs", "⌕", "Job Research"],
-  ["broker", "⇄", "Business Broker"],
-  ["browser", "↗", "Browser Hands"],
-  ["device", "⌁", "Device Lab"],
-  ["creative", "✦", "Creative Studio"],
-  ["map", "⌖", "Tracking Map"],
-  ["security", "🛡", "Security"],
-  ["tools", "⚙", "Toolbox"],
-  ["web", "◎", "Web Intelligence"],
-  ["gmail", "✉", "Gmail"],
-  ["calendar", "□", "Schedules"],
-  ["tasks", "✓", "Tasks"],
-  ["memory", "◇", "Memory"],
-  ["system", "⌘", "Settings"],
+const NAV_GROUPS = [
+  {
+    label: "COMMAND",
+    items: [
+      ["dashboard", "⌂", "Dashboard"],
+      ["core", "◉", "AI Core"],
+      ["agents", "◆", "Agents"],
+      ["tasks", "✓", "Tasks"],
+      ["calendar", "□", "Schedules"],
+      ["memory", "◇", "Memory"],
+    ],
+  },
+  {
+    label: "WORK",
+    items: [
+      ["jobs", "⌕", "Job Research"],
+      ["broker", "⇄", "Business Broker"],
+      ["creative", "✦", "Creative Studio"],
+    ],
+  },
+  {
+    label: "CONNECTED",
+    items: [
+      ["gmail", "✉", "Gmail"],
+      ["browser", "↗", "Browser Hands"],
+    ],
+  },
+  {
+    label: "SYSTEM",
+    items: [
+      ["device", "⌁", "Device Lab"],
+      ["map", "⌖", "Tracking Map"],
+      ["security", "🛡", "Security"],
+      ["tools", "⚙", "Toolbox"],
+      ["system", "⌘", "Settings"],
+    ],
+  },
 ];
+const NAV = NAV_GROUPS.flatMap(group => group.items);
 
 function SleepOverlay({ onWake }) {
   return (
@@ -954,24 +972,29 @@ function App() {
         </div>
 
         <nav>
-          {NAV.map(([id, icon, label]) => (
-            <button className={active === id ? "active" : ""} onClick={() => setActive(id)} key={id}>
-              <span>{icon}</span>{label}
-            </button>
+          {NAV_GROUPS.map(group => (
+            <div className="sidebar-nav-group" key={group.label}>
+              <span className="sidebar-nav-label">{group.label}</span>
+              {group.items.map(([id, icon, label]) => (
+                <button className={active === id ? "active" : ""} onClick={() => setActive(id)} key={id}>
+                  <span>{icon}</span>{label}
+                </button>
+              ))}
+            </div>
           ))}
         </nav>
 
         <div className="sidebar-voice">
           <div className="sidebar-voice-head">
-            <span className="eyebrow">WAKE PHRASE</span>
+            <span className="eyebrow">VOICE INPUT</span>
             <span className="voice-state-dot">●</span>
           </div>
           <div className="sidebar-wave" aria-hidden="true">
             {Array.from({ length: 13 }).map((_, index) => <span key={index} />)}
           </div>
           <div className="sidebar-voice-quote">
-            <strong>{voiceTranscript ? `"${voiceTranscript}"` : '"Hey Ferisi"'}</strong>
-            <span>{voiceTranscript ? "Agizo limepokelewa." : "Nipo tayari kukusaidia, Boss Ferisi."}</span>
+            <strong>{voiceTranscript ? `"${voiceTranscript}"` : '"PRESS TO SPEAK"'}</strong>
+            <span>{voiceTranscript ? "Agizo limepokelewa." : "Bonyeza VOICE COMMAND kisha zungumza."}</span>
           </div>
           <VoiceControl
             onTranscript={text => {
@@ -1084,7 +1107,7 @@ function App() {
           )}
 
           {active === "core" && (
-            <section className="split-grid">
+            <section className="split-grid core-only-grid">
               <div className="panel large-panel core-detail">
                 <div className="panel-head">
                   <div>
@@ -1099,18 +1122,6 @@ function App() {
                 </div>
                 <div className="core-stage tall"><Core state={coreStatus} modActive={working} /></div>
               </div>
-              <Chat
-                onState={setCoreState}
-                onModToggle={toggleMode}
-                onPowerCommand={handlePowerCommand}
-                mode={normalizedMode}
-                coreStatus={coreStatus}
-                provider={aiProviderManuallySelected ? aiProvider : (aiProvider || system?.ai?.provider || null)}
-                onProviderChange={setSelectedAIProvider}
-                tasks={tasks}
-                tasksAvailable={taskListAvailable}
-                telemetry={system?.telemetry || null}
-              />
             </section>
           )}
 
@@ -1120,7 +1131,6 @@ function App() {
           {active === "browser" && <BrowserHands />}
           {active === "device" && <DeviceLab />}
           {active === "creative" && <CreativeStudio />}
-          {active === "web" && <WebIntelligence />}
           {active === "gmail" && <GmailPanel />}
           {active === "calendar" && <SchedulerPanel />}
           {active === "map" && <TrackingMap />}
