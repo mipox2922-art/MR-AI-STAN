@@ -605,9 +605,9 @@ function App() {
 
   const setSelectedAIProvider = useCallback((value) => {
     const nextProvider = String(value || "").trim().toLowerCase();
-    if (!["openrouter", "gemini", "kimi", "mistral", "grok"].includes(nextProvider)) return;
+    if (nextProvider && !["openrouter", "gemini", "kimi", "mistral", "grok"].includes(nextProvider)) return;
     setAIProviderManuallySelected(true);
-    setAIProvider(nextProvider);
+    setAIProvider(nextProvider || null);
   }, []);
 
   useEffect(() => {
@@ -1103,7 +1103,7 @@ function App() {
                 onPowerCommand={handlePowerCommand}
                 mode={normalizedMode}
                 coreStatus={coreStatus}
-                provider={aiProvider || system?.ai?.provider || null}
+                provider={aiProviderManuallySelected ? aiProvider : (aiProvider || system?.ai?.provider || null)}
                 onProviderChange={setSelectedAIProvider}
                 tasks={tasks}
                 tasksAvailable={taskListAvailable}
