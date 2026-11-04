@@ -148,14 +148,14 @@ function SystemStatus({ telemetry, telemetryHistory, connectionState, lastRefres
       {pct(telemetry?.storage_percent) !== null && pct(telemetry?.storage_percent) >= 80 && (
         <div className="cc-storage-alert" role="alert">
           <strong>TAHADHARI YA STORAGE</strong>
-          <span>Storage ya backend iko {pct(telemetry.storage_percent)}%, imevuka kizingiti cha 80%.</span>
+          <span>Root filesystem ya backend runtime iko {pct(telemetry.storage_percent)}%. Hii si kipimo cha PC yako wala uthibitisho wa matumizi ya Persistent Disk.</span>
         </div>
       )}
       <div className="cc-system-layout">
         <div className="cc-system-metrics">
           <Metric label="CPU Usage · BACKEND" value={telemetry?.cpu_percent} />
           <Metric label="Memory · BACKEND" value={telemetry?.memory_percent} />
-          <Metric label="Storage · BACKEND" value={telemetry?.storage_percent} />
+          <Metric label="Storage · BACKEND ROOT FS" value={telemetry?.storage_percent} />
           <Metric label="GPU" value={telemetry?.gpu?.utilization_percent} />
         </div>
         <div className="cc-system-network">
@@ -600,10 +600,6 @@ function QuickCommands({ system = null, working = false, tasks = [], tasksAvaila
         return;
       }
 
-      if (command.kind === "ai" && !aiConfigured) {
-        showNotConnected(command.label, "AI Core is not configured in the backend service status.");
-        return;
-      }
       if (command.kind === "search" && !webConfigured) {
         showNotConnected(command.label, "Web research is not connected in the backend service status.");
         return;
@@ -613,20 +609,19 @@ function QuickCommands({ system = null, working = false, tasks = [], tasksAvaila
         return;
       }
 
+      if (["analyze", "report", "optimize"].includes(command.kind)) {
+        setState(command.label + " · COMPLETED · READ ONLY");
+        setResultText(buildQuickCommandOutput(command.kind, system, tasks, tasksAvailable));
+        return;
+      }
+
       if (command.kind === "security") {
         result = await dispatchTool(command.command);
       } else if (command.kind === "search") {
         result = await searchToolWeb(command.query);
       } else {
-        result = await chat(command.prompt + "\n\nVERIFIED RUNTIME DATA:\n" + JSON.stringify(runtimeContext), "openrouter", {
-          status: "RUNTIME_CONTEXT",
-          result: runtimeContext,
-          allowed_capabilities: {
-            read_conversation: false,
-            read_task_list: false,
-            read_telemetry: true,
-          },
-        });
+        showNotConnected(command.label, "No verified command handler is available.");
+        return;
       }
 
       const status = String(result?.status || (result?.response ? "COMPLETED" : "RESPONSE RECEIVED")).toUpperCase();
