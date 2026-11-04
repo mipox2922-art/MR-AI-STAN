@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..dependencies import get_current_user
-from ..models import ActivityLog, Notification, Setting, Task, TaskStep, User
+from ..models import ActivityLog, Memory, Notification, Setting, Task, TaskStep, User
 
 router = APIRouter(prefix="/jobs", tags=["Job Research"])
 logger = logging.getLogger("mr_ai.jobs")
@@ -669,6 +669,155 @@ def update_job_autopilot_config(
     ))
     db.commit()
     return {"status": "SAVED", "config": config}
+
+
+def _memory_key_tokens(value: str) -> set[str]:
+    return set(re.findall(r"[a-z0-9]+", str(value or "").casefold()))
+
+
+def _import_profile_from_owner_memory(db: Session, user_id: int) -> tuple[dict[str, Any], list[str]]:
+    """Import only explicit CV/profile memories owned by this authenticated account."""
+    existing = _read_json_setting(db, user_id, APPLICATION_PROFILE_KEY, {})
+    allowed = {
+        "full_name", "email", "phone", "location", "skills",
+        "experience_summary", "portfolio_url", "resume_text",
+    }
+    profile = {key: existing.get(key, "" if key != "skills" else []) for key in allowed}
+    imported: set[str] = set()
+    secret_key = re.compile(
+        r"(password|passcode|secret|api.?key|access.?token|refresh.?token|otp|pin|private.?key|credential|recovery.?code)",
+        re.IGNORECASE,
+    )
+    secret_value = re.compile(
+        r"(?:bearer\\s+[a-z0-9._-]{16,}|sk-(?:or-v1-|proj-)?[a-z0-9_-]{16,}|AIza[0-9A-Za-z_-]{20,}|gh[pousr]_[A-Za-z0-9_]{25,})",
+        re.IGNORECASE,
+    )
+    rows = (
+        db.query(Memory)
+        .filter(Memory.user_id == user_id)
+        .order_by(Memory.id.desc())
+        .limit(100)
+        .all()
+    )
+
+    for row in rows:
+        key = str(row.key or "").strip()
+        raw = str(row.value or "").strip()
+        if not raw or secret_key.search(key) or secret_value.search(raw):
+            continue
+        tokens = _memory_key_tokens(key)
+        is_cv_document = bool(tokens & {"cv", "resume", "curriculum", "vitae"})
+        is_profile_record = "profile" in tokens or is_cv_document
+        if not is_profile_record:
+            continue
+
+        source: dict[str, Any] = {}
+        try:
+            decoded = json.loads(raw)
+        except (TypeError, ValueError):
+            decoded = None
+        if isinstance(decoded, dict):
+            source = decoded
+        elif is_cv_document:
+            source = {"resume_text": raw[:6000]}
+        else:
+            continue
+
+        for field in allowed:
+            value = source.get(field)
+            current = profile.get(field)
+            is_empty = not current or (field == "skills" and not current)
+            if not is_empty or value in (None, "", []):
+                continue
+            if field == "skills":
+                if isinstance(value, str):
+                    values = re.split(r"[,;\\n]", value)
+                elif isinstance(value, list):
+                    values = value
+                else:
+                    continue
+                cleaned = [str(item).strip()[:100] for item in values if str(item).strip()]
+                if cleaned:
+                    profile[field] = cleaned[:20]
+                    imported.add(field)
+            elif isinstance(value, str):
+                cleaned = value.strip()[:6000 if field == "resume_text" else 1800]
+                if cleaned:
+                    profile[field] = cleaned
+                    imported.add(field)
+
+    resume_text = str(profile.get("resume_text") or "").strip()
+    if resume_text:
+        if not profile.get("email"):
+            email_match = re.search(r"(?i)\\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}\\b", resume_text)
+            if email_match:
+                profile["email"] = email_match.group(0)[:254]
+                imported.add("email")
+        if not profile.get("full_name"):
+            explicit_name = re.search(r"(?im)^\\s*(?:full\\s+name|name)\\s*[:：-]\\s*([^\\r\\n]{2,120})", resume_text)
+            heading_name = None
+            if not explicit_name:
+                for line in resume_text.splitlines()[:5]:
+                    heading = re.match(r"^\\s*#\\s*([A-Za-z][A-Za-z .'-]{2,100})\\s*$", line)
+                    if heading and heading.group(1).strip().casefold() not in {"cv", "resume", "curriculum vitae"}:
+                        heading_name = heading.group(1).strip()
+                        break
+            name = explicit_name.group(1).strip() if explicit_name else heading_name
+            if name:
+                profile["full_name"] = name[:120]
+                imported.add("full_name")
+        if not profile.get("skills"):
+            skills = _profile_skill_terms({"resume_text": resume_text})
+            if skills:
+                profile["skills"] = skills[:20]
+                imported.add("skills")
+        if not profile.get("experience_summary"):
+            summary = _resume_section({"resume_text": resume_text}, "PROFESSIONAL SUMMARY")
+            if summary:
+                profile["experience_summary"] = summary[:1500]
+                imported.add("experience_summary")
+
+    return profile, sorted(imported)
+
+
+@router.post("/autopilot/profile/import-memory")
+def import_job_application_profile_from_memory(
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    """Copy missing CV/profile fields from this owner's saved Memory into Job Autopilot."""
+    profile, imported_fields = _import_profile_from_owner_memory(db, current_user.id)
+    if not imported_fields:
+        return {
+            "status": "NOT_FOUND",
+            "profile_ready": _profile_ready(profile),
+            "drafts_refreshed": 0,
+            "imported_fields": [],
+            "message": (
+                "Sijaona CV au profile iliyohifadhiwa kwenye MR AI Memory ya akaunti hii. "
+                "Taarifa zilizowekwa tayari kwenye Job Autopilot hazijabadilishwa."
+            ),
+        }
+
+    _write_json_setting(db, current_user.id, APPLICATION_PROFILE_KEY, profile)
+    refreshed_drafts = _refresh_waiting_application_drafts(db, current_user.id, profile)
+    db.add(ActivityLog(
+        user_id=current_user.id,
+        action="JOB_APPLICATION_PROFILE_IMPORTED_FROM_MEMORY",
+        details=f"fields={','.join(imported_fields)}; profile_ready={_profile_ready(profile)}; drafts_refreshed={refreshed_drafts}",
+    ))
+    db.commit()
+    return {
+        "status": "IMPORTED",
+        "profile_ready": _profile_ready(profile),
+        "drafts_refreshed": refreshed_drafts,
+        "imported_fields": imported_fields,
+        "message": (
+            "CV/profile imeunganishwa na Job Autopilot. Draft zilizosubiri CV zimehuishwa; hakuna ombi lililotumwa."
+            if _profile_ready(profile) else
+            "Sehemu za CV zimeingizwa, lakini bado kuna taarifa zinazohitajika kukamilisha profile ya maombi."
+        ),
+    }
 
 
 @router.put("/autopilot/profile")
