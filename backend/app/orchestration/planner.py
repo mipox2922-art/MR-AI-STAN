@@ -42,7 +42,7 @@ _COMMAND_ROUTES: tuple[tuple[str, tuple[str, ...]], ...] = (
     )),
     ("coding", (
         r"^(?:fix|debug|repair|rekebisha|sahihisha|improve|boresha|update|implement)\b.*\b(?:mr\s*ai|mr-ai-stan|stan|dashboard|chat|project|repo|repository|code|msimbo|source|software|api|backend|frontend|app|website|tovuti)\b",
-        r"^(?:chambua|inspect|review|audit|kagua)\b.*\b(?:repo|repository|project|code|msimbo|source|software)\b",
+        r"^(?:chambua|inspect|review|audit|kagua|angalia)\b.*\b(?:mr\s*ai|mr-ai-stan|dashboard|chat|repo|repository|project|code|msimbo|source|software)\b",
         r"^(?:tengeneza|build|create|make|fix|debug|repair|rekebisha|andika|program|implement|code|review)\b.*\b(?:code|coding|program|repo|github|app|website|tovuti|bug|api|backend|frontend|software)\b",
         r"^(?:fix|debug|repair|rekebisha)\b.*\b(?:bug|error|hitilafu)\b",
     )),
