@@ -1,12 +1,39 @@
 import assert from "node:assert/strict";
 import { chromium } from "playwright";
 import { getTanzaniaGreeting } from "../src/utils/localTime.js";
+import { getTaskSummary } from "../src/utils/taskLogic.js";
 
 const BASE_URL = process.env.UI_SMOKE_URL || "http://127.0.0.1:5173";
 const API_ORIGIN = (process.env.VITE_API_URL || "https://mr-ai-stan.onrender.com").replace(/\/$/, "");
 const browserErrors = [];
 const unexpectedApi = [];
 const completedChecks = [];
+
+// Regression guard: all persisted non-terminal application/review/hand states
+// must be counted as waiting, while only genuinely assigned execution is working.
+const taskSummaryProbe = getTaskSummary([
+  { id: 1, agent: "jobs", status: "WAITING_FOR_PROFILE" },
+  { id: 2, agent: "jobs", status: "READY_FOR_REVIEW" },
+  { id: 3, agent: "gmail", status: "WAITING_FOR_HAND" },
+  { id: 4, agent: "orchestrator", status: "WAITING_APPROVAL" },
+  { id: 5, agent: "coding", status: "RUNNING" },
+  { id: 6, agent: "coding", status: "RUNNING" },
+  { id: 7, agent: "research", status: "FAILED" },
+  { id: 8, agent: "memory", status: "COMPLETED", step_count: 1, verified_steps: 1 },
+]);
+assert.deepEqual(
+  {
+    total: taskSummaryProbe.total,
+    inProgress: taskSummaryProbe.inProgress,
+    waiting: taskSummaryProbe.waiting,
+    failed: taskSummaryProbe.failed,
+    completed: taskSummaryProbe.completed,
+    workingNow: taskSummaryProbe.workingNow,
+  },
+  { total: 8, inProgress: 2, waiting: 4, failed: 1, completed: 1, workingNow: 1 },
+  "Agent/task dashboard counts must match the real task lifecycle states."
+);
+completedChecks.push("task lifecycle summary counts profile, review, hand and approval states");
 let mockTasks = [];
 let mockMemories = [{ id: 1, key: "preferred_language", value: "Swahili" }];
 let mockSchedules = [];
