@@ -774,10 +774,10 @@ export default function Chat({
         </div>
         <span className="tool-routing-status" aria-live="polite" title={toolStatus}>{sending ? "NACHAMBUA OMBI..." : coreStatus}</span>
         <select
-          value={provider || ""}
-          onChange={e => onProviderChange?.(e.target.value || null)}
+          value={provider || "none"}
+          onChange={e => onProviderChange?.(e.target.value === "none" ? null : e.target.value)}
         >
-          <option value="">CHOOSE AI PROVIDER</option>
+          <option value="none">NO AI PROVIDER / TOOL MODE</option>
           <option value="openrouter">OPENROUTER (FREE ROUTER)</option>
           <option value="mistral">MISTRAL</option>
           <option value="grok">GROK / xAI</option>
