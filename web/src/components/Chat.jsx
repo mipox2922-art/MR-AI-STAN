@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { chat, routeTool, runOrchestrator, getExecutiveBriefing, getChatHistory, setAIState } from "../api";
+import { chat, routeTool, runOrchestrator, planCodingAgentTask, applyCodingAgentPlan, checkCodingAgentCommit, getExecutiveBriefing, getChatHistory, setAIState } from "../api";
 import VoiceControl from "./VoiceControl";
 import { sanitizeAssistantMessage } from "../utils/chatSafety";
 import { getTanzaniaGreeting } from "../utils/localTime";
@@ -245,9 +245,21 @@ function isExplicitMissionCommand(value) {
   return command.test(text) || swahiliRequest.test(text);
 }
 
+function isCodingMutationCommand(value) {
+  const text = String(value || "").trim().toLowerCase().replace(/\s+/g, " ");
+  return /^(?:(?:boss|mr ai|tafadhali|please|naomba|can you|could you|i need you to|i want you to)\s+)*(?:fix|debug|repair|rekebisha|sahihisha|boresha|improve|update|implement|build|create|make|tengeneza|jenga|andika|add|remove|refactor|change|modify|badilisha)\b/.test(text);
+}
+
 function formatMissionExecutionReply(execution) {
   const status = String(execution?.status || "UNKNOWN").toUpperCase();
   const lines = ["MR AI MISSION · " + status.replaceAll("_", " ")];
+  if (status === "PLAN_READY") {
+    lines.push("Coding Agent imesoma files na kuandaa patch proposal.");
+    lines.push("Hakuna source iliyobadilishwa. Pitia diff, kisha idhinisha kwa kubonyeza APPLY REVIEWED PATCH.");
+    if (execution?.summary) lines.push("Muhtasari: " + execution.summary);
+    if (Array.isArray(execution?.changed_files)) lines.push("Files zitakazobadilishwa: " + execution.changed_files.join(", "));
+    if (Array.isArray(execution?.tests_to_run) && execution.tests_to_run.length) lines.push("Tests: " + execution.tests_to_run.join("; "));
+  }
   if (execution?.task_id != null) lines.push("Task ID: " + execution.task_id);
   if (execution?.intent) lines.push("Intent: " + String(execution.intent).replaceAll("_", " "));
   const jobs = execution?.job_results;
@@ -308,6 +320,10 @@ export default function Chat({
   const messageListRef = useRef(null);
   const [toolStatus, setToolStatus] = useState("AI_ONLY");
   const [sending, setSending] = useState(false);
+  const [codingProposal, setCodingProposal] = useState(null);
+  const [codingBusy, setCodingBusy] = useState("");
+  const [codingError, setCodingError] = useState("");
+  const [codingExecution, setCodingExecution] = useState(null);
   const [messages, setMessages] = useState([
     {
       role: "assistant",
@@ -384,6 +400,50 @@ export default function Chat({
 
   function isGreeting(value) {
     return /^(mr\s*ai|mr ai[,! ]*(habari|mambo|vipi|hello|hi|niaje)?|habari( mr ai)?|mambo( mr ai)?|vipi( mr ai)?|niaje( mr ai)?|good morning( mr ai)?|good evening( mr ai)?)\W*$/i.test(value.trim());
+  }
+
+  async function applyCodingProposal() {
+    if (!codingProposal?.plan || !codingProposal?.proposal_signature || codingBusy) return;
+    setCodingBusy("APPLY");
+    setCodingError("");
+    try {
+      const applied = await applyCodingAgentPlan(codingProposal.plan, codingProposal.proposal_signature);
+      let checks = null;
+      if (applied?.commit_sha && applied?.task_id != null) {
+        try {
+          checks = await checkCodingAgentCommit(applied.commit_sha, applied.task_id);
+        } catch {
+          // A temporary CI API failure is not a pass; keep the state pending.
+        }
+      }
+      const execution = {
+        ...applied,
+        ci: checks?.status || applied?.ci || "PENDING",
+        checks: checks?.checks || [],
+        task: checks?.task || applied?.task,
+      };
+      setCodingExecution(execution);
+      setCodingProposal(null);
+      const status = String(execution.ci || "PENDING").toUpperCase();
+      const lines = [
+        "CODING AGENT · " + String(applied?.status || "SUBMITTED").replaceAll("_", " "),
+        applied?.pull_request?.url ? "Pull request: " + applied.pull_request.url : "",
+        applied?.commit_url ? "Commit: " + applied.commit_url : "",
+        "GitHub CI: " + status,
+        status === "PASSED" ? "GitHub Actions imethibitisha checks zote zilizoripotiwa kuwa zimepita." :
+          status === "FAILED" ? "GitHub Actions imeripoti failure. PR haijathibitishwa." :
+          "CI bado inasubiri au haijatoa matokeo ya mwisho. Hakuna pass inayodaiwa.",
+      ].filter(Boolean);
+      setMessages(prev => [...prev, { role: "assistant", content: lines.join("\n") }]);
+      setToolStatus("CODING PR / CI " + status);
+      reportRuntimeState(status === "FAILED" ? "ERROR" : "IDLE");
+    } catch (error) {
+      setCodingError(String(error?.message || "Coding Agent could not apply the reviewed patch.").slice(0, 260));
+      setToolStatus("CODING APPLY ERROR");
+      reportRuntimeState("ERROR");
+    } finally {
+      setCodingBusy("");
+    }
   }
 
   async function send(overrideText = null) {
@@ -505,7 +565,50 @@ export default function Chat({
         }
 
         const selectedTool = routePreview?.route?.tool || routePreview?.tool || null;
-        if (selectedTool && isExplicitMissionCommand(text)) {
+        if (selectedTool === "coding" && isExplicitMissionCommand(text) && isCodingMutationCommand(text)) {
+          setCodingBusy("PLAN");
+          setCodingError("");
+          setCodingExecution(null);
+          try {
+            const proposal = await planCodingAgentTask(text);
+            if (proposal?.status !== "PLAN_READY" || !proposal.plan || !proposal.proposal_signature) {
+              throw new Error(proposal?.message || "Coding Agent haikuandaa signed patch proposal.");
+            }
+            setCodingProposal(proposal);
+            const plan = proposal.plan;
+            const execution = {
+              status: "PLAN_READY",
+              execution_started: false,
+              verified: true,
+              summary: plan.summary,
+              risk: plan.risk,
+              changed_files: (plan.changes || []).map(change => change.path),
+              tests_to_run: plan.tests_to_run || [],
+              files_reviewed: (plan.files_reviewed || []).map(file => file.path),
+              message: "Patch proposal iko tayari kwa ukaguzi wa Boss. Hakuna source iliyobadilishwa.",
+            };
+            dispatch = {
+              status: "PLAN_READY",
+              route: { tool: selectedTool, agent: "coding" },
+              result: execution,
+              mission_execution: execution,
+              message: execution.message,
+            };
+            setToolStatus("CODING PLAN READY / OWNER REVIEW");
+          } catch (planError) {
+            const reason = String(planError?.message || "Coding Agent plan failed.").slice(0, 260);
+            setCodingError(reason);
+            dispatch = {
+              status: "PLAN_FAILED",
+              route: { tool: selectedTool, agent: "coding" },
+              mission_execution: { status: "FAILED", execution_started: false, reason, verified: false },
+              message: "Coding Agent imeshindwa kuandaa patch. Hakuna source iliyobadilishwa.",
+            };
+            setToolStatus("CODING PLAN ERROR");
+          } finally {
+            setCodingBusy("");
+          }
+        } else if (selectedTool && isExplicitMissionCommand(text)) {
           const agent = routePreview?.route?.agent || routePreview?.agent || TOOL_AGENT[selectedTool] || "orchestrator";
           setToolStatus("MISSION STARTING / " + agent.toUpperCase());
           try {
@@ -672,8 +775,57 @@ export default function Chat({
             <ChatMessageContent content={item.content} />
           </div>
         ))}
+        {codingProposal?.plan && (
+          <section className="chat-coding-proposal" aria-label="Coding Agent patch proposal">
+            <div className="chat-coding-proposal-head">
+              <strong>CODING AGENT · PATCH READY</strong>
+              <span>RISK: {codingProposal.plan.risk || "UNKNOWN"}</span>
+            </div>
+            <p>{codingProposal.plan.summary || "Proposed source changes"}</p>
+            <small>
+              Read: {codingProposal.plan.files_reviewed?.length || 0} files ·
+              Change: {codingProposal.plan.changes?.length || 0} files ·
+              Provider: {codingProposal.plan.provider || "UNKNOWN"}
+            </small>
+            <div className="chat-coding-proposal-files">
+              {(codingProposal.plan.changes || []).map(change => (
+                <details key={change.path}>
+                  <summary>{change.path} · {change.action}</summary>
+                  <pre>{change.diff || "No diff returned."}</pre>
+                </details>
+              ))}
+            </div>
+            {codingProposal.plan.tests_to_run?.length > 0 && (
+              <div className="chat-coding-proposal-tests">
+                <strong>TEST PLAN</strong>
+                <ul>{codingProposal.plan.tests_to_run.map((test, index) => <li key={index}>{test}</li>)}</ul>
+              </div>
+            )}
+            <p className="chat-coding-proposal-safety">
+              Hakuna source iliyobadilishwa. APPLY itatengeneza branch na Pull Request, si kuunganisha moja kwa moja kwenye main.
+            </p>
+            {codingError && <div className="chat-coding-proposal-error" role="alert">{codingError}</div>}
+            <div className="chat-coding-proposal-actions">
+              <button type="button" className="primary-button" onClick={applyCodingProposal} disabled={Boolean(codingBusy)}>
+                {codingBusy === "APPLY" ? "OPENING PR..." : "APPLY REVIEWED PATCH + OPEN PR"}
+              </button>
+              <button type="button" className="ghost-button" onClick={() => setCodingProposal(null)} disabled={Boolean(codingBusy)}>
+                DISCARD
+              </button>
+            </div>
+          </section>
+        )}
+        {codingError && !codingProposal && <div className="chat-coding-proposal-error" role="alert">{codingError}</div>}
+        {codingExecution && (
+          <div className="chat-coding-proposal-result" role="status" aria-live="polite">
+            <strong>CODING TASK #{codingExecution.task_id || "—"} · CI {codingExecution.ci || "PENDING"}</strong>
+            {codingExecution.pull_request?.url && <a href={codingExecution.pull_request.url} target="_blank" rel="noreferrer">OPEN PULL REQUEST #{codingExecution.pull_request.number}</a>}
+            {codingExecution.commit_url && <a href={codingExecution.commit_url} target="_blank" rel="noreferrer">VIEW COMMIT</a>}
+            {codingExecution.checks?.map((check, index) => <span key={check.name || index}>{check.name}: {check.conclusion || check.status || "PENDING"}</span>)}
+          </div>
+        )}
       </div>
-      <div className="chat-input">
+      <div className="chat-input"
         <input
           value={message}
           onChange={e => setMessage(e.target.value)}
