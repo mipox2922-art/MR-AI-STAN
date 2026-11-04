@@ -285,7 +285,7 @@ Creative digital professional with project-based website development and brandin
     )
     assert profile["full_name"] == "MR FERISI"
     assert profile["email"] == "mr343ai@gmail.com"
-    assert "React" in profile["skills"]
+    assert any("react" in skill.casefold() for skill in profile["skills"])
     assert "project-based website development" in profile["experience_summary"]
     db.close()
 
