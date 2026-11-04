@@ -107,7 +107,9 @@ async function getCvAvailabilityReply() {
 
 function getTaskStatusReply(value, tasks, tasksAvailable, briefing = null) {
   const text = String(value || "").trim().toLowerCase();
+  const asksWhoWorking = /\bnani\b.{0,50}\b(?:anafanya(?:\s+kazi)?|ana\s+fanya(?:\s+kazi)?|anaendelea(?:\s+kazi)?|working)\b|\bwho(?:\s+is|'s)?\s+working(?:\s+now)?\b/.test(text);
   const asksStatus =
+    asksWhoWorking ||
     /\bumefanya\s+kazi\s+gani/.test(text) ||
     /\bkazi\s+ngapi\b.{0,70}(?:zime.{0,20}(?:kamil|kamli|isha|fanyika)|completed|done|zinaendelea|zinafanyika)/.test(text) ||
     /\b(?:kazi|tasks?)\b.{0,70}\b(?:zimekamilika|completed|finished|done|status|progress|zinaendelea)\b/.test(text) ||
@@ -126,23 +128,18 @@ function getTaskStatusReply(value, tasks, tasksAvailable, briefing = null) {
   }
 
   const statusOf = task => String(task?.status || "").trim().toUpperCase();
-  const count = (key, matches) => {
-    const value = authoritative?.[key];
-    return typeof value === "number" && Number.isFinite(value)
-      ? value
-      : rows.filter(task => matches.includes(statusOf(task))).length;
-  };
-  const completed = count("completed", ["COMPLETED", "DONE"]);
-  const active = count("working", ["RUNNING", "IN_PROGRESS", "WORKING", "STARTED", "EXECUTING"]);
-  const waiting = count("waiting", [
-    "PENDING", "QUEUED", "WAITING", "BLOCKED", "WAITING_APPROVAL",
-    "WAITING_FOR_HAND", "WAITING_FOR_PROFILE", "WAITING_FOR_VERIFICATION",
-    "READY_FOR_REVIEW", "NEEDS_APPROVAL"
-  ]);
-  const failed = count("failed", ["FAILED", "ERROR"]);
-  const total = typeof authoritative?.total === "number" && Number.isFinite(authoritative.total)
-    ? authoritative.total
-    : rows.length;
+  const activeStates = ["RUNNING", "IN_PROGRESS", "WORKING", "STARTED", "EXECUTING", "HAND_EXECUTING"];
+  const waitingStates = [
+    "PENDING", "QUEUED", "WAITING", "BLOCKED", "WAITING_APPROVAL", "NEEDS_APPROVAL",
+    "WAITING_FOR_HAND", "WAITING_FOR_PROFILE", "WAITING_FOR_VERIFICATION", "READY_FOR_REVIEW"
+  ];
+  // Derive every displayed total from the same returned task rows. The API's
+  // aggregate fields are deliberately not mixed with a separately cached list.
+  const completed = rows.filter(task => ["COMPLETED", "DONE"].includes(statusOf(task))).length;
+  const active = rows.filter(task => activeStates.includes(statusOf(task))).length;
+  const waiting = rows.filter(task => waitingStates.includes(statusOf(task))).length;
+  const failed = rows.filter(task => ["FAILED", "ERROR"].includes(statusOf(task))).length;
+  const total = rows.length;
   const asksWhatDone = /umefanya\s+kazi\s+gani|what work have you done|what have you done so far|kazi zilizokamilika|completed tasks/i.test(text);
   const sourceLabel = authoritative
     ? "briefing mpya iliyosomwa moja kwa moja kutoka backend"
@@ -152,6 +149,35 @@ function getTaskStatusReply(value, tasks, tasksAvailable, briefing = null) {
     "Boss Ferisi, huu ndio muhtasari kutoka " + sourceLabel + ".",
     `Jumla: ${total} · Zilizokamilika kwa ushahidi: ${completed} · Zinaendelea: ${active} · Zinasubiri: ${waiting} · Zimeshindwa: ${failed}.`
   ];
+  if (asksWhoWorking) {
+    const activeRows = rows.filter(task => activeStates.includes(statusOf(task)));
+    const assignedActiveRows = activeRows.filter(task => {
+      const agent = String(task?.agent || "").trim().toLowerCase();
+      return agent && !["haijathibitishwa", "unknown", "unassigned", "none"].includes(agent);
+    });
+    if (assignedActiveRows.length) {
+      lines.push("Mawakala wanaofanya kazi sasa:");
+      assignedActiveRows.slice(0, 8).forEach((task, index) => {
+        lines.push(`${index + 1}. ${String(task.agent)} · ${String(task.title || "Kazi bila jina")} · ${statusOf(task)} · ID ${task.id ?? "haipo"}`);
+      });
+    } else if (activeRows.length) {
+      lines.push(`Kuna kazi ${activeRows.length} zenye status ya utekelezaji, lakini hakuna agent aliyepewa assignment iliyothibitishwa.`);
+    } else {
+      lines.push("Hakuna agent mwenye kazi hai iliyothibitishwa sasa. Agents 0 wanafanya kazi; tasks zilizo wazi zinasubiri au zimezuiwa.");
+      const byAgent = new Map();
+      rows.filter(task => waitingStates.includes(statusOf(task))).forEach(task => {
+        const agent = String(task.agent || "Haijatajwa").trim();
+        if (!byAgent.has(agent)) byAgent.set(agent, new Set());
+        byAgent.get(agent).add(statusOf(task));
+      });
+      if (byAgent.size) {
+        lines.push("Wanaosubiri:");
+        [...byAgent.entries()].slice(0, 8).forEach(([agent, states]) => {
+          lines.push(`- ${agent}: ${[...states].join(", ")}`);
+        });
+      }
+    }
+  }
   if (asksWhatDone) {
     const completedRows = rows.filter(task => ["COMPLETED", "DONE"].includes(statusOf(task)));
     if (completedRows.length) {
