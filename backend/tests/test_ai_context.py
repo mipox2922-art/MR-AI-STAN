@@ -206,7 +206,7 @@ def test_model_prompt_forbids_unsupported_destructive_telemetry_recommendations(
         "backend-visible root filesystem",
         "GPU UNAVAILABLE means telemetry is unavailable",
         "Never recommend deleting services",
-        "two dated measurements",
+        "two separate timestamped measurements",
     ):
         assert required.lower() in prompt.lower(), required
 
