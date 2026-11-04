@@ -245,6 +245,38 @@ function isExplicitMissionCommand(value) {
   return command.test(text) || swahiliRequest.test(text);
 }
 
+function formatMissionExecutionReply(execution) {
+  const status = String(execution?.status || "UNKNOWN").toUpperCase();
+  const lines = ["MR AI MISSION · " + status.replaceAll("_", " ")];
+  if (execution?.task_id != null) lines.push("Task ID: " + execution.task_id);
+  if (execution?.intent) lines.push("Intent: " + String(execution.intent).replaceAll("_", " "));
+  const jobs = execution?.job_results;
+  if (jobs && typeof jobs === "object") {
+    const results = Array.isArray(jobs.results) ? jobs.results : [];
+    lines.push("Matokeo yaliyopatikana: " + (jobs.count ?? results.length));
+    for (const [index, item] of results.slice(0, 3).entries()) {
+      const title = item?.title || item?.company || "Matokeo bila jina";
+      const url = item?.url ? " · " + item.url : "";
+      lines.push((index + 1) + ". " + title + url);
+    }
+    if (Array.isArray(jobs.sources) && jobs.sources.length) {
+      lines.push("Vyanzo: " + jobs.sources.join(", "));
+    }
+  }
+  if (status === "WAITING_APPROVAL") {
+    lines.push("Hakuna kitendo cha hatari kilichotekelezwa. Idhini ya Boss inahitajika.");
+  } else if (status === "WAITING_FOR_HAND" || status === "NOT_CONNECTED") {
+    lines.push("Kazi imesimama kwa sababu execution hand au integration haijaunganishwa.");
+  } else if (status === "FAILED" || status === "EXECUTION_FAILED") {
+    lines.push("Kazi haijakamilika. Hakuna mafanikio yaliyothibitishwa.");
+    if (execution?.reason) lines.push("Sababu: " + String(execution.reason).slice(0, 240));
+  } else if (status === "COMPLETED") {
+    lines.push("Backend imerudisha status COMPLETED kwa mission hii.");
+  }
+  if (execution?.next_action) lines.push("Hatua inayofuata: " + execution.next_action);
+  return lines.join("\n");
+}
+
 export default function Chat({
   onState,
   onModToggle,
@@ -440,17 +472,6 @@ export default function Chat({
       return;
     }
 
-    if (!String(provider || "").trim()) {
-      setMessages(prev => [
-        ...prev,
-        { role: "user", content: text },
-        { role: "assistant", content: "MR AI Chat haijaunganishwa na AI provider. Hakuna ombi lililotumwa. Sanidi provider ya bure kwenye Render Environment au chagua provider iliyounganishwa." },
-      ]);
-      setMessage("");
-      reportRuntimeState("ERROR");
-      return;
-    }
-
     const conversationHistory = messages.slice(-10).map(item => ({
       role: item.role === "user" ? "user" : "assistant",
       content: item.role === "assistant" ? sanitizeAssistantMessage(item.content) : String(item.content || ""),
@@ -565,6 +586,16 @@ export default function Chat({
           : null,
         available_telemetry: telemetry || null,
       };
+      if (!String(provider || "").trim()) {
+        const missionExecution = dispatch?.mission_execution;
+        const response = missionExecution
+          ? formatMissionExecutionReply(missionExecution)
+          : "MR AI Chat haijaunganishwa na AI provider. Hakuna mission iliyoanza kwa sababu hakuna tool execution iliyochaguliwa.";
+        setMessages(prev => [...prev, { role: "assistant", content: response }]);
+        reportRuntimeState(missionExecution ? "IDLE" : "ERROR");
+        return;
+      }
+
       const result = await chat(text, provider, requestContext, sessionId);
       const safeResponse = finalizeAssistantReply(result?.response, messages, mode);
       setMessages(prev => [
