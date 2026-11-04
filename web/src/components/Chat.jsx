@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { chat, routeTool, runOrchestrator, planCodingAgentTask, applyCodingAgentPlan, checkCodingAgentCommit, getExecutiveBriefing, getChatHistory, setAIState } from "../api";
+import { chat, routeTool, runOrchestrator, planCodingAgentTask, applyCodingAgentPlan, checkCodingAgentCommit, getExecutiveBriefing, getChatHistory, getMemories, getJobAutopilot, setAIState } from "../api";
 import VoiceControl from "./VoiceControl";
 import { sanitizeAssistantMessage } from "../utils/chatSafety";
 import { getTanzaniaGreeting } from "../utils/localTime";
@@ -52,6 +52,45 @@ function getModeStatusReply(value, mode) {
   if (!asksAboutMode || !isQuestion) return null;
   const normalized = mode === "working" ? "WORKING MODE" : mode === "sleep" ? "SLEEP MODE" : "NORMAL MODE";
   return "Mode ya sasa ni " + normalized + ".";
+}
+
+function isCvAvailabilityMessage(value) {
+  const text = String(value || "").trim().toLowerCase();
+  return (
+    /\b(?:cv|resume|wasifu)\b.{0,40}\b(?:ipo|iko|ninayo|nimeiweka|tayari)\b/.test(text) ||
+    /\b(?:ipo|iko|ninayo|nimeiweka|tayari)\b.{0,40}\b(?:cv|resume|wasifu)\b/.test(text) ||
+    /\b(?:unayo|una|umesema|kuna)\b.{0,30}\b(?:cv|resume|wasifu)\b/.test(text)
+  );
+}
+
+async function getCvAvailabilityReply() {
+  const [autopilot, memories] = await Promise.all([
+    getJobAutopilot(),
+    getMemories()
+  ]);
+  const profile = autopilot?.profile && typeof autopilot.profile === "object"
+    ? autopilot.profile
+    : {};
+  const hasResumeInAutopilot = Boolean(String(profile.resume_text || "").trim());
+  if (hasResumeInAutopilot) {
+    return autopilot.profile_ready === true
+      ? "Ndio Boss, nakala ya CV imehifadhiwa kwenye Job Autopilot na profile iko tayari kwa maandalizi ya draft. Hakuna ombi lililotumwa kiotomatiki."
+      : "Nimeona CV imehifadhiwa kwenye Job Autopilot, lakini profile haijakamilika bado. Kagua taarifa zinazokosekana kwenye Job Research → Job Autopilot. Hakuna ombi lililotumwa.";
+  }
+
+  const rows = Array.isArray(memories)
+    ? memories
+    : (Array.isArray(memories?.items) ? memories.items : []);
+  const cvMarker = /\b(?:cv|resume|curriculum\s+vitae)\b/i;
+  const savedInMemory = rows.some(row =>
+    cvMarker.test(String(row?.key || "")) ||
+    cvMarker.test(String(row?.value || ""))
+  );
+  if (savedInMemory) {
+    return "CV imeonekana kwenye MR AI Memory, lakini bado haijaingizwa kwenye Job Autopilot. Fungua Job Research → Job Autopilot kisha bonyeza IMPORT CV FROM MR AI MEMORY. Hii haitumi maombi ya kazi.";
+  }
+
+  return "Nimekuelewa Boss, unasema CV yako ipo. Kwa sasa sijaona nakala yake kwenye MR AI Memory au Job Autopilot ya MR AI. Hii haimaanishi huna CV; ina maana sijaweza kuthibitisha nakala iliyohifadhiwa ndani ya mfumo.";
 }
 
 function getTaskStatusReply(value, tasks, tasksAvailable, briefing = null) {
@@ -550,6 +589,26 @@ export default function Chat({
 
     // Handle short acknowledgements locally. These do not need an AI-provider
     // round trip, which previously caused ordinary messages like "sasa" to fail.
+    if (isCvAvailabilityMessage(text)) {
+      setMessages(prev => [...prev, { role: "user", content: text }]);
+      setMessage("");
+      setSending(true);
+      reportRuntimeState("THINKING");
+      try {
+        const reply = await getCvAvailabilityReply();
+        setMessages(prev => [...prev, { role: "assistant", content: reply }]);
+      } catch {
+        setMessages(prev => [...prev, {
+          role: "assistant",
+          content: "Nimekuelewa Boss. Sijaweza kusoma hali ya CV kwenye MR AI sasa hivi, kwa hiyo sitadai kuwa imehifadhiwa au haipo. Tafadhali jaribu tena baada ya backend kuunganishwa."
+        }]);
+      } finally {
+        setSending(false);
+        reportRuntimeState("IDLE");
+      }
+      return;
+    }
+
     const taskStatusReply = getTaskStatusReply(text, tasks, tasksAvailable);
     if (taskStatusReply) {
       setMessages(prev => [...prev, { role: "user", content: text }]);
