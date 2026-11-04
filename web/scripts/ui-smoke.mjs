@@ -754,6 +754,13 @@ async function main() {
   completedChecks.push("Provider reachability stays separate from chat status; quota failures explain the next step");
 
   const modeButton = page.locator(".sidebar-footer button").first();
+  const sidebarVoiceBox = await page.locator(".sidebar-voice").boundingBox();
+  const modeButtonBox = await modeButton.boundingBox();
+  assert.ok(sidebarVoiceBox && modeButtonBox, "Voice panel and mode control must both be present.");
+  assert.ok(
+    sidebarVoiceBox.y + sidebarVoiceBox.height <= modeButtonBox.y + 1,
+    `Sidebar voice panel must not overlap the mode controls: voice=${JSON.stringify(sidebarVoiceBox)} mode=${JSON.stringify(modeButtonBox)}`
+  );
   await modeButton.click();
   await page.locator(".sidebar-footer button").first().getByText("NORMAL MODE", { exact: true }).waitFor({ state: "visible" });
   await page.locator(".sidebar-footer button").first().click();
