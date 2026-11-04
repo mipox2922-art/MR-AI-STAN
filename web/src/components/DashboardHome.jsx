@@ -148,14 +148,14 @@ function SystemStatus({ telemetry, telemetryHistory, connectionState, lastRefres
       {pct(telemetry?.storage_percent) !== null && pct(telemetry?.storage_percent) >= 80 && (
         <div className="cc-storage-alert" role="alert">
           <strong>TAHADHARI YA STORAGE</strong>
-          <span>Storage ya backend iko {pct(telemetry.storage_percent)}%, imevuka kizingiti cha 80%.</span>
+          <span>Root filesystem ya backend runtime iko {pct(telemetry.storage_percent)}%. Hii si kipimo cha PC yako wala uthibitisho wa matumizi ya Persistent Disk.</span>
         </div>
       )}
       <div className="cc-system-layout">
         <div className="cc-system-metrics">
           <Metric label="CPU Usage · BACKEND" value={telemetry?.cpu_percent} />
           <Metric label="Memory · BACKEND" value={telemetry?.memory_percent} />
-          <Metric label="Storage · BACKEND" value={telemetry?.storage_percent} />
+          <Metric label="Storage · BACKEND ROOT FS" value={telemetry?.storage_percent} />
           <Metric label="GPU" value={telemetry?.gpu?.utilization_percent} />
         </div>
         <div className="cc-system-network">
@@ -480,18 +480,81 @@ function WebResearch({ available = false }) {
   );
 }
 
-function QuickCommands({ system = null, working = false }) {
+function runtimeMetric(value) {
+  const parsed = finiteNumber(value);
+  return parsed === null ? "N/A" : parsed.toFixed(1) + "%";
+}
+
+function buildQuickCommandOutput(kind, system, tasks, tasksAvailable) {
+  const telemetry = system?.telemetry || {};
   const services = system?.services || {};
-  const aiConfigured = services.ai_core === "CONFIGURED";
+  const ai = system?.ai || {};
+  const gpu = String(telemetry.gpu?.status || "UNAVAILABLE").toUpperCase();
+  const scope = telemetry.source === "host_runtime"
+    ? "Hosted backend runtime; si PC yako."
+    : "Chanzo cha telemetry hakijathibitishwa.";
+  const summary = tasksAvailable && Array.isArray(tasks) ? getTaskSummary(tasks) : null;
+  const taskText = summary
+    ? "Tasks " + summary.total + " · completed " + summary.completed + " · active " + summary.inProgress + " · waiting " + summary.waiting + " · failed " + summary.failed
+    : "Task list haijapatikana.";
+  const web = services.web_search === "AVAILABLE"
+    ? "FEATURE AVAILABLE · SEARCH PROVIDER NOT CONFIGURED"
+    : String(services.web_search || "UNKNOWN");
+
+  if (kind === "analyze") {
+    return [
+      "BACKEND TELEMETRY ANALYSIS · READ ONLY",
+      "Scope: " + scope,
+      "CPU: " + runtimeMetric(telemetry.cpu_percent) + " · SINGLE SAMPLE, si historical spike.",
+      "Memory: " + runtimeMetric(telemetry.memory_percent),
+      "Storage: " + runtimeMetric(telemetry.storage_percent) + " · root filesystem " + (telemetry.storage_mount || "/") + " ya backend runtime, si PC wala uthibitisho wa Persistent Disk.",
+      "GPU: " + (gpu === "UNAVAILABLE" ? "GPU TELEMETRY UNAVAILABLE" : runtimeMetric(telemetry.gpu?.utilization_percent)),
+      "AI Core: " + String(services.ai_core || "UNKNOWN") + " · provider " + String(ai.provider || "NOT SELECTED"),
+      "Web Research: " + web,
+      "Security: " + String(services.security || "UNKNOWN"),
+      taskText,
+      "Hakuna settings au data iliyobadilishwa."
+    ].join("\n");
+  }
+
+  if (kind === "report") {
+    return [
+      "MOG343 OPERATIONS · RUNTIME REPORT",
+      "Time: " + new Date().toLocaleString("en-GB", { timeZone: "Africa/Dar_es_Salaam" }) + " · Africa/Dar_es_Salaam",
+      scope,
+      "CPU " + runtimeMetric(telemetry.cpu_percent) + " · Memory " + runtimeMetric(telemetry.memory_percent) + " · Backend root FS " + runtimeMetric(telemetry.storage_percent) + " · GPU " + gpu,
+      "Database " + String(services.database || "UNKNOWN") + " · AI " + String(services.ai_core || "UNKNOWN") + " · Web " + web + " · Security " + String(services.security || "UNKNOWN"),
+      "Provider configuration " + (ai.configured ? "CONFIGURED" : "NOT CONFIGURED") + "; configuration si uthibitisho wa chat ya mwisho.",
+      taskText,
+      "Gmail, Browser Hands na Device Bridge havijathibitishwa na snapshot hii.",
+      "Ripoti hii haisababishi mabadiliko."
+    ].join("\n");
+  }
+
+  const recommendations = [];
+  const storage = finiteNumber(telemetry.storage_percent);
+  const cpu = finiteNumber(telemetry.cpu_percent);
+  if (storage === null) recommendations.push("Storage haijapimwa; usifanye cleanup bila ripoti halisi ya disk.");
+  else if (storage >= 80) recommendations.push("Storage imevuka 80%. Kagua root mount na Render metrics/logs, tambua matumizi halisi na hakikisha backup kabla ya cleanup. Usifute data kwa kutegemea asilimia hii pekee.");
+  else recommendations.push("Storage haijavuka tahadhari katika snapshot hii; hakuna cleanup inayohitajika kwa kipimo hiki.");
+  if (cpu !== null && cpu >= 85) recommendations.push("CPU iko juu kwenye sample moja. Kusanya time series na process metrics kabla ya tuning; sample hii haithibitishi spike endelevu.");
+  else if (cpu !== null) recommendations.push("CPU sample hii haitoshi kuhalalisha mabadiliko ya performance; angalia trend kwanza.");
+  if (gpu === "UNAVAILABLE") recommendations.push("GPU telemetry haipatikani kwenye backend runtime; hali ya GPU ya PC haijulikani.");
+  recommendations.push("NOT_CONFIGURED / NOT_CONNECTED ni hali ya integration, si ushahidi wa resource problem. Hifadhi services na data kama zilivyo.");
+  return ["SAFE OPTIMIZATION REVIEW · READ ONLY", ...recommendations, "HAKUNA MABADILIKO YALIYOFANYIKA."].join("\n");
+}
+
+function QuickCommands({ system = null, working = false, tasks = [], tasksAvailable = false }) {
+  const services = system?.services || {};
   const webConfigured = services.web_search === "CONFIGURED";
   const securityConfigured = services.security === "CONFIGURED";
   const commands = [
     { icon: "⌕", label: "SCAN SYSTEM", kind: "scan" },
-    { icon: "◫", label: "ANALYZE DATA", kind: "ai", prompt: "Analyze the verified MR AI backend runtime telemetry below. Give concise observations and explicitly distinguish the Render backend host from the owner's personal PC. Do not claim any configuration changed." },
+    { icon: "◫", label: "ANALYZE DATA", kind: "analyze" },
     { icon: "◎", label: "WEB RESEARCH", kind: "search", query: "latest technology trends in AI and automation" },
-    { icon: "▣", label: "GENERATE REPORT", kind: "ai", prompt: "Generate a concise executive report for BOSS FERISI using only the runtime telemetry and service status provided. Include confirmed facts, unknowns, and next actions. Do not invent results." },
+    { icon: "▣", label: "GENERATE REPORT", kind: "report" },
     { icon: "◈", label: working ? "SECURITY SCAN" : "SECURITY CHECK", kind: "security", command: "run a security audit check" },
-    { icon: "⚙", label: "OPTIMIZE", kind: "ai", prompt: "Review the verified MR AI backend telemetry and service state. Recommend up to three safe, specific optimizations. Do not claim to execute changes." },
+    { icon: "⚙", label: "OPTIMIZE", kind: "optimize" },
   ];
   const [state, setState] = useState("READY");
   const [busy, setBusy] = useState("");
@@ -537,10 +600,6 @@ function QuickCommands({ system = null, working = false }) {
         return;
       }
 
-      if (command.kind === "ai" && !aiConfigured) {
-        showNotConnected(command.label, "AI Core is not configured in the backend service status.");
-        return;
-      }
       if (command.kind === "search" && !webConfigured) {
         showNotConnected(command.label, "Web research is not connected in the backend service status.");
         return;
@@ -550,20 +609,19 @@ function QuickCommands({ system = null, working = false }) {
         return;
       }
 
+      if (["analyze", "report", "optimize"].includes(command.kind)) {
+        setState(command.label + " · COMPLETED · READ ONLY");
+        setResultText(buildQuickCommandOutput(command.kind, system, tasks, tasksAvailable));
+        return;
+      }
+
       if (command.kind === "security") {
         result = await dispatchTool(command.command);
       } else if (command.kind === "search") {
         result = await searchToolWeb(command.query);
       } else {
-        result = await chat(command.prompt + "\n\nVERIFIED RUNTIME DATA:\n" + JSON.stringify(runtimeContext), "openrouter", {
-          status: "RUNTIME_CONTEXT",
-          result: runtimeContext,
-          allowed_capabilities: {
-            read_conversation: false,
-            read_task_list: false,
-            read_telemetry: true,
-          },
-        });
+        showNotConnected(command.label, "No verified command handler is available.");
+        return;
       }
 
       const status = String(result?.status || (result?.response ? "COMPLETED" : "RESPONSE RECEIVED")).toUpperCase();
@@ -1131,7 +1189,7 @@ function AgentCrewRoster({ agents = [], tasks = [], onOpenAgents }) {
   );
 }
 
-function ExecutiveMorningBrief({ system, gmailStatus, tasks = [], agents = [], onOpenAgents, onOpenTasks, onOpenGmail, onOpenJobs, providerHealth, onCheckAIProviderHealth }) {
+function ExecutiveMorningBrief({ system, gmailStatus, tasks = [], agents = [], onTasksSnapshot, onOpenAgents, onOpenTasks, onOpenGmail, onOpenJobs, providerHealth, onCheckAIProviderHealth }) {
   const [briefing, setBriefing] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -1143,6 +1201,7 @@ function ExecutiveMorningBrief({ system, gmailStatus, tasks = [], agents = [], o
     try {
       const result = await getExecutiveBriefing();
       setBriefing(result);
+      if (Array.isArray(result?.tasks?.items)) onTasksSnapshot?.(result.tasks.items);
       setError("");
     } catch (err) {
       setError(err?.message || "Executive briefing is unavailable.");
@@ -1552,6 +1611,7 @@ export default function DashboardHome({
   onOpenJobs,
   onRadarScan,
   onOpenDevice,
+  onTasksSnapshot = null,
 }) {
   const telemetry = system?.telemetry || {};
   const services = system?.services || {};
@@ -1689,10 +1749,10 @@ export default function DashboardHome({
         </Panel>
       </div>
 
-      <QuickCommands system={system} working={working} />
+      <QuickCommands system={system} working={working} tasks={tasks} tasksAvailable={tasksAvailable} />
 
       <div className="cc-bottom-content">
-        <ExecutiveMorningBrief system={system} gmailStatus={gmailStatus} tasks={tasks} agents={agents} onOpenAgents={onOpenAgents} onOpenTasks={onOpenTasks} onOpenGmail={onOpenGmail} onOpenJobs={onOpenJobs} providerHealth={providerHealth} onCheckAIProviderHealth={checkAIProviderHealth} />
+        <ExecutiveMorningBrief system={system} gmailStatus={gmailStatus} tasks={tasks} agents={agents} onTasksSnapshot={onTasksSnapshot} onOpenAgents={onOpenAgents} onOpenTasks={onOpenTasks} onOpenGmail={onOpenGmail} onOpenJobs={onOpenJobs} providerHealth={providerHealth} onCheckAIProviderHealth={checkAIProviderHealth} />
 
         <details className="cc-dashboard-drawer cc-mission-drawer">
           <summary>

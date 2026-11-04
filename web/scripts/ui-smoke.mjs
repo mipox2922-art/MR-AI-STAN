@@ -20,6 +20,7 @@ const taskSummaryProbe = getTaskSummary([
   { id: 6, agent: "coding", status: "RUNNING" },
   { id: 7, agent: "research", status: "FAILED" },
   { id: 8, agent: "memory", status: "COMPLETED", step_count: 1, verified_steps: 1 },
+  { id: 9, agent: "Haijathibitishwa", status: "RUNNING" },
 ]);
 assert.deepEqual(
   {
@@ -30,7 +31,7 @@ assert.deepEqual(
     completed: taskSummaryProbe.completed,
     workingNow: taskSummaryProbe.workingNow,
   },
-  { total: 8, inProgress: 2, waiting: 4, failed: 1, completed: 1, workingNow: 1 },
+  { total: 9, inProgress: 3, waiting: 4, failed: 1, completed: 1, workingNow: 1 },
   "Agent/task dashboard counts must match the real task lifecycle states."
 );
 completedChecks.push("task lifecycle summary counts profile, review, hand and approval states");
@@ -245,8 +246,8 @@ async function apiMock(route) {
     timezone: "Africa/Dar_es_Salaam",
     agents: { total: 8, working: 1, waiting: 7, fleet: [] },
     tasks: {
-      total: 2, completed: 1, working: 1, waiting: 0, failed: 0,
-      counts: { COMPLETED: 1, IN_PROGRESS: 1 },
+      total: 1, completed: 0, working: 1, waiting: 0, failed: 0,
+      counts: { IN_PROGRESS: 1 },
       items: [{
         id: 910, title: "E2E verified coding task", source: "agent", requested_by: "Boss Ferisi",
         agent: "coding", status: "IN_PROGRESS", priority: "NORMAL", progress: 50,
@@ -686,10 +687,27 @@ async function main() {
     await page.locator(".cc-radar-controls button").filter({ hasText: buttonLabel }).click();
     await page.waitForFunction(expectedText => document.querySelector(".cc-radar-status span")?.textContent === expectedText, expected, { timeout: 7000 });
   }
+  const quickCommandChatCount = delayedChatRequestBodies.length;
   for (const label of ["SCAN SYSTEM", "ANALYZE DATA", "WEB RESEARCH", "GENERATE REPORT", "SECURITY CHECK", "OPTIMIZE"]) {
     await page.locator(".cc-quick-grid button").filter({ hasText: label }).click();
     await page.waitForFunction(expected => document.querySelector(".cc-quick-head strong")?.textContent?.includes(expected), label, { timeout: 7000 });
+    const output = await page.locator(".cc-quick-result pre").innerText();
+    if (label === "ANALYZE DATA") {
+      assert.match(output, /BACKEND TELEMETRY ANALYSIS/);
+      assert.match(output, /SINGLE SAMPLE/);
+      assert.match(output, /backend root filesystem/i);
+    }
+    if (label === "GENERATE REPORT") {
+      assert.match(output, /MOG343 OPERATIONS/);
+      assert.match(output, /Tasks \\d+ · completed \\d+ · active \\d+/);
+    }
+    if (label === "OPTIMIZE") {
+      assert.match(output, /SAFE OPTIMIZATION REVIEW/);
+      assert.match(output, /HAKUNA MADILIKO YALIYOFANYIKA/);
+    }
   }
+  assert.equal(delayedChatRequestBodies.length, quickCommandChatCount,
+    "Telemetry analysis, reporting and optimization must remain local/read-only and must not ask an LLM to invent resource recommendations.");
   const dashboardSearch = page.locator(".cc-research-search input");
   await dashboardSearch.fill("MR AI smoke query");
   await dashboardSearch.press("Enter");
@@ -698,6 +716,12 @@ async function main() {
   await dashboardChatInput.fill("Nisaidie kwa smoke test");
   await page.locator(".cc-chat-panel .chat-input > button").last().click();
   await page.locator(".cc-chat-panel .messages").getByText("E2E response from mocked API", { exact: true }).waitFor({ state: "visible", timeout: 7000 });
+
+  await dashboardChatInput.fill("NANI ANA FANYA KAZI NOW");
+  await page.locator(".cc-chat-panel .chat-input > button").last().click();
+  await page.locator(".cc-chat-panel .messages").getByText("Mawakala wanaofanya kazi sasa:", { exact: true }).waitFor({ state: "visible", timeout: 7000 });
+  await page.locator(".cc-chat-panel .messages").getByText(/coding/).waitFor({ state: "visible", timeout: 7000 });
+  completedChecks.push("Swahili who-is-working question answers from the live executive task snapshot without generic AI text");
 
   // An explicit action must cross the mission-execution boundary. Tool routing
   // alone is metadata and must never be mistaken for an executed mission.

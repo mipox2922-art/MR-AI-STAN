@@ -1099,6 +1099,12 @@ function App() {
               sensorStatus={radarDiagnostics}
               tasks={tasks}
               tasksAvailable={taskListAvailable}
+              onTasksSnapshot={(rows) => {
+                if (Array.isArray(rows)) {
+                  setTasks(rows);
+                  setTaskListAvailable(true);
+                }
+              }}
               memories={memories}
               activities={activities}
               coreState={coreState}

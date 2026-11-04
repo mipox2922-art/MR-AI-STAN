@@ -38,11 +38,15 @@ export function normalizeTaskStatus(taskOrStatus) {
 }
 
 export function hasAssignedAgent(task) {
-  return Boolean(String(task?.agent ?? "").trim());
+  const owner = agentKey(task?.agent);
+  return Boolean(owner && ![
+    "haijathibitishwa", "haijatajwa", "unknown", "unassigned",
+    "not_assigned", "none", "null", "undefined", "n_a", "na"
+  ].includes(owner));
 }
 
 export function isTaskInProgress(task) {
-  return ["in_progress", "running", "working", "started", "executing", "hand_executing"].includes(normalizeTaskStatus(task)) && hasAssignedAgent(task);
+  return ["in_progress", "running", "working", "started", "executing", "hand_executing"].includes(normalizeTaskStatus(task));
 }
 
 export function isTaskWaiting(task) {
@@ -116,8 +120,8 @@ export function getAssignedTaskForAgent(agent, tasks = []) {
 export function getTaskSummary(tasks = [], agents = []) {
   const rows = Array.isArray(tasks) ? tasks : [];
   const inProgressTasks = rows.filter(isTaskInProgress);
-  // Count unique assigned owners from the same backend task list, not a separate agent-status feed.
-  const agentCount = new Set(inProgressTasks.map(task => agentKey(task.agent)).filter(Boolean)).size;
+  // A running task counts even if it has no owner; an active agent requires a real assignment.
+  const agentCount = new Set(inProgressTasks.filter(hasAssignedAgent).map(task => agentKey(task.agent))).size;
 
   return {
     total: rows.length,

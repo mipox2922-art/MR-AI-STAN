@@ -9,8 +9,8 @@ from ..routers.system import system_status
 from ..tools.registry import registry_summary
 from ..agents.registry import AGENTS
 
-ACTIVE_TASK_STATES = {"IN_PROGRESS", "RUNNING", "WORKING", "STARTED"}
-WAITING_TASK_STATES = {"PENDING", "WAITING", "BLOCKED", "WAITING_APPROVAL", "WAITING_FOR_HAND", "WAITING_FOR_VERIFICATION", "WAITING_FOR_PROFILE", "READY_FOR_REVIEW"}
+ACTIVE_TASK_STATES = {"IN_PROGRESS", "RUNNING", "WORKING", "STARTED", "EXECUTING", "HAND_EXECUTING"}
+WAITING_TASK_STATES = {"PENDING", "QUEUED", "WAITING", "BLOCKED", "WAITING_APPROVAL", "NEEDS_APPROVAL", "WAITING_FOR_HAND", "WAITING_FOR_VERIFICATION", "WAITING_FOR_PROFILE", "READY_FOR_REVIEW"}
 FAILED_TASK_STATES = {"FAILED", "ERROR"}
 
 def _utc_iso(value: datetime | None) -> str | None:
@@ -56,6 +56,7 @@ def _safe_task(db: Session, task: Task) -> dict[str, Any]:
     if status in {"COMPLETED", "DONE"} and (not steps or verified != len(steps)): status = "WAITING_FOR_VERIFICATION"
     return {
         "id": task.id, "title": task.title, "description": task.description,
+        "deadline": _utc_iso(task.deadline),
         "source": task.source or "unknown", "requested_by": task.requested_by or "Haijathibitishwa",
         "agent": task.agent or "Haijathibitishwa", "status": status, "priority": task.priority,
         "progress": 100 if status in {"COMPLETED", "DONE"} and steps and verified == len(steps) else progress,

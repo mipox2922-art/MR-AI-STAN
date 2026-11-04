@@ -141,3 +141,25 @@ def test_system_status_requires_authentication_without_bearer_token():
 
     assert response.status_code in {401, 403}
 
+def test_system_status_marks_provider_readiness_as_not_checked_and_scopes_telemetry(monkeypatch):
+    from app.routers import system as system_router
+
+    monkeypatch.setattr(system_router, "psutil", None)
+    monkeypatch.setattr(settings, "openrouter_api_key", "configured-for-test")
+    monkeypatch.setattr(
+        system_router,
+        "_default_ai_provider",
+        lambda: ("openrouter", "openrouter/free", "OPENROUTER_FREE"),
+    )
+
+    result = system_router.system_status(None)
+
+    assert result["ai"]["configured"] is True
+    assert result["ai"]["ready"] is None
+    assert result["ai"]["readiness"] == "NOT_CHECKED"
+    assert "not a live model health check" in result["ai"]["readiness_note"].lower()
+    assert result["telemetry"]["storage_scope"] == "BACKEND_ROOT_FILESYSTEM"
+    assert result["telemetry"]["storage_mount"] == "/"
+    assert result["telemetry"]["cpu_sample"] == "SINGLE_INTERVAL_SAMPLE"
+    assert result["telemetry"]["source"] == "serverless_runtime"
+
