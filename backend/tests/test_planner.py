@@ -46,6 +46,8 @@ def test_direct_mr_ai_fix_commands_route_to_the_coding_agent():
         "Rekebisha MR AI chat",
         "Fix MR AI dashboard",
         "Boresha MR-AI-STAN repo",
+        "Kagua MR AI dashboard",
+        "Angalia MR AI chat",
     ):
         assert select_agents(request) == ["coding"], request
         assert route_command(request)["tool"] == "coding", request
