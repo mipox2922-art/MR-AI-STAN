@@ -1653,3 +1653,23 @@ canvas, svg { max-width: 100%; }
     flex-wrap: wrap;
   }
 }
+
+/* Compact, grouped navigation and the single-purpose AI Core page. */
+.app-shell .sidebar nav .sidebar-nav-group {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.app-shell .sidebar nav .sidebar-nav-label {
+  display: block;
+  padding: 8px 8px 3px;
+  color: var(--dim);
+  font: 700 8px/1.2 "Share Tech Mono", monospace;
+  letter-spacing: 1.5px;
+}
+.app-shell .sidebar nav .sidebar-nav-group:first-child .sidebar-nav-label {
+  padding-top: 4px;
+}
+.app-shell .split-grid.core-only-grid {
+  grid-template-columns: minmax(0, 1fr);
+}
