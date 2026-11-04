@@ -825,7 +825,7 @@ export default function Chat({
           </div>
         )}
       </div>
-      <div className="chat-input"
+      <div className="chat-input">
         <input
           value={message}
           onChange={e => setMessage(e.target.value)}
