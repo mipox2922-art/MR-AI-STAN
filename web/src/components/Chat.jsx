@@ -112,7 +112,7 @@ function getTaskStatusReply(value, tasks, tasksAvailable, briefing = null) {
     /\bkazi\s+ngapi\b.{0,70}(?:zime.{0,20}(?:kamil|kamli|isha|fanyika)|completed|done|zinaendelea|zinafanyika)/.test(text) ||
     /\b(?:kazi|tasks?)\b.{0,70}\b(?:zimekamilika|completed|finished|done|status|progress|zinaendelea)\b/.test(text) ||
     /\b(?:what work have you done|what have you done so far|how many tasks|completed tasks|task status|task summary)\b/.test(text) ||
-    /\bmuhtasari wa kazi\b|\bhali ya kazi\b|\bkazi zilizokamilika\b/.test(text);
+    /\bmuhtasari wa kazi\b|\bhali ya kazi\b|\bkazi zilizokamilika\b/.test(text) ||
     /\b(?:muhtasari|mutasari)\s*(?:wa\s*)?kazi\b/.test(text) ||
     /\b(?:jumla ya kazi|kazi zote|task totals?)\b/.test(text);
   if (!asksStatus) return null;
