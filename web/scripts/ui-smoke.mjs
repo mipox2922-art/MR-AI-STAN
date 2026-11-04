@@ -842,20 +842,19 @@ async function main() {
   // AI Core is intentionally the single-purpose runtime/state surface.
   // The one real chat/provider selector lives in the Dashboard, not a duplicate Core panel.
   await goTo("Dashboard");
-  const dashboardChat = page.locator(".cc-chat-panel .chat-panel");
-  await dashboardChat.locator("select").selectOption("mistral");
-  const dashboardChatInput = dashboardChat.locator(".chat-input input");
+  const dashboardChatPanel = page.locator(".cc-chat-panel .chat-panel");
+  await dashboardChatPanel.locator("select").selectOption("mistral");
   await dashboardChatInput.fill("Nipe taarifa za mfumo");
-  await dashboardChat.locator(".chat-input > button").last().click();
-  await dashboardChat.locator(".messages").getByText("E2E response from mocked API", { exact: true }).waitFor({ state: "visible", timeout: 7000 });
+  await dashboardChatPanel.locator(".chat-input > button").last().click();
+  await dashboardChatPanel.locator(".messages").getByText("E2E response from mocked API", { exact: true }).waitFor({ state: "visible", timeout: 7000 });
   completedChecks.push("AI Core runtime states and Dashboard chat provider selection/send");
 
   await dashboardChatInput.fill("Timeout regression test");
-  await dashboardChat.locator(".chat-input > button").last().click();
+  await dashboardChatPanel.locator(".chat-input > button").last().click();
   try {
-    await dashboardChat.locator(".messages").getByText("Delayed chat response confirmed", { exact: true }).waitFor({ state: "visible", timeout: 25000 });
+    await dashboardChatPanel.locator(".messages").getByText("Delayed chat response confirmed", { exact: true }).waitFor({ state: "visible", timeout: 25000 });
   } catch (error) {
-    const currentMessages = await dashboardChat.locator(".messages").innerText().catch(() => "(messages unavailable)");
+    const currentMessages = await dashboardChatPanel.locator(".messages").innerText().catch(() => "(messages unavailable)");
     throw new Error(`Delayed chat regression failed. delayedRequests=${delayedChatRequests}; requestBodies=${JSON.stringify(delayedChatRequestBodies)}; messages=${JSON.stringify(currentMessages)}; consoleErrors=${JSON.stringify(consoleErrors)}; failedResponses=${JSON.stringify(failedResponses)}; original=${error.message}`);
   }
   assert.equal(delayedChatRequests, 1, "The typed timeout-regression message should reach /ai/chat exactly once.");
