@@ -980,7 +980,7 @@ async function main() {
   // Verify that tracking lives in task storage rather than only in component state.
   await page.reload({ waitUntil: "domcontentloaded" });
   await page.waitForFunction(() => document.querySelector(".sidebar nav button") !== null, undefined, { timeout: 10000 });
-  await page.locator(".cc-titlebar").waitFor({ state: "visible", timeout: 15000 });
+  await page.locator(".command-center-reference").waitFor({ state: "visible", timeout: 15000 });
   await goTo("Job Research");
   await page.locator('input[placeholder*="Python developer"]').fill("Python developer");
   await page.getByRole("button", { name: "SEARCH JOBS", exact: true }).click();
