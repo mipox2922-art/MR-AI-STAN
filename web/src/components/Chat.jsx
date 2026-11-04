@@ -54,41 +54,63 @@ function getModeStatusReply(value, mode) {
   return "Mode ya sasa ni " + normalized + ".";
 }
 
-function getTaskStatusReply(value, tasks, tasksAvailable) {
+function getTaskStatusReply(value, tasks, tasksAvailable, briefing = null) {
   const text = String(value || "").trim().toLowerCase();
   const asksStatus =
-    /\bumefanya\s+kazi\s+gani/.test(text) ||
-    /\bkazi\s+ngapi\b.{0,70}(?:zime.{0,20}(?:kamil|kamli|isha|fanyika)|completed|done|zinaendelea|zinafanyika)/.test(text) ||
-    /\b(?:kazi|tasks?)\b.{0,70}\b(?:zimekamilika|completed|finished|done|status|progress|zinaendelea)\b/.test(text) ||
-    /\b(?:what work have you done|what have you done so far|how many tasks|completed tasks|task status|task summary)\b/.test(text) ||
-    /\bmuhtasari wa kazi\b|\bhali ya kazi\b|\bkazi zilizokamilika\b/.test(text);
+    /\\bumefanya\\s+kazi\\s+gani/.test(text) ||
+    /\\bkazi\\s+ngapi\\b.{0,70}(?:zime.{0,20}(?:kamil|kamli|isha|fanyika)|completed|done|zinaendelea|zinafanyika)/.test(text) ||
+    /\\b(?:kazi|tasks?)\\b.{0,70}\\b(?:zimekamilika|completed|finished|done|status|progress|zinaendelea)\\b/.test(text) ||
+    /\\b(?:what work have you done|what have you done so far|how many tasks|completed tasks|task status|task summary)\\b/.test(text) ||
+    /\\bmuhtasari wa kazi\\b|\\bhali ya kazi\\b|\\bkazi zilizokamilika\\b/.test(text);
   if (!asksStatus) return null;
-  if (tasksAvailable !== true || !Array.isArray(tasks)) {
+
+  const authoritative = briefing?.tasks && typeof briefing.tasks === "object" ? briefing.tasks : null;
+  const rows = Array.isArray(authoritative?.items)
+    ? authoritative.items
+    : (Array.isArray(tasks) ? tasks : []);
+  if (!authoritative && (tasksAvailable !== true || !Array.isArray(tasks))) {
     return "Boss Ferisi, siwezi kuthibitisha idadi ya kazi kwa sababu orodha ya Tasks haijapakiwa kutoka backend. Sitachukulia mazungumzo au idadi ya rekodi kuwa ushahidi wa kazi zilizokamilika.";
   }
 
-  const statusOf = task => String(task?.status || "").toUpperCase();
-  const completed = tasks.filter(task => ["COMPLETED", "DONE", "VERIFIED"].includes(statusOf(task)));
-  const active = tasks.filter(task => ["RUNNING", "IN_PROGRESS", "WORKING"].includes(statusOf(task)));
-  const waiting = tasks.filter(task => ["PENDING", "WAITING", "BLOCKED", "WAITING_APPROVAL", "WAITING_FOR_HAND", "WAITING_FOR_PROFILE", "WAITING_FOR_VERIFICATION", "READY_FOR_REVIEW"].includes(statusOf(task)));
-  const failed = tasks.filter(task => ["FAILED", "ERROR", "CANCELLED"].includes(statusOf(task)));
-  const asksWhatDone = /umefanya\s+kazi\s+gani|what work have you done|what have you done so far|kazi zilizokamilika|completed tasks/i.test(text);
+  const statusOf = task => String(task?.status || "").trim().toUpperCase();
+  const count = (key, matches) => {
+    const value = authoritative?.[key];
+    return typeof value === "number" && Number.isFinite(value)
+      ? value
+      : rows.filter(task => matches.includes(statusOf(task))).length;
+  };
+  const completed = count("completed", ["COMPLETED", "DONE"]);
+  const active = count("working", ["RUNNING", "IN_PROGRESS", "WORKING", "STARTED", "EXECUTING"]);
+  const waiting = count("waiting", [
+    "PENDING", "QUEUED", "WAITING", "BLOCKED", "WAITING_APPROVAL",
+    "WAITING_FOR_HAND", "WAITING_FOR_PROFILE", "WAITING_FOR_VERIFICATION",
+    "READY_FOR_REVIEW", "NEEDS_APPROVAL"
+  ]);
+  const failed = count("failed", ["FAILED", "ERROR"]);
+  const total = typeof authoritative?.total === "number" && Number.isFinite(authoritative.total)
+    ? authoritative.total
+    : rows.length;
+  const asksWhatDone = /umefanya\\s+kazi\\s+gani|what work have you done|what have you done so far|kazi zilizokamilika|completed tasks/i.test(text);
+  const sourceLabel = authoritative
+    ? "briefing mpya iliyosomwa moja kwa moja kutoka backend"
+    : "orodha ya Tasks iliyopakiwa";
 
   const lines = [
-    "Boss Ferisi, huu ndio muhtasari wa orodha ya Tasks iliyopakiwa, si madai kuhusu kazi ambazo hazina rekodi.",
-    `Kazi zilizoorodheshwa: ${tasks.length} · Zilizokamilika: ${completed.length} · Zinaendelea: ${active.length} · Zinasubiri: ${waiting.length} · Zilizoshindwa/kusitishwa: ${failed.length}.`
+    "Boss Ferisi, huu ndio muhtasari kutoka " + sourceLabel + ".",
+    `Jumla: ${total} · Zilizokamilika kwa ushahidi: ${completed} · Zinaendelea: ${active} · Zinasubiri: ${waiting} · Zimeshindwa: ${failed}.`
   ];
   if (asksWhatDone) {
-    if (completed.length) {
-      lines.push("Kazi zilizowekwa COMPLETED:");
-      completed.slice(0, 5).forEach((task, index) => {
+    const completedRows = rows.filter(task => ["COMPLETED", "DONE"].includes(statusOf(task)));
+    if (completedRows.length) {
+      lines.push("Kazi zilizothibitishwa:");
+      completedRows.slice(0, 5).forEach((task, index) => {
         lines.push(`${index + 1}. ${String(task.title || task.name || "Kazi bila jina")} · Agent: ${String(task.agent || "haijatajwa")} · ID: ${task.id ?? "haipo"}`);
       });
     } else {
-      lines.push("Hakuna kazi iliyo na status COMPLETED kwenye orodha hii. Kazi zilizorekodiwa pekee hazimaanishi zimekamilika.");
+      lines.push("Hakuna kazi iliyo na ushahidi wa kutosha kuhesabiwa COMPLETED kwenye muhtasari huu.");
     }
   }
-  return lines.join("\n");
+  return lines.join("\\n");
 }
 
 function getAmbiguousDelegationReply(value) {
@@ -530,13 +552,25 @@ export default function Chat({
     // round trip, which previously caused ordinary messages like "sasa" to fail.
     const taskStatusReply = getTaskStatusReply(text, tasks, tasksAvailable);
     if (taskStatusReply) {
-      setMessages(prev => [
-        ...prev,
-        { role: "user", content: text },
-        { role: "assistant", content: taskStatusReply }
-      ]);
+      setMessages(prev => [...prev, { role: "user", content: text }]);
       setMessage("");
-      reportRuntimeState("IDLE");
+      setSending(true);
+      reportRuntimeState("THINKING");
+      try {
+        // Read the authoritative briefing at question time so stale 10-second
+        // dashboard polling cannot produce contradictory task totals.
+        const latestBriefing = await getExecutiveBriefing();
+        const latestReply = getTaskStatusReply(text, tasks, tasksAvailable, latestBriefing);
+        setMessages(prev => [...prev, {
+          role: "assistant",
+          content: latestReply || taskStatusReply
+        }]);
+      } catch {
+        setMessages(prev => [...prev, { role: "assistant", content: taskStatusReply }]);
+      } finally {
+        setSending(false);
+        reportRuntimeState("IDLE");
+      }
       return;
     }
 
