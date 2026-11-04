@@ -1,4 +1,5 @@
 from app.orchestration.planner import build_plan, select_agents
+from app.tools.router import route_command
 
 
 def test_system_health_request_only_selects_orchestrator():
@@ -38,3 +39,13 @@ def test_compound_mission_routes_separate_command_clauses():
 
 def test_website_build_routes_to_coding_not_browser_navigation():
     assert select_agents("Tengeneza website") == ["coding"]
+
+
+def test_direct_mr_ai_fix_commands_route_to_the_coding_agent():
+    for request in (
+        "Rekebisha MR AI chat",
+        "Fix MR AI dashboard",
+        "Boresha MR-AI-STAN repo",
+    ):
+        assert select_agents(request) == ["coding"], request
+        assert route_command(request)["tool"] == "coding", request
