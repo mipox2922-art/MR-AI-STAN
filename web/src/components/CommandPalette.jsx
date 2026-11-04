@@ -27,7 +27,6 @@ export default function CommandPalette({ open, onClose, onNavigate, onToggleMode
     ["map", "Open Tracking Map"],
     ["security", "Open Security"],
     ["tools", "Open Toolbox"],
-    ["web", "Open Web Intelligence"],
     ["gmail", "Open Gmail"],
     ["calendar", "Open Schedules"],
     ["tasks", "Open Tasks"],

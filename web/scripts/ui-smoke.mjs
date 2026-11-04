@@ -1,12 +1,39 @@
 import assert from "node:assert/strict";
 import { chromium } from "playwright";
 import { getTanzaniaGreeting } from "../src/utils/localTime.js";
+import { getTaskSummary } from "../src/utils/taskLogic.js";
 
 const BASE_URL = process.env.UI_SMOKE_URL || "http://127.0.0.1:5173";
 const API_ORIGIN = (process.env.VITE_API_URL || "https://mr-ai-stan.onrender.com").replace(/\/$/, "");
 const browserErrors = [];
 const unexpectedApi = [];
 const completedChecks = [];
+
+// Regression guard: all persisted non-terminal application/review/hand states
+// must be counted as waiting, while only genuinely assigned execution is working.
+const taskSummaryProbe = getTaskSummary([
+  { id: 1, agent: "jobs", status: "WAITING_FOR_PROFILE" },
+  { id: 2, agent: "jobs", status: "READY_FOR_REVIEW" },
+  { id: 3, agent: "gmail", status: "WAITING_FOR_HAND" },
+  { id: 4, agent: "orchestrator", status: "WAITING_APPROVAL" },
+  { id: 5, agent: "coding", status: "RUNNING" },
+  { id: 6, agent: "coding", status: "RUNNING" },
+  { id: 7, agent: "research", status: "FAILED" },
+  { id: 8, agent: "memory", status: "COMPLETED", step_count: 1, verified_steps: 1 },
+]);
+assert.deepEqual(
+  {
+    total: taskSummaryProbe.total,
+    inProgress: taskSummaryProbe.inProgress,
+    waiting: taskSummaryProbe.waiting,
+    failed: taskSummaryProbe.failed,
+    completed: taskSummaryProbe.completed,
+    workingNow: taskSummaryProbe.workingNow,
+  },
+  { total: 8, inProgress: 2, waiting: 4, failed: 1, completed: 1, workingNow: 1 },
+  "Agent/task dashboard counts must match the real task lifecycle states."
+);
+completedChecks.push("task lifecycle summary counts profile, review, hand and approval states");
 let mockTasks = [];
 let mockMemories = [{ id: 1, key: "preferred_language", value: "Swahili" }];
 let mockSchedules = [];
@@ -554,7 +581,7 @@ async function main() {
   }
   await page.waitForFunction(() => document.querySelector(".sidebar nav button") !== null, undefined, { timeout: 10000 });
   // Dashboard owns its HUD titlebar and intentionally hides the generic page topbar.
-  await page.locator(".cc-titlebar").waitFor({ state: "visible", timeout: 15000 });
+  await page.locator(".command-center-reference").waitFor({ state: "visible", timeout: 15000 });
   const liveOperations = page.locator(".cc-exec-live-ops");
   await liveOperations.waitFor({ state: "visible", timeout: 7000 });
   await liveOperations.getByText("E2E verified coding task", { exact: true }).waitFor({ state: "visible", timeout: 7000 });
@@ -611,17 +638,17 @@ async function main() {
   completedChecks.push("executive briefing expands to a task-backed Agent Crew roster");
   assert.equal(radarScanRequests, 0, "After initial telemetry refresh completes, dashboard polling must not scan local sensor hardware.");
   const nav = page.locator(".sidebar nav button");
-  assert.equal(await nav.count(), 17, "All 17 main navigation entries should render.");
-  completedChecks.push("authenticated app startup + 17 main navigation controls");
+  assert.equal(await nav.count(), 16, "All 16 main navigation entries should render.");
+  completedChecks.push("authenticated app startup + 16 grouped main navigation controls");
 
   const destinations = [
     "Dashboard", "AI Core", "Agents", "Browser Hands", "Device Lab",
-    "Creative Studio", "Tracking Map", "Security", "Toolbox", "Web Intelligence",
+    "Creative Studio", "Tracking Map", "Security", "Toolbox",
     "Job Research", "Business Broker", "Gmail", "Schedules", "Tasks", "Memory", "Settings",
   ];
   async function waitForDestination(label) {
     if (label === "Dashboard") {
-      await page.locator(".cc-titlebar").waitFor({ state: "visible", timeout: 7000 });
+      await page.locator(".command-center-reference").waitFor({ state: "visible", timeout: 7000 });
       return;
     }
     await page.waitForFunction(expected => document.querySelector(".topbar h1")?.textContent === expected, label, { timeout: 7000 });
@@ -754,6 +781,13 @@ async function main() {
   completedChecks.push("Provider reachability stays separate from chat status; quota failures explain the next step");
 
   const modeButton = page.locator(".sidebar-footer button").first();
+  const sidebarVoiceBox = await page.locator(".sidebar-voice").boundingBox();
+  const modeButtonBox = await modeButton.boundingBox();
+  assert.ok(sidebarVoiceBox && modeButtonBox, "Voice panel and mode control must both be present.");
+  assert.ok(
+    sidebarVoiceBox.y + sidebarVoiceBox.height <= modeButtonBox.y + 1,
+    `Sidebar voice panel must not overlap the mode controls: voice=${JSON.stringify(sidebarVoiceBox)} mode=${JSON.stringify(modeButtonBox)}`
+  );
   await modeButton.click();
   await page.locator(".sidebar-footer button").first().getByText("NORMAL MODE", { exact: true }).waitFor({ state: "visible" });
   await page.locator(".sidebar-footer button").first().click();
@@ -761,7 +795,7 @@ async function main() {
     ["Open Dashboard", "Dashboard"], ["Open AI Core", "AI Core"], ["Open Agents", "Agents"],
     ["Open Browser Hands", "Browser Hands"], ["Open Device Lab", "Device Lab"],
     ["Open Creative Studio", "Creative Studio"], ["Open Tracking Map", "Tracking Map"],
-    ["Open Security", "Security"], ["Open Toolbox", "Toolbox"], ["Open Web Intelligence", "Web Intelligence"],
+    ["Open Security", "Security"], ["Open Toolbox", "Toolbox"],
     ["Open Job Research", "Job Research"], ["Open Business Broker", "Business Broker"], ["Open Gmail", "Gmail"], ["Open Schedules", "Schedules"], ["Open Tasks", "Tasks"],
     ["Open Memory", "Memory"], ["Open Settings", "Settings"],
   ];
@@ -805,24 +839,27 @@ async function main() {
   }
   assert.equal(await runtimeStateLabels.filter({ hasText: /^LISTENING$/ }).count(), 0,
     "LISTENING must not be presented as live until voice input is connected.");
-  await page.locator(".chat-panel select").selectOption("mistral");
-  const coreInput = page.locator(".chat-panel .chat-input input");
-  await coreInput.fill("Nipe taarifa za mfumo");
-  await page.locator(".chat-panel .chat-input > button").last().click();
-  await page.locator(".chat-panel .messages").getByText("E2E response from mocked API", { exact: true }).waitFor({ state: "visible", timeout: 7000 });
-  completedChecks.push("AI Core state selector, provider selector and chat send");
+  // AI Core is intentionally the single-purpose runtime/state surface.
+  // The one real chat/provider selector lives in the Dashboard, not a duplicate Core panel.
+  await goTo("Dashboard");
+  const dashboardChatPanel = page.locator(".cc-chat-panel .chat-panel");
+  await dashboardChatPanel.locator("select").selectOption("mistral");
+  await dashboardChatInput.fill("Nipe taarifa za mfumo");
+  await dashboardChatPanel.locator(".chat-input > button").last().click();
+  await dashboardChatPanel.locator(".messages").getByText("E2E response from mocked API", { exact: true }).waitFor({ state: "visible", timeout: 7000 });
+  completedChecks.push("AI Core runtime states and Dashboard chat provider selection/send");
 
-  await coreInput.fill("Timeout regression test");
-  await page.locator(".chat-panel .chat-input > button").last().click();
+  await dashboardChatInput.fill("Timeout regression test");
+  await dashboardChatPanel.locator(".chat-input > button").last().click();
   try {
-    await page.locator(".chat-panel .messages").getByText("Delayed chat response confirmed", { exact: true }).waitFor({ state: "visible", timeout: 25000 });
+    await dashboardChatPanel.locator(".messages").getByText("Delayed chat response confirmed", { exact: true }).waitFor({ state: "visible", timeout: 25000 });
   } catch (error) {
-    const currentMessages = await page.locator(".chat-panel .messages").innerText().catch(() => "(messages unavailable)");
+    const currentMessages = await dashboardChatPanel.locator(".messages").innerText().catch(() => "(messages unavailable)");
     throw new Error(`Delayed chat regression failed. delayedRequests=${delayedChatRequests}; requestBodies=${JSON.stringify(delayedChatRequestBodies)}; messages=${JSON.stringify(currentMessages)}; consoleErrors=${JSON.stringify(consoleErrors)}; failedResponses=${JSON.stringify(failedResponses)}; original=${error.message}`);
   }
   assert.equal(delayedChatRequests, 1, "The typed timeout-regression message should reach /ai/chat exactly once.");
   assert.equal(delayedChatRequestBodies.at(-1)?.message, "Timeout regression test", "The SEND button must submit the actual typed message, not a React click event.");
-  completedChecks.push("AI Core SEND submits typed text and accepts a response delayed beyond 12 seconds");
+  completedChecks.push("Dashboard Chat SEND submits typed text and accepts a response delayed beyond 12 seconds");
 
   await goTo("Agents");
   const missionInput = page.locator(".agent-planner-form input");
@@ -963,14 +1000,7 @@ async function main() {
   await page.getByText("Smoke Search Result", { exact: true }).waitFor({ state: "visible", timeout: 7000 });
   completedChecks.push("Toolbox registry load and web search");
 
-  await goTo("Web Intelligence");
-  await page.locator('.web-intelligence-panel input[placeholder*="latest AI tools"]').fill("E2E search");
-  await page.locator(".web-intelligence-panel .tool-search-row button").first().click();
-  await page.getByText("Smoke Search Result", { exact: true }).waitFor({ state: "visible", timeout: 7000 });
-  await page.locator('.web-intelligence-panel input[placeholder="https://example.com"]').fill("https://example.com/");
-  await page.locator(".web-intelligence-panel .tool-search-row button").nth(1).click();
-  await page.getByText(/Browser Hands extension not detected/).waitFor({ state: "visible", timeout: 5000 });
-  completedChecks.push("Web Intelligence search results and explicit Browser Hands integration error");
+  // Web search is exercised in the Dashboard and browser navigation in Browser Hands above.
 
   await goTo("Job Research");
   await page.locator('input[placeholder*="Python developer"]').fill("Python developer");
@@ -987,7 +1017,7 @@ async function main() {
   // Verify that tracking lives in task storage rather than only in component state.
   await page.reload({ waitUntil: "domcontentloaded" });
   await page.waitForFunction(() => document.querySelector(".sidebar nav button") !== null, undefined, { timeout: 10000 });
-  await page.locator(".cc-titlebar").waitFor({ state: "visible", timeout: 15000 });
+  await page.locator(".command-center-reference").waitFor({ state: "visible", timeout: 15000 });
   await goTo("Job Research");
   await page.locator('input[placeholder*="Python developer"]').fill("Python developer");
   await page.getByRole("button", { name: "SEARCH JOBS", exact: true }).click();

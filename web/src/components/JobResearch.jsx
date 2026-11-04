@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import {
   getTasks, researchJobs, saveJob, updateJobTracking,
-  getJobAutopilot, updateJobAutopilot, saveJobApplicationProfile, runJobAutopilotNow,
+  getJobAutopilot, updateJobAutopilot, saveJobApplicationProfile,
+  importJobApplicationProfileFromMemory, runJobAutopilotNow,
 } from "../api";
 
 const TRACKING_STATUSES = [
@@ -145,6 +146,29 @@ function JobAutopilotPanel() {
     }
   }
 
+  async function importProfileFromMemory() {
+    setBusy(true);
+    setNotice("");
+    setError("");
+    try {
+      const result = await importJobApplicationProfileFromMemory();
+      await reload();
+      const fields = Array.isArray(result.imported_fields) ? result.imported_fields : [];
+      setNotice(
+        result.status === "IMPORTED"
+          ? (result.message || "CV imehamishwa kutoka MR AI Memory.")
+          : (result.message || "Hakuna CV/profile iliyohifadhiwa kwenye MR AI Memory.")
+      );
+      if (fields.length) {
+        setNotice(current => current + " Sehemu zilizoingizwa: " + fields.join(", ") + ".");
+      }
+    } catch (err) {
+      setError(err.message || "CV haikuweza kuhamishwa kutoka MR AI Memory.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function runNow() {
     setBusy(true);
     setNotice("");
@@ -231,9 +255,14 @@ function JobAutopilotPanel() {
           <label style={{ display: "grid", gap: 5, gridColumn: "1 / -1" }}><span className="eyebrow">PORTFOLIO URL · OPTIONAL HTTPS</span><input type="url" value={profile.portfolio_url || ""} onChange={event => updateProfile("portfolio_url", event.target.value)} placeholder="https://..." /></label>
           <label style={{ display: "grid", gap: 5, gridColumn: "1 / -1" }}><span className="eyebrow">CV TEXT · USED FOR MATCHING & DRAFTS</span><textarea rows={7} value={profile.resume_text || ""} onChange={event => updateProfile("resume_text", event.target.value)} placeholder="Paste your complete CV text here. MR AI uses the Technical Skills and Professional Summary sections for job matching and draft preparation." /></label>
         </div>
-        <button className="mini-button" type="button" disabled={busy || loading} onClick={saveProfile} style={{ marginTop: 12 }}>
-          {busy ? "SAVING..." : "SAVE APPLICATION PROFILE"}
-        </button>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 12 }}>
+          <button className="mini-button" type="button" disabled={busy || loading} onClick={importProfileFromMemory}>
+            {busy ? "IMPORTING..." : "IMPORT CV FROM MR AI MEMORY"}
+          </button>
+          <button className="mini-button" type="button" disabled={busy || loading} onClick={saveProfile}>
+            {busy ? "SAVING..." : "SAVE APPLICATION PROFILE"}
+          </button>
+        </div>
       </details>
 
       {error && <p className="auth-error" role="alert">{error}</p>}

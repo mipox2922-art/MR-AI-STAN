@@ -2,7 +2,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.database import Base
-from app.models import Conversation, Memory, Message
+from app.models import Conversation, Memory, Message, Setting
 from app.core.memory_context import recall_relevant_memories
 from app.routers.ai import build_model_prompt
 
@@ -115,3 +115,64 @@ def test_memory_recall_is_relevance_ranked_and_owner_scoped():
     assert rows[0]["key"] == "favorite_work"
     assert "different account" not in str(rows)
     db.close()
+
+def test_cv_prompt_uses_owner_memory_and_job_profile_status_without_exposing_pii():
+    db = make_db()
+    conversation = Conversation(user_id=71, title="CV context")
+    db.add(conversation)
+    db.add(Memory(
+        user_id=71,
+        key="cv",
+        value="CV summary: project-based React web development and MOOG Digital Printing.",
+    ))
+    db.add(Setting(
+        user_id=71,
+        key="job_application_profile",
+        value='{"full_name":"MR FERISI","email":"mr343ai@gmail.com","skills":["React","Graphic Design"],"resume_text":"Private CV text"}',
+    ))
+    db.commit()
+    db.refresh(conversation)
+
+    prompt = build_model_prompt(
+        db,
+        conversation.id,
+        "CV ipo?",
+        None,
+        user_id=71,
+    )
+
+    assert "CV summary: project-based React web development" in prompt
+    assert "JOB APPLICATION PROFILE STATUS" in prompt
+    assert '"stored_in_job_autopilot": true' in prompt
+    assert '"profile_ready": true' in prompt
+    assert '"resume_text_saved": true' in prompt
+    assert "mr343ai@gmail.com" not in prompt
+    assert "MR FERISI" not in prompt
+    assert "CV/Resume/wasifu ni hati ya Boss Ferisi" in prompt
+    db.close()
+
+
+def test_job_profile_status_is_not_added_to_unrelated_chat_context():
+    db = make_db()
+    conversation = Conversation(user_id=72, title="General chat")
+    db.add(conversation)
+    db.add(Setting(
+        user_id=72,
+        key="job_application_profile",
+        value='{"full_name":"MR FERISI","email":"mr343ai@gmail.com","skills":["React"]}',
+    ))
+    db.commit()
+    db.refresh(conversation)
+
+    prompt = build_model_prompt(
+        db,
+        conversation.id,
+        "Habari MR AI",
+        None,
+        user_id=72,
+    )
+
+    assert "JOB APPLICATION PROFILE STATUS" not in prompt
+    assert "mr343ai@gmail.com" not in prompt
+    db.close()
+

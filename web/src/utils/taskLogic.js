@@ -42,18 +42,19 @@ export function hasAssignedAgent(task) {
 }
 
 export function isTaskInProgress(task) {
-  return ["in_progress", "running", "working", "started"].includes(normalizeTaskStatus(task)) && hasAssignedAgent(task);
+  return ["in_progress", "running", "working", "started", "executing", "hand_executing"].includes(normalizeTaskStatus(task)) && hasAssignedAgent(task);
 }
 
 export function isTaskWaiting(task) {
   return [
     "pending", "queued", "waiting", "blocked", "waiting_approval",
-    "waiting_for_hand", "waiting_for_verification", "needs_approval"
+    "waiting_for_hand", "waiting_for_verification", "waiting_for_profile",
+    "ready_for_review", "needs_approval"
   ].includes(normalizeTaskStatus(task));
 }
 
 export function isTaskFailed(task) {
-  return normalizeTaskStatus(task) === "failed";
+  return ["failed", "error"].includes(normalizeTaskStatus(task));
 }
 
 export function hasVerifiedTaskEvidence(task) {
@@ -107,7 +108,7 @@ export function getAssignedTaskForAgent(agent, tasks = []) {
   return (
     assigned.find(task => isTaskInProgress(task)) ||
     assigned.find(task => isTaskWaiting(task)) ||
-    assigned.find(task => !["completed", "failed", "cancelled"].includes(normalizeTaskStatus(task))) ||
+    assigned.find(task => !["completed", "done", "verified", "failed", "error", "cancelled"].includes(normalizeTaskStatus(task))) ||
     null
   );
 }

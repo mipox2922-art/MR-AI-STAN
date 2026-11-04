@@ -21,10 +21,10 @@ export default function SecurityHub() {
     <section className="panel large-panel security-panel">
       <div className="panel-head">
         <div>
-          <span className="eyebrow">GOOGLE PROTECTION</span>
-          <h2>Account Security Console</h2>
+          <span className="eyebrow">ACCOUNT SECURITY LINKS</span>
+          <h2>Security Shortcuts</h2>
         </div>
-        <span className="badge">OFFICIAL GOOGLE LINKS</span>
+        <span className="badge">GOOGLE ACCOUNT LINKS</span>
       </div>
 
       <div className="security-grid">

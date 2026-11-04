@@ -34,7 +34,6 @@ import {
   isTaskWaiting,
   normalizeMode,
 } from "./utils/taskLogic";
-import Chat from "./components/Chat";
 import CommandBoot from "./components/CommandBoot";
 import Core from "./components/Core";
 import BrowserHands from "./components/BrowserHands";
@@ -43,7 +42,6 @@ import CreativeStudio from "./components/CreativeStudio";
 import TrackingMap from "./components/TrackingMap";
 import SecurityHub from "./components/SecurityHub";
 import ToolBox from "./components/ToolBox";
-import WebIntelligence from "./components/WebIntelligence";
 import CommandPalette from "./components/CommandPalette";
 import DashboardHome from "./components/DashboardHome";
 import GmailPanel from "./components/GmailPanel";
@@ -56,25 +54,45 @@ import BusinessBroker from "./components/BusinessBroker";
 
 const BUILD_ID = import.meta.env.VITE_BUILD_ID || "MR-AI-STAN";
 
-const NAV = [
-  ["dashboard", "⌂", "Dashboard"],
-  ["core", "◉", "AI Core"],
-  ["agents", "◆", "Agents"],
-  ["jobs", "⌕", "Job Research"],
-  ["broker", "⇄", "Business Broker"],
-  ["browser", "↗", "Browser Hands"],
-  ["device", "⌁", "Device Lab"],
-  ["creative", "✦", "Creative Studio"],
-  ["map", "⌖", "Tracking Map"],
-  ["security", "🛡", "Security"],
-  ["tools", "⚙", "Toolbox"],
-  ["web", "◎", "Web Intelligence"],
-  ["gmail", "✉", "Gmail"],
-  ["calendar", "□", "Schedules"],
-  ["tasks", "✓", "Tasks"],
-  ["memory", "◇", "Memory"],
-  ["system", "⌘", "Settings"],
+const NAV_GROUPS = [
+  {
+    label: "COMMAND",
+    items: [
+      ["dashboard", "⌂", "Dashboard"],
+      ["core", "◉", "AI Core"],
+      ["agents", "◆", "Agents"],
+      ["tasks", "✓", "Tasks"],
+      ["calendar", "□", "Schedules"],
+      ["memory", "◇", "Memory"],
+    ],
+  },
+  {
+    label: "WORK",
+    items: [
+      ["jobs", "⌕", "Job Research"],
+      ["broker", "⇄", "Business Broker"],
+      ["creative", "✦", "Creative Studio"],
+    ],
+  },
+  {
+    label: "CONNECTED",
+    items: [
+      ["gmail", "✉", "Gmail"],
+      ["browser", "↗", "Browser Hands"],
+    ],
+  },
+  {
+    label: "SYSTEM",
+    items: [
+      ["device", "⌁", "Device Lab"],
+      ["map", "⌖", "Tracking Map"],
+      ["security", "🛡", "Security"],
+      ["tools", "⚙", "Toolbox"],
+      ["system", "⌘", "Settings"],
+    ],
+  },
 ];
+const NAV = NAV_GROUPS.flatMap(group => group.items);
 
 function SleepOverlay({ onWake }) {
   return (
@@ -344,6 +362,26 @@ function agentSwahiliDescription(id, fallback) {
   return descriptions[String(id || "").toLowerCase()] || fallback || "Mwakala maalumu wa MR AI.";
 }
 
+function getAgentRuntimeLabel(agent, task, activeTask) {
+  if (activeTask) return "INAENDELEA";
+  const taskStatus = String(task?.status || "").trim().toUpperCase();
+  if (taskStatus === "WAITING_APPROVAL") return "INASUBIRI IDHINI";
+  if (taskStatus === "WAITING_FOR_HAND") return "INASUBIRI MUUNGANISHO";
+  if (taskStatus === "WAITING_FOR_PROFILE") return "INASUBIRI WASIFU";
+  if (taskStatus === "READY_FOR_REVIEW") return "INASUBIRI UKAGUZI";
+  if (["FAILED", "ERROR"].includes(taskStatus)) return "IMESHINDWA";
+  if (task && isTaskWaiting(task)) return "INASUBIRI HATUA";
+
+  const runtime = String(agent?.status || agent?.runtime_status || "").trim().toUpperCase();
+  if (["NOT_CONNECTED", "NOT_CONFIGURED"].includes(runtime)) return "HAIJAUNGANISHWA";
+  if (runtime === "WAITING_FOR_HAND") return "INASUBIRI MUUNGANISHO";
+  if (runtime === "CONNECTED") return "IMEUNGANISHWA";
+  if (runtime === "READY") return "IKO TAYARI";
+  if (runtime === "AVAILABLE") return "INAPATIKANA";
+  if (runtime === "FAILED") return "IMESHINDWA";
+  return "WANASUBIRI KAZI";
+}
+
 function AgentsPanel({ agents, tasks = [], onPlan }) {
   const [request, setRequest] = useState("");
   const [standingRules, setStandingRules] = useState([]);
@@ -383,6 +421,9 @@ function AgentsPanel({ agents, tasks = [], onPlan }) {
   const [missionResult, setMissionResult] = useState(null);
   const [busy, setBusy] = useState("");
   const workingTasks = tasks.filter(isTaskInProgress);
+  const workingAgentCount = new Set(
+    workingTasks.map(task => String(task.agent || "").trim().toLowerCase()).filter(Boolean)
+  ).size;
   const queuedTasks = tasks.filter(isTaskWaiting);
 
   async function buildMissionPlan() {
@@ -481,15 +522,15 @@ function AgentsPanel({ agents, tasks = [], onPlan }) {
           <span className="eyebrow">USIMAMIZI WA MAWAKALA</span>
           <h2>Mawakala wa MR AI</h2>
         </div>
-        <span className="badge">{agents.length} MAWAKALA · {workingTasks.length} KAZINI · {queuedTasks.length} ZINASUBIRI</span>
+        <span className="badge">{agents.length} MAWAKALA · {workingAgentCount} KAZINI · {queuedTasks.length} TASKS ZINASUBIRI</span>
       </div>
 
       <p className="agent-panel-intro">Hawa ni wataalamu waliosajiliwa. Hali ya KAZINI huonekana tu kazi inapoendelea kweli; kuwepo kwenye orodha hakumaanishi wakala anafanya kazi.</p>
       <div className="agent-grid">
         {agents.map(agent => {
           const activeTask = getActiveTaskForAgent(agent, tasks);
-          const task = activeTask || getAssignedTaskForAgent(agent, tasks);
-          const state = activeTask ? "INAENDELEA" : "WANASUBIRI KAZI";
+          const task = activeTask || getAssignedTaskForAgent(agent, tasks) || agent.current_task || null;
+          const state = getAgentRuntimeLabel(agent, task, activeTask);
           return (
             <article className="agent-card" key={agent.id}>
               <div className="agent-icon">{agent.id === "device" ? "⌁" : agent.id === "creative" ? "✦" : agent.id === "research" ? "◎" : agent.id === "security" ? "◈" : agent.id === "orchestrator" ? "MR" : "◆"}</div>
@@ -593,7 +634,6 @@ function App() {
   const [activities, setActivities] = useState([]);
   const [telemetryHistory, setTelemetryHistory] = useState([]);
   const [gmailStatus, setGmailStatus] = useState(null);
-  const [voiceTranscript, setVoiceTranscript] = useState("");
   const [clock, setClock] = useState(new Date());
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [bootVisible, setBootVisible] = useState(() => (
@@ -954,28 +994,25 @@ function App() {
         </div>
 
         <nav>
-          {NAV.map(([id, icon, label]) => (
-            <button className={active === id ? "active" : ""} onClick={() => setActive(id)} key={id}>
-              <span>{icon}</span>{label}
-            </button>
+          {NAV_GROUPS.map(group => (
+            <div className="sidebar-nav-group" key={group.label}>
+              <span className="sidebar-nav-label">{group.label}</span>
+              {group.items.map(([id, icon, label]) => (
+                <button className={active === id ? "active" : ""} onClick={() => setActive(id)} key={id}>
+                  <span>{icon}</span>{label}
+                </button>
+              ))}
+            </div>
           ))}
         </nav>
 
         <div className="sidebar-voice">
           <div className="sidebar-voice-head">
-            <span className="eyebrow">WAKE PHRASE</span>
-            <span className="voice-state-dot">●</span>
-          </div>
-          <div className="sidebar-wave" aria-hidden="true">
-            {Array.from({ length: 13 }).map((_, index) => <span key={index} />)}
-          </div>
-          <div className="sidebar-voice-quote">
-            <strong>{voiceTranscript ? `"${voiceTranscript}"` : '"Hey Ferisi"'}</strong>
-            <span>{voiceTranscript ? "Agizo limepokelewa." : "Nipo tayari kukusaidia, Boss Ferisi."}</span>
+            <span className="eyebrow">VOICE INPUT</span>
+            <span className="voice-state-dot" aria-hidden="true">●</span>
           </div>
           <VoiceControl
             onTranscript={text => {
-              setVoiceTranscript(text);
               const command = String(text || "")
                 .trim()
                 .toLowerCase()
@@ -1079,12 +1116,11 @@ function App() {
               onOpenJobs={() => setActive("jobs")}
               onOpenDevice={() => setActive("device")}
               onRadarScan={handleRadarScan}
-              clock={clock}
             />
           )}
 
           {active === "core" && (
-            <section className="split-grid">
+            <section className="split-grid core-only-grid">
               <div className="panel large-panel core-detail">
                 <div className="panel-head">
                   <div>
@@ -1099,18 +1135,6 @@ function App() {
                 </div>
                 <div className="core-stage tall"><Core state={coreStatus} modActive={working} /></div>
               </div>
-              <Chat
-                onState={setCoreState}
-                onModToggle={toggleMode}
-                onPowerCommand={handlePowerCommand}
-                mode={normalizedMode}
-                coreStatus={coreStatus}
-                provider={aiProviderManuallySelected ? aiProvider : (aiProvider || system?.ai?.provider || null)}
-                onProviderChange={setSelectedAIProvider}
-                tasks={tasks}
-                tasksAvailable={taskListAvailable}
-                telemetry={system?.telemetry || null}
-              />
             </section>
           )}
 
@@ -1120,7 +1144,6 @@ function App() {
           {active === "browser" && <BrowserHands />}
           {active === "device" && <DeviceLab />}
           {active === "creative" && <CreativeStudio />}
-          {active === "web" && <WebIntelligence />}
           {active === "gmail" && <GmailPanel />}
           {active === "calendar" && <SchedulerPanel />}
           {active === "map" && <TrackingMap />}

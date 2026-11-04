@@ -5,7 +5,8 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.database import Base
-from app.models import Setting, Task, TaskStep
+from app.models import Memory, Setting, Task, TaskStep
+from types import SimpleNamespace
 from app.routers import jobs
 
 
@@ -258,3 +259,94 @@ Project-based web development.
     assert packet["status"] == "READY_FOR_REVIEW"
     assert "Project-based web development" in packet["application_draft"]["cover_letter"]
     assert packet["match_score"] is not None
+
+def test_import_job_application_profile_from_owner_cv_memory():
+    db = make_db()
+    cv = """# MR FERISI
+Email: mr343ai@gmail.com
+## PROFESSIONAL SUMMARY
+Creative digital professional with project-based website development and branding experience.
+## TECHNICAL SKILLS
+- Web Development: HTML, CSS, JavaScript.
+- Frontend: React and JSX.
+- Backend: Python and FastAPI (project-based).
+- Graphic Design: Logos, banners, posters and branding.
+"""
+    db.add(Memory(user_id=31, key="cv_resume", value=cv))
+    db.commit()
+
+    result = jobs.import_job_application_profile_from_memory(SimpleNamespace(id=31), db)
+    profile = jobs._read_json_setting(db, 31, jobs.APPLICATION_PROFILE_KEY, {})
+
+    assert result["status"] == "IMPORTED"
+    assert result["profile_ready"] is True
+    assert {"resume_text", "email", "full_name", "skills", "experience_summary"}.issubset(
+        set(result["imported_fields"])
+    )
+    assert profile["full_name"] == "MR FERISI"
+    assert profile["email"] == "mr343ai@gmail.com"
+    assert any("react" in skill.casefold() for skill in profile["skills"])
+    assert "project-based website development" in profile["experience_summary"]
+    db.close()
+
+
+def test_import_job_application_profile_never_reads_another_owner_memory():
+    db = make_db()
+    db.add(Memory(
+        user_id=99,
+        key="cv_resume",
+        value="""# DIFFERENT OWNER
+Email: other@example.com
+## TECHNICAL SKILLS
+- Python, accounting""",
+    ))
+    db.commit()
+
+    result = jobs.import_job_application_profile_from_memory(SimpleNamespace(id=31), db)
+
+    assert result["status"] == "NOT_FOUND"
+    assert result["imported_fields"] == []
+    assert db.query(Setting).filter_by(
+        user_id=31,
+        key=jobs.APPLICATION_PROFILE_KEY,
+    ).count() == 0
+    db.close()
+
+
+def test_import_job_application_profile_does_not_overwrite_manual_fields_or_secrets():
+    db = make_db()
+    db.add(Setting(
+        user_id=41,
+        key=jobs.APPLICATION_PROFILE_KEY,
+        value=json.dumps({
+            "full_name": "MR FERISI",
+            "email": "manual@example.com",
+            "skills": ["Owner-entered skill"],
+        }),
+    ))
+    db.add(Memory(
+        user_id=41,
+        key="cv_resume",
+        value="""# OTHER NAME
+Email: cv@example.com
+## PROFESSIONAL SUMMARY
+A saved CV summary.""",
+    ))
+    db.add(Memory(
+        user_id=41,
+        key="api_key",
+        value="sk-do-not-import-this-value-12345678901234567890",
+    ))
+    db.commit()
+
+    result = jobs.import_job_application_profile_from_memory(SimpleNamespace(id=41), db)
+    profile = jobs._read_json_setting(db, 41, jobs.APPLICATION_PROFILE_KEY, {})
+
+    assert result["status"] == "IMPORTED"
+    assert profile["full_name"] == "MR FERISI"
+    assert profile["email"] == "manual@example.com"
+    assert profile["skills"] == ["Owner-entered skill"]
+    assert profile["resume_text"].startswith("# OTHER NAME")
+    assert "sk-do-not-import-this-value" not in str(profile)
+    db.close()
+
