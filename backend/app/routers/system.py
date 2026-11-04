@@ -21,7 +21,12 @@ router = APIRouter(prefix="/system", tags=["System"])
 
 def _gpu_status() -> dict:
     if not shutil.which("nvidia-smi"):
-        return {"status": "UNAVAILABLE", "utilization_percent": None, "memory_percent": None}
+        return {
+            "status": "UNAVAILABLE",
+            "reason": "GPU telemetry tool is unavailable in this backend runtime.",
+            "utilization_percent": None,
+            "memory_percent": None,
+        }
     try:
         result = subprocess.run(
             [
@@ -41,7 +46,12 @@ def _gpu_status() -> dict:
             "memory_percent": round((used / total * 100), 1) if total else None,
         }
     except (OSError, subprocess.SubprocessError, ValueError, IndexError):
-        return {"status": "UNAVAILABLE", "utilization_percent": None, "memory_percent": None}
+        return {
+            "status": "UNAVAILABLE",
+            "reason": "GPU telemetry query failed in this backend runtime.",
+            "utilization_percent": None,
+            "memory_percent": None,
+        }
 
 def _database_status() -> str:
     try:
@@ -104,6 +114,9 @@ def system_status(current_user=Depends(get_current_user)):
             "cpu_percent": None,
             "memory_percent": None,
             "storage_percent": None,
+            "storage_mount": "/",
+            "storage_scope": "BACKEND_ROOT_FILESYSTEM",
+            "cpu_sample": "SINGLE_INTERVAL_SAMPLE",
             "network": {"bytes_sent": None, "bytes_received": None},
             "gpu": {
                 "status": "UNAVAILABLE",
@@ -121,6 +134,9 @@ def system_status(current_user=Depends(get_current_user)):
             "cpu_percent": round(psutil.cpu_percent(interval=0.05), 1),
             "memory_percent": round(memory.percent, 1),
             "storage_percent": round(disk.percent, 1),
+            "storage_mount": "/",
+            "storage_scope": "BACKEND_ROOT_FILESYSTEM",
+            "cpu_sample": "SINGLE_INTERVAL_SAMPLE",
             "network": {"bytes_sent": net.bytes_sent, "bytes_received": net.bytes_recv},
             "gpu": _gpu_status(),
             "uptime_seconds": max(0, int(time.time() - psutil.boot_time())),
@@ -144,7 +160,9 @@ def system_status(current_user=Depends(get_current_user)):
             "model": selected_model,
             "tier": selected_tier,
             "configured": any((settings.gemini_api_key.strip(), settings.kimi_api_key.strip(), settings.openrouter_api_key.strip(), settings.mistral_api_key.strip(), settings.xai_api_key.strip())),
-            "ready": False,
+            "ready": None,
+            "readiness": "NOT_CHECKED",
+            "readiness_note": "Provider configuration is not a live model health check.",
         },
         "capabilities": {
             "street_view": "AVAILABLE_VIA_MAPS_URL",
