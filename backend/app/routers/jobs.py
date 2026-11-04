@@ -721,7 +721,7 @@ def _import_profile_from_owner_memory(db: Session, user_id: int) -> tuple[dict[s
         elif is_cv_document or (
             "profile" in tokens
             and re.search(
-                r"(?i)\\b(?:cv|resume|curriculum\\s+vitae|professional\\s+summary|technical\\s+skills|work\\s+experience|career\\s+history)\\b",
+                r"(?i)\b(?:cv|resume|curriculum\s+vitae|professional\s+summary|technical\s+skills|work\s+experience|career\s+history)\b",
                 raw,
             )
         ):
