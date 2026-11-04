@@ -686,10 +686,27 @@ async function main() {
     await page.locator(".cc-radar-controls button").filter({ hasText: buttonLabel }).click();
     await page.waitForFunction(expectedText => document.querySelector(".cc-radar-status span")?.textContent === expectedText, expected, { timeout: 7000 });
   }
+  const quickCommandChatCount = delayedChatRequestBodies.length;
   for (const label of ["SCAN SYSTEM", "ANALYZE DATA", "WEB RESEARCH", "GENERATE REPORT", "SECURITY CHECK", "OPTIMIZE"]) {
     await page.locator(".cc-quick-grid button").filter({ hasText: label }).click();
     await page.waitForFunction(expected => document.querySelector(".cc-quick-head strong")?.textContent?.includes(expected), label, { timeout: 7000 });
+    const output = await page.locator(".cc-quick-result pre").innerText();
+    if (label === "ANALYZE DATA") {
+      assert.match(output, /BACKEND TELEMETRY ANALYSIS/);
+      assert.match(output, /SINGLE SAMPLE/);
+      assert.match(output, /backend root filesystem/i);
+    }
+    if (label === "GENERATE REPORT") {
+      assert.match(output, /MOG343 OPERATIONS/);
+      assert.match(output, /Tasks 0/);
+    }
+    if (label === "OPTIMIZE") {
+      assert.match(output, /SAFE OPTIMIZATION REVIEW/);
+      assert.match(output, /HAKUNA MADHIBITIKO YALIYOFANYIKA/);
+    }
   }
+  assert.equal(delayedChatRequestBodies.length, quickCommandChatCount,
+    "Telemetry analysis, reporting and optimization must remain local/read-only and must not ask an LLM to invent resource recommendations.");
   const dashboardSearch = page.locator(".cc-research-search input");
   await dashboardSearch.fill("MR AI smoke query");
   await dashboardSearch.press("Enter");
