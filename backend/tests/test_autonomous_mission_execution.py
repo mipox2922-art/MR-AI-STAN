@@ -8,7 +8,7 @@ from sqlalchemy.pool import StaticPool
 
 from app.database import Base
 from app.models import ApprovalRequest, Memory, Task, TaskStep
-from app.orchestration.executor import _is_read_only_job_request, execute_mission
+from app.orchestration.executor import _is_read_only_coding_review, _is_read_only_job_request, execute_mission
 
 
 def make_db():
@@ -303,3 +303,11 @@ def test_research_mission_runs_public_sources_without_searxng_or_manual_approval
     assert evidence["results"][0]["url"] == "https://en.wikipedia.org/wiki/Artificial_intelligence"
     assert db.query(ApprovalRequest).count() == 0
     db.close()
+
+
+def test_mr_ai_dashboard_and_chat_reviews_are_read_only_but_fixes_are_not():
+    assert _is_read_only_coding_review("Kagua MR AI dashboard")
+    assert _is_read_only_coding_review("Angalia MR AI chat")
+    assert _is_read_only_coding_review("Review the MR-AI-STAN repository")
+    assert not _is_read_only_coding_review("Rekebisha MR AI chat")
+    assert not _is_read_only_coding_review("Fix MR AI dashboard")
