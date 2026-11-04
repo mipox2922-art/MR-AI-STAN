@@ -176,3 +176,41 @@ def test_job_profile_status_is_not_added_to_unrelated_chat_context():
     assert "mr343ai@gmail.com" not in prompt
     db.close()
 
+def test_model_prompt_forbids_unsupported_destructive_telemetry_recommendations():
+    from app.routers.ai import MR_AI_SYSTEM_PROMPT
+
+    db = make_db()
+    conversation = Conversation(user_id=90, title="Telemetry safety")
+    db.add(conversation)
+    db.commit()
+    db.refresh(conversation)
+
+    prompt = build_model_prompt(
+        db,
+        conversation.id,
+        "Analyze backend telemetry and optimize storage",
+        {
+            "telemetry": {
+                "cpu_percent": 92.0,
+                "storage_percent": 84.5,
+                "storage_scope": "BACKEND_ROOT_FILESYSTEM",
+                "cpu_sample": "SINGLE_INTERVAL_SAMPLE",
+                "gpu": {"status": "UNAVAILABLE"},
+            },
+        },
+        user_id=90,
+    )
+
+    for required in (
+        "single short sample",
+        "backend-visible root filesystem",
+        "GPU telemetry is unavailable",
+        "Never recommend deleting services",
+        "two dated measurements",
+    ):
+        assert required.lower() in prompt.lower(), required
+
+    assert "Never recommend deleting services" in MR_AI_SYSTEM_PROMPT
+    assert "attached persistent disk" in MR_AI_SYSTEM_PROMPT.lower()
+    db.close()
+
