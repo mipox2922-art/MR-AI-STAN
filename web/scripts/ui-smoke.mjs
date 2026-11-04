@@ -17,6 +17,8 @@ let rebootRequests = 0;
 let radarScanRequests = 0;
 let delayedChatRequests = 0;
 let delayedChatRequestBodies = [];
+let chatToolContexts = [];
+let orchestratorRunRequests = [];
 let mockAIState = "IDLE";
 let mockStandingRules = [
   {
@@ -197,6 +199,7 @@ async function apiMock(route) {
   }
   if (method === "POST" && path === "/ai/chat") {
     delayedChatRequestBodies.push({ message: body.message, at: Date.now() });
+    chatToolContexts.push(body.tool_context || null);
     if (body.message === "Simulate provider quota failure") {
       return sendJson(route, { detail: "AI provider returned empty or invalid response: API error 429 quota exceeded" }, 502);
     }
@@ -231,6 +234,29 @@ async function apiMock(route) {
     blockers: [], next_action: "Finish regression tests before marking this task completed.",
     truth_boundary: ["E2E fixture only; not a production task."]
   });
+  if (method === "POST" && path === "/orchestrator/run") {
+    orchestratorRunRequests.push(String(body.message || ""));
+    return sendJson(route, {
+      status: "COMPLETED",
+      intent: "JOB_RESEARCH",
+      execution_started: true,
+      task_id: 912,
+      next_action: "Kagua nafasi zilizopatikana. Hakuna maombi yaliyotumwa.",
+      job_results: {
+        status: "COMPLETED",
+        query: "remote graphic designer",
+        count: 1,
+        sources: ["RemoteOK"],
+        source_warnings: [],
+        results: [{
+          title: "Remote Graphic Designer",
+          company: "Mock Studio",
+          location: "Worldwide",
+          url: "https://example.com/jobs/remote-designer",
+        }],
+      },
+    });
+  }
   if (method === "POST" && path === "/agents/plan") return sendJson(route, planFor(String(body.request || "")));
   if (method === "POST" && path === "/agents/mission") {
     const plan = planFor(String(body.request || ""));
@@ -588,6 +614,26 @@ async function main() {
   await dashboardChatInput.fill("Nisaidie kwa smoke test");
   await page.locator(".cc-chat-panel .chat-input > button").last().click();
   await page.locator(".cc-chat-panel .messages").getByText("E2E response from mocked API", { exact: true }).waitFor({ state: "visible", timeout: 7000 });
+
+  // An explicit action must cross the mission-execution boundary. Tool routing
+  // alone is metadata and must never be mistaken for an executed mission.
+  const missionCommand = "tafuta kazi za remote graphic designer";
+  await dashboardChatInput.fill(missionCommand);
+  await page.locator(".cc-chat-panel .chat-input > button").last().click();
+  for (let attempt = 0; attempt < 80 && orchestratorRunRequests.length === 0; attempt += 1) {
+    await new Promise(resolve => setTimeout(resolve, 100));
+  }
+  assert.deepEqual(orchestratorRunRequests, [missionCommand],
+    "Explicit Swahili commands must invoke /orchestrator/run exactly once.");
+  for (let attempt = 0; attempt < 80 && !chatToolContexts.some(context => context?.mission_execution?.status === "COMPLETED"); attempt += 1) {
+    await new Promise(resolve => setTimeout(resolve, 100));
+  }
+  const executedMissionContext = chatToolContexts.find(context => context?.mission_execution?.task_id === 912);
+  assert.ok(executedMissionContext,
+    "The AI response must receive the mission result as verified runtime context.");
+  assert.equal(executedMissionContext.mission_execution.execution_started, true);
+  completedChecks.push("Chat sends explicit Swahili commands to the Orchestrator and passes execution evidence to the AI response");
+
 
   // Dashboard status must probe the exact provider selected in Chat.
   await page.locator(".cc-chat-panel .chat-header select").selectOption("gemini");
