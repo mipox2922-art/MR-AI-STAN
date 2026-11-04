@@ -324,6 +324,37 @@ export default function Chat({
   const [codingBusy, setCodingBusy] = useState("");
   const [codingError, setCodingError] = useState("");
   const [codingExecution, setCodingExecution] = useState(null);
+
+  const codingCommitSha = codingExecution?.commit_sha;
+  const codingTaskId = codingExecution?.task_id;
+  const codingCiTerminal = ["PASSED", "FAILED", "PR_REQUIRED"].includes(String(codingExecution?.ci || "").toUpperCase());
+
+  useEffect(() => {
+    if (!codingCommitSha || codingTaskId == null || codingCiTerminal) return undefined;
+    let cancelled = false;
+
+    async function pollCodingChecks() {
+      try {
+        const result = await checkCodingAgentCommit(codingCommitSha, codingTaskId);
+        if (cancelled) return;
+        setCodingExecution(current => current && current.commit_sha === codingCommitSha ? {
+          ...current,
+          ci: result.status || current.ci || "PENDING",
+          checks: result.checks || [],
+          task: result.task || current.task,
+        } : current);
+      } catch {
+        // A transient GitHub/API error never changes a pending CI state into PASS.
+      }
+    }
+
+    pollCodingChecks();
+    const timer = window.setInterval(pollCodingChecks, 15000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [codingCommitSha, codingTaskId, codingCiTerminal]);
   const [messages, setMessages] = useState([
     {
       role: "assistant",
@@ -408,19 +439,10 @@ export default function Chat({
     setCodingError("");
     try {
       const applied = await applyCodingAgentPlan(codingProposal.plan, codingProposal.proposal_signature);
-      let checks = null;
-      if (applied?.commit_sha && applied?.task_id != null) {
-        try {
-          checks = await checkCodingAgentCommit(applied.commit_sha, applied.task_id);
-        } catch {
-          // A temporary CI API failure is not a pass; keep the state pending.
-        }
-      }
       const execution = {
         ...applied,
-        ci: checks?.status || applied?.ci || "PENDING",
-        checks: checks?.checks || [],
-        task: checks?.task || applied?.task,
+        ci: applied?.ci || "PENDING",
+        checks: [],
       };
       setCodingExecution(execution);
       setCodingProposal(null);
