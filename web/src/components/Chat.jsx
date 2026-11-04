@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { chat, routeTool, getExecutiveBriefing, getChatHistory, setAIState } from "../api";
+import { chat, routeTool, runOrchestrator, getExecutiveBriefing, getChatHistory, setAIState } from "../api";
 import VoiceControl from "./VoiceControl";
 import { sanitizeAssistantMessage } from "../utils/chatSafety";
 import { getTanzaniaGreeting } from "../utils/localTime";
@@ -213,6 +213,36 @@ function readableRoutingStatus(value) {
   if (upper.includes("TOOL:")) return "ZANA: " + (raw.match(/TOOL:\s*([^/]+)/i)?.[1]?.trim() || "IMECHAGULIWA");
   if (upper.includes("READY")) return "IKO TAYARI";
   return raw.replaceAll("_", " ");
+}
+
+const TOOL_AGENT = {
+  system_telemetry: "orchestrator",
+  searxng: "research",
+  browser_hands: "browser",
+  device_bridge: "device",
+  creative_canvas: "creative",
+  tesseract: "creative",
+  ffmpeg: "creative",
+  whisper_local: "research",
+  gmail: "gmail",
+  scheduler: "scheduler",
+  memory: "memory",
+  coding: "coding",
+  security: "security",
+  openstreetmap: "research",
+};
+
+function isExplicitMissionCommand(value) {
+  const text = String(value || "").trim().toLowerCase().replace(/\s+/g, " ");
+  if (!text) return false;
+  // Explanatory questions stay in chat. Only clear imperative requests enter
+  // the mission engine, where high-impact operations remain approval-gated.
+  if (/^(?:what|why|how|ni nini|kwa nini|jinsi ya|nawezaje|explain|eleza|fafanua)\b/.test(text)) {
+    return false;
+  }
+  const command = /^(?:(?:boss|mr ai|tafadhali|please|naomba|can you|could you|i need you to|i want you to)\s+)*(?:fanya|tekeleza|endesha|tafuta|tafutia|nitafutie|kagua|angalia|rekebisha|sahihisha|chunguza|jenga|tengeneza|fungua|soma|jibu|tuma|hifadhi|kumbuka|sahau|panga|weka|futa|scan|search|find|research|look up|open|read|check|inspect|review|audit|fix|debug|repair|build|create|make|run|execute|reply|send|remember|save|schedule|remind|deploy|test|update|install|show|list|summarize|summarise|draft|write|generate|design|draw|click|navigate|scroll|type)\b/;
+  const swahiliRequest = /^(?:nataka|naomba)\s+(?:u|uni)?(?:fanye|tekeleze|endesha|tafute|tafutie|kague|angalie|rekebishe|sahihishe|chunguze|jenge|tengeneze|fungue|some|jibu|tume|hifadhi|kumbuke|pange|weke|fute)\b/;
+  return command.test(text) || swahiliRequest.test(text);
 }
 
 export default function Chat({
@@ -446,17 +476,52 @@ export default function Chat({
           setToolStatus(`BRIEFING ERROR / ${briefingError.message}`);
         }
       } else {
+        let routePreview = null;
         try {
-          dispatch = await routeTool(text);
-          const selected = dispatch?.route?.tool || dispatch?.tool;
-          const agent = dispatch?.route?.agent;
+          routePreview = await routeTool(text);
+        } catch (toolError) {
+          setToolStatus("TOOL ROUTER ERROR / " + toolError.message);
+        }
+
+        const selectedTool = routePreview?.route?.tool || routePreview?.tool || null;
+        if (selectedTool && isExplicitMissionCommand(text)) {
+          const agent = routePreview?.route?.agent || routePreview?.agent || TOOL_AGENT[selectedTool] || "orchestrator";
+          setToolStatus("MISSION STARTING / " + agent.toUpperCase());
+          try {
+            const execution = await runOrchestrator(text);
+            const missionStatus = String(execution?.status || "UNKNOWN").toUpperCase();
+            dispatch = {
+              status: missionStatus,
+              route: { tool: selectedTool, agent, execution: routePreview?.execution || routePreview?.route?.execution },
+              result: execution,
+              mission_execution: execution,
+              route_preview: routePreview,
+              message: execution?.next_action || execution?.reason || execution?.message || "",
+            };
+            setToolStatus("MISSION / " + agent.toUpperCase() + " / " + missionStatus);
+          } catch (executionError) {
+            const safeReason = String(executionError?.message || "Mission executor is unavailable.").slice(0, 240);
+            dispatch = {
+              status: "EXECUTION_FAILED",
+              route: { tool: selectedTool, agent },
+              mission_execution: {
+                status: "FAILED",
+                execution_started: false,
+                reason: safeReason,
+                verified: false,
+              },
+              message: "Mission executor haikukamilisha ombi. Hakuna mafanikio yaliyothibitishwa.",
+            };
+            setToolStatus("MISSION ERROR / " + agent.toUpperCase());
+          }
+        } else {
+          dispatch = routePreview;
+          const agent = routePreview?.route?.agent || routePreview?.agent || TOOL_AGENT[selectedTool] || null;
           setToolStatus(
-            selected
-              ? `${agent ? "AGENT: " + agent + " / " : ""}TOOL: ${selected} / ${dispatch.status || "ROUTED"}`
+            selectedTool
+              ? (agent ? "AGENT: " + agent + " / " : "") + "TOOL: " + selectedTool + " / " + (routePreview.status || "ROUTED")
               : "AI_ONLY"
           );
-        } catch (toolError) {
-          setToolStatus(`TOOL ROUTER ERROR / ${toolError.message}`);
         }
       }
 
@@ -474,6 +539,7 @@ export default function Chat({
                   }
                 : dispatch.result,
             message: dispatch.message,
+            mission_execution: dispatch.mission_execution || null,
             briefing: greeting,
           }
         : null;
