@@ -57,11 +57,11 @@ function getModeStatusReply(value, mode) {
 function getTaskStatusReply(value, tasks, tasksAvailable, briefing = null) {
   const text = String(value || "").trim().toLowerCase();
   const asksStatus =
-    /\\bumefanya\\s+kazi\\s+gani/.test(text) ||
-    /\\bkazi\\s+ngapi\\b.{0,70}(?:zime.{0,20}(?:kamil|kamli|isha|fanyika)|completed|done|zinaendelea|zinafanyika)/.test(text) ||
-    /\\b(?:kazi|tasks?)\\b.{0,70}\\b(?:zimekamilika|completed|finished|done|status|progress|zinaendelea)\\b/.test(text) ||
-    /\\b(?:what work have you done|what have you done so far|how many tasks|completed tasks|task status|task summary)\\b/.test(text) ||
-    /\\bmuhtasari wa kazi\\b|\\bhali ya kazi\\b|\\bkazi zilizokamilika\\b/.test(text);
+    /\bumefanya\s+kazi\s+gani/.test(text) ||
+    /\bkazi\s+ngapi\b.{0,70}(?:zime.{0,20}(?:kamil|kamli|isha|fanyika)|completed|done|zinaendelea|zinafanyika)/.test(text) ||
+    /\b(?:kazi|tasks?)\b.{0,70}\b(?:zimekamilika|completed|finished|done|status|progress|zinaendelea)\b/.test(text) ||
+    /\b(?:what work have you done|what have you done so far|how many tasks|completed tasks|task status|task summary)\b/.test(text) ||
+    /\bmuhtasari wa kazi\b|\bhali ya kazi\b|\bkazi zilizokamilika\b/.test(text);
   if (!asksStatus) return null;
 
   const authoritative = briefing?.tasks && typeof briefing.tasks === "object" ? briefing.tasks : null;
@@ -90,7 +90,7 @@ function getTaskStatusReply(value, tasks, tasksAvailable, briefing = null) {
   const total = typeof authoritative?.total === "number" && Number.isFinite(authoritative.total)
     ? authoritative.total
     : rows.length;
-  const asksWhatDone = /umefanya\\s+kazi\\s+gani|what work have you done|what have you done so far|kazi zilizokamilika|completed tasks/i.test(text);
+  const asksWhatDone = /umefanya\s+kazi\s+gani|what work have you done|what have you done so far|kazi zilizokamilika|completed tasks/i.test(text);
   const sourceLabel = authoritative
     ? "briefing mpya iliyosomwa moja kwa moja kutoka backend"
     : "orodha ya Tasks iliyopakiwa";
@@ -110,7 +110,7 @@ function getTaskStatusReply(value, tasks, tasksAvailable, briefing = null) {
       lines.push("Hakuna kazi iliyo na ushahidi wa kutosha kuhesabiwa COMPLETED kwenye muhtasari huu.");
     }
   }
-  return lines.join("\\n");
+  return lines.join("\n");
 }
 
 function getAmbiguousDelegationReply(value) {
