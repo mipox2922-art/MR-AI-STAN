@@ -295,7 +295,10 @@ def test_import_job_application_profile_never_reads_another_owner_memory():
     db.add(Memory(
         user_id=99,
         key="cv_resume",
-        value="# DIFFERENT OWNER\\nEmail: other@example.com\\n## TECHNICAL SKILLS\\n- Python, accounting",
+        value="""# DIFFERENT OWNER
+Email: other@example.com
+## TECHNICAL SKILLS
+- Python, accounting""",
     ))
     db.commit()
 
@@ -324,7 +327,10 @@ def test_import_job_application_profile_does_not_overwrite_manual_fields_or_secr
     db.add(Memory(
         user_id=41,
         key="cv_resume",
-        value="# OTHER NAME\\nEmail: cv@example.com\\n## PROFESSIONAL SUMMARY\\nA saved CV summary.",
+        value="""# OTHER NAME
+Email: cv@example.com
+## PROFESSIONAL SUMMARY
+A saved CV summary.""",
     ))
     db.add(Memory(
         user_id=41,
