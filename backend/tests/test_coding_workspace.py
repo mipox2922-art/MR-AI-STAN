@@ -1,4 +1,5 @@
 import asyncio
+import json
 from types import SimpleNamespace
 
 import pytest
@@ -108,7 +109,7 @@ def test_coding_mission_reports_not_connected_without_fake_execution(monkeypatch
     packet = result["steps"][0]
     assert result["status"] == "WAITING_FOR_HAND"
     assert packet["agent"] == "coding"
-    assert packet["tool"] == "coding_workspace"
+    assert packet["tool"] == "coding_agent"
     assert packet["status"] == "NOT_CONNECTED"
     assert packet["verified"] is False
     assert "CODING_GITHUB_TOKEN" in packet["evidence"]["message"]
