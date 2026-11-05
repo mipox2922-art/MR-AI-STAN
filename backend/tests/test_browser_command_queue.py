@@ -259,3 +259,24 @@ def test_authenticated_extension_poll_persists_live_browser_heartbeat():
     assert status["status"] == "CONNECTED"
     assert status["last_seen"]
     db.close()
+
+
+
+def test_browser_click_is_not_queued_without_a_narrow_authorization():
+    db = make_db()
+    user = SimpleNamespace(id=920)
+
+    result = asyncio.run(execute_mission("bonyeza #action", user, db))
+
+    mission = db.query(Task).filter_by(user_id=user.id, agent="orchestrator").one()
+    queued = db.query(Task).filter_by(
+        user_id=user.id, agent="browser", source="browser_hands"
+    ).count()
+
+    assert result["status"] == "WAITING_FOR_HAND"
+    assert result["steps"][0]["status"] == "WAITING_FOR_HAND"
+    assert result["steps"][0]["evidence"]["requested_action"] == "CLICK"
+    assert result["steps"][0]["evidence"]["command_queued"] is False
+    assert queued == 0
+    assert mission.status == "WAITING_FOR_HAND"
+    db.close()

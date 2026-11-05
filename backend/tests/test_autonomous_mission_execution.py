@@ -63,7 +63,7 @@ def test_connected_gmail_read_executes_real_read_only_connector(monkeypatch):
     db.close()
 
 
-def test_gmail_not_connected_waits_for_approval_without_claiming_execution(monkeypatch):
+def test_gmail_not_connected_reports_specific_blocker_without_fake_execution(monkeypatch):
     import app.connectors.gmail as gmail_module
 
     db = make_db()
@@ -78,12 +78,12 @@ def test_gmail_not_connected_waits_for_approval_without_claiming_execution(monke
     result = asyncio.run(execute_mission("Soma email zangu", user, db))
 
     task = db.query(Task).one()
-    assert result["status"] == "WAITING_APPROVAL"
-    assert task.status == "WAITING_APPROVAL"
-    assert task.approved_by is None
-    assert db.query(ApprovalRequest).count() == 1
-    assert db.query(TaskStep).filter_by(task_id=task.id).count() == 1
-    assert db.query(TaskStep).filter_by(task_id=task.id).one().state == "pending"
+    step = db.query(TaskStep).filter_by(task_id=task.id).one()
+    assert result["status"] == "WAITING_FOR_HAND"
+    assert task.status == "WAITING_FOR_HAND"
+    assert step.state == "pending"
+    assert "OAuth" in step.evidence
+    assert db.query(ApprovalRequest).count() == 0
     db.close()
 
 
@@ -312,3 +312,42 @@ def test_mr_ai_dashboard_and_chat_reviews_are_read_only_but_fixes_are_not():
     assert not _is_read_only_coding_review("Rekebisha MR AI chat")
     assert not _is_read_only_coding_review("Fix MR AI dashboard")
     assert not _is_read_only_coding_review("Review MR AI dashboard and add a feature")
+
+
+
+def test_compound_job_search_runs_while_submission_is_reported_as_blocked(monkeypatch):
+    import app.routers.jobs as jobs_module
+
+    db = make_db()
+    user = SimpleNamespace(id=501)
+    calls = []
+
+    async def fake_research(query, limit=15):
+        calls.append(query)
+        return {
+            "status": "COMPLETED",
+            "query": query,
+            "count": 1,
+            "results": [{
+                "title": "Remote Designer",
+                "company": "Example Studio",
+                "location": "Worldwide",
+                "url": "https://jobs.example.test/remote-designer",
+                "source": "Test",
+            }],
+            "sources": ["Test"],
+            "source_warnings": [],
+        }
+
+    monkeypatch.setattr(jobs_module, "research_public_jobs", fake_research)
+    result = asyncio.run(execute_mission("Find jobs and apply", user, db))
+
+    mission = db.query(Task).filter_by(user_id=user.id, agent="orchestrator").one()
+    packet = json.loads(mission.result)
+
+    assert calls == ["remote jobs"]
+    assert result["status"] == "WAITING_FOR_HAND"
+    assert [step["status"] for step in packet["steps"]] == ["COMPLETED", "WAITING_FOR_HAND"]
+    assert packet["steps"][1]["evidence"]["applications_submitted"] == 0
+    assert mission.status == "WAITING_FOR_HAND"
+    db.close()

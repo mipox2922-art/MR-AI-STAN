@@ -1,4 +1,4 @@
-from app.orchestration.planner import build_plan, select_agents
+from app.orchestration.planner import build_plan, has_explicit_agent_route, select_agents
 from app.tools.router import route_command
 
 
@@ -53,3 +53,35 @@ def test_direct_mr_ai_fix_commands_route_to_the_coding_agent():
     ):
         assert select_agents(request) == ["coding"], request
         assert route_command(request)["tool"] == "coding", request
+
+
+
+def test_explicit_commands_keep_each_agent_inside_its_own_clause():
+    request = "Tafuta kazi za remote designer na soma email zangu"
+
+    plan = build_plan(request)
+
+    assert [step["agent"] for step in plan["steps"]] == ["jobs", "gmail"]
+    assert plan["steps"][0]["request"] == "Tafuta kazi za remote designer"
+    assert plan["steps"][1]["request"] == "soma email zangu"
+    assert has_explicit_agent_route("Tengeneza website")
+    assert has_explicit_agent_route("Kagua MR AI dashboard")
+    assert not has_explicit_agent_route("Habari kaka, unaendeleaje?")
+
+
+
+def test_same_agent_actions_remain_separate_so_unsupported_side_effects_are_not_hidden():
+    plan = build_plan("Find jobs and apply")
+
+    assert [step["agent"] for step in plan["steps"]] == ["jobs", "jobs"]
+    assert [step["request"] for step in plan["steps"]] == ["Find jobs", "apply"]
+    assert select_agents("Find jobs and apply") == ["jobs"]
+
+
+
+def test_descriptive_tail_after_agent_command_is_not_dropped():
+    plan = build_plan("Create logo and banner")
+
+    assert len(plan["steps"]) == 1
+    assert plan["steps"][0]["agent"] == "creative"
+    assert plan["steps"][0]["request"] == "Create logo na banner"

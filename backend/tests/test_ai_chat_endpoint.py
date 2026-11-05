@@ -409,3 +409,34 @@ def test_openrouter_extracts_text_from_content_block_arrays(monkeypatch):
 
     assert answer == "Karibu Boss Ferisi"
 
+
+
+
+def test_chat_dispatches_explicit_agent_commands_even_when_intent_classifier_says_chat(tmp_path, monkeypatch):
+    client, _ = build_chat_client(tmp_path)
+    routed = {}
+
+    async def fake_orchestration(user_id, request, db):
+        routed.update(user_id=user_id, request=request)
+        return {"status": "COMPLETED", "steps": [], "verified_steps": 0, "total_steps": 0}
+
+    monkeypatch.setattr(
+        ai_router,
+        "classify",
+        lambda _message: SimpleNamespace(name="CHAT", confidence=0.5, risk="LOW"),
+    )
+    monkeypatch.setattr(ai_router, "run_orchestration", fake_orchestration)
+    monkeypatch.setattr(ai_router, "get_provider", lambda _name: SuccessfulProvider())
+
+    async def no_broadcast(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(ai_router.manager, "broadcast", no_broadcast)
+    response = client.post(
+        "/ai/chat",
+        json={"message": "Tengeneza website", "provider": "openrouter"},
+    )
+
+    assert response.status_code == 200
+    assert routed == {"user_id": 1, "request": "Tengeneza website"}
+    assert "Never add unrequested features" in ai_router.MR_AI_SYSTEM_PROMPT
