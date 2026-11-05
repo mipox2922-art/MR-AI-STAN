@@ -469,6 +469,7 @@ def test_profile_refresh_never_prepares_application_for_us_only_remote_job():
         "experience_summary": "Customer support and digital services.",
     }
     refreshed = jobs._refresh_waiting_application_drafts(db, 62, profile)
+    db.commit()
     db.refresh(task)
     packet = json.loads(task.result)
 
@@ -517,6 +518,7 @@ def test_profile_refresh_keeps_generic_remote_job_waiting_for_eligibility():
         "experience_summary": "Practical graphic design work.",
     }
     refreshed = jobs._refresh_waiting_application_drafts(db, 63, profile)
+    db.commit()
     db.refresh(task)
     packet = json.loads(task.result)
 
@@ -578,6 +580,7 @@ def test_old_pending_tasks_are_location_classified_before_cv_is_ready():
     db.commit()
 
     refreshed = jobs._refresh_waiting_application_drafts(db, 64, {})
+    db.commit()
     for task in tasks:
         db.refresh(task)
     packets = [json.loads(task.result) for task in tasks]
