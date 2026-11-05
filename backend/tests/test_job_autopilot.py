@@ -525,3 +525,68 @@ def test_profile_refresh_keeps_generic_remote_job_waiting_for_eligibility():
     assert packet["application_draft"] is None
     assert packet["location_eligibility"] == "UNVERIFIED"
     db.close()
+
+
+
+def test_old_pending_tasks_are_location_classified_before_cv_is_ready():
+    db = make_db()
+    jobs_to_add = [
+        {
+            "title": "US-only Support Role",
+            "company": "US Employer",
+            "url": "https://jobs.example.test/us-only-pending",
+            "location": "Remote",
+            "description": "Applicants must be based in the United States.",
+        },
+        {
+            "title": "Worldwide Graphic Designer",
+            "company": "Global Employer",
+            "url": "https://jobs.example.test/worldwide-pending",
+            "location": "Worldwide",
+            "description": "Graphic design for a distributed team.",
+        },
+        {
+            "title": "Remote Designer",
+            "company": "Unclear Employer",
+            "url": "https://jobs.example.test/unclear-pending",
+            "location": "Remote",
+            "description": "Graphic design for a distributed team.",
+        },
+    ]
+    tasks = []
+    for index, job in enumerate(jobs_to_add, start=1):
+        task = Task(
+            user_id=64,
+            title=f"Application prep: {job['title']}",
+            description=f"Company: {job['company']}",
+            status="WAITING_FOR_PROFILE",
+            priority="NORMAL",
+            agent="jobs",
+            source="autopilot",
+            result=json.dumps({
+                "workflow": "JOB_APPLICATION",
+                "status": "WAITING_FOR_PROFILE",
+                "job": job,
+                "application_draft": None,
+                "submission": {"status": "NOT_SUBMITTED"},
+            }),
+        )
+        db.add(task)
+        db.flush()
+        db.add(TaskStep(task_id=task.id, position=2, title="Prepare application", state="pending"))
+        tasks.append(task)
+    db.commit()
+
+    refreshed = jobs._refresh_waiting_application_drafts(db, 64, {})
+    for task in tasks:
+        db.refresh(task)
+    packets = [json.loads(task.result) for task in tasks]
+
+    assert refreshed == 0
+    assert tasks[0].status == "NOT_ELIGIBLE"
+    assert packets[0]["application_draft"] is None
+    assert tasks[1].status == "WAITING_FOR_PROFILE"
+    assert packets[1]["location_eligibility"] == "ELIGIBLE"
+    assert tasks[2].status == "WAITING_FOR_ELIGIBILITY"
+    assert packets[2]["location_eligibility"] == "UNVERIFIED"
+    db.close()
