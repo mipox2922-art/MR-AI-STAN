@@ -347,8 +347,7 @@ def _refresh_waiting_application_drafts(
     profile: dict[str, Any],
 ) -> int:
     """Resume application drafts as soon as the candidate profile is completed."""
-    if not _profile_ready(profile):
-        return 0
+    profile_ready = _profile_ready(profile)
     refreshed = 0
     rows = (
         db.query(Task)
@@ -396,6 +395,24 @@ def _refresh_waiting_application_drafts(
                     datetime.now(timezone.utc).replace(tzinfo=None)
                     if eligibility == "NOT_ELIGIBLE" else None
                 )
+            task.result = json.dumps(packet, ensure_ascii=False, default=str)
+            continue
+
+        if not profile_ready:
+            packet["application_draft"] = None
+            packet["status"] = "WAITING_FOR_PROFILE"
+            task.status = "WAITING_FOR_PROFILE"
+            task.error = "Tangazo linaonekana kukubali Tanzania/worldwide. Hifadhi CV/profile ili MR AI aandae draft."
+            if step:
+                step.title = "Hifadhi CV/profile ili kuandaa barua ya maombi"
+                step.state = "pending"
+                step.evidence = json.dumps({
+                    "location_eligibility": "ELIGIBLE",
+                    "profile_ready": False,
+                    "application_prepared": False,
+                    "submitted": False,
+                }, ensure_ascii=False)
+                step.verified_at = None
             task.result = json.dumps(packet, ensure_ascii=False, default=str)
             continue
 
