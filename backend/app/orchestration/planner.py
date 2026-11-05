@@ -19,7 +19,7 @@ _COMMAND_ROUTES: tuple[tuple[str, tuple[str, ...]], ...] = (
         r"^(?:kagua|check|scan|show|onyesha|nipe)\b.*\b(?:afya\s+ya\s+mfumo|system\s+(?:health|status|info)|cpu|ram|storage|disk|network|uptime|hali\s+ya\s+pc)\b",
     )),
     ("jobs", (
-        r"^(?:remote\s+jobs?|job\s+search|search\s+jobs?|find\s+jobs?|job\s+research)\b",
+        r"^(?:remote\s+jobs?(?!\s+opportunit)|job\s+search|search\s+jobs?|find\s+jobs?|job\s+research)\b",
         r"^(?:nitafutie|tafutia|tafuta|find(?:\s+me)?|search(?:\s+for)?|research|apply|omba)\b.*\b(?:kazi|ajira|jobs?|employment|position|career|nafasi)\b",
         r"^(?:apply|submit|omba|tuma\s+(?:maombi|cv)|send\s+(?:my\s+)?cv)\b",
     )),
