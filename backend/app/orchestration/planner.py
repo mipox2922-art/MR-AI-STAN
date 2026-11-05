@@ -75,10 +75,17 @@ def explicit_agent_commands(text: str) -> list[dict[str, str]]:
     """Return the exact user clause assigned to each explicitly requested agent."""
     commands: list[dict[str, str]] = []
     for clause in command_clauses(text):
+        matched_agent = None
         for agent_id, patterns in _COMMAND_ROUTES:
             if any(re.search(pattern, clause, flags=re.IGNORECASE) for pattern in patterns):
-                commands.append({"agent": agent_id, "request": clause})
+                matched_agent = agent_id
                 break
+        if matched_agent:
+            commands.append({"agent": matched_agent, "request": clause})
+        elif commands:
+            # Keep descriptive tail text (for example "and banner") inside the
+            # preceding requested action rather than silently dropping part of the goal.
+            commands[-1]["request"] += " na " + clause
     return commands
 
 
