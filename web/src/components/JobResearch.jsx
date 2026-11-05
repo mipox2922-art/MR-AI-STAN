@@ -124,6 +124,8 @@ function statusLabel(status) {
   const labels = {
     READY_FOR_REVIEW: "DRAFT TAYARI",
     WAITING_FOR_PROFILE: "INASUBIRI CV",
+    NOT_ELIGIBLE: "HAIKUBALI TANZANIA",
+    WAITING_FOR_ELIGIBILITY: "THIBITISHA LOCATION",
     COMPLETED: "IMEKAMILIKA",
     FAILED: "IMESHINDWA",
     ERROR: "KUNA HITILAFU",
@@ -401,14 +403,18 @@ export default function JobResearch() {
       const result = await runJobAutopilotNow();
       await reloadWorkspace();
       setNotice(
-        "Utafutaji umemaliza: nafasi mpya " + Number(result.new_jobs || 0) +
+        "Utafutaji umemaliza: nafasi mpya zinazokubali Tanzania " + Number(result.new_jobs || 0) +
         ", drafts " + Number(result.drafts_ready || 0) +
         ", zinasubiri CV " + Number(result.waiting_for_profile || 0) +
-        ". Maombi yaliyotumwa na Autopilot: " + Number(result.applications_submitted || 0) + "."
+        ", hazikubali Tanzania " + Number(result.excluded_location || 0) +
+        ", nchi haijathibitishwa " + Number(result.unverified_location || 0) +
+        ". Maombi yaliyotumwa kiotomatiki: " + Number(result.applications_submitted || 0) + "."
       );
       setStatus(result.status === "SOURCE_ERROR"
         ? "BAADHI YA VYANZO HAVIKUJIBU"
-        : "UTAFUTAJI UMEKAMILIKA");
+        : result.status === "NO_ELIGIBLE_JOBS"
+          ? "HAKUNA NAFASI ILIYOTHIBITISHWA KWA TANZANIA"
+          : "UTAFUTAJI UMEKAMILIKA");
     } catch (err) {
       setError(err.message || "Job Autopilot imeshindwa kuendesha utafutaji.");
       setStatus("UTAFUTAJI UMESHINDWA");
@@ -700,7 +706,7 @@ export default function JobResearch() {
           <div>
             <span className="eyebrow">03 · AUTOMATED REMOTE SEARCH</span>
             <h3>MR AI JOB AUTOPILOT</h3>
-            <p>Hutafuta matangazo ya remote/online kupitia public feeds na kuandaa drafts. Hii si feed ya vibarua vya eneo lako.</p>
+            <p>Hutafuta remote/online kupitia public feeds. Draft huandaliwa tu pale tangazo linaposema Tanzania au worldwide; "Remote" peke yake haitoshi.</p>
           </div>
           <span className={"job-autopilot-pill" + (config.enabled ? " is-on" : "")}>
             {config.enabled ? "RATIBA IMEWASHWA" : "RATIBA IMEZIMWA"}
@@ -789,6 +795,12 @@ export default function JobResearch() {
                   <span className="job-result-source">{job.source || "PUBLIC JOB FEED"} · {dateLabel(job.published_at)}</span>
                   <h4>{job.title}</h4>
                   <p className="job-company">{job.company} · {job.location}</p>
+                  {job.location_eligibility && (
+                    <p className={job.location_eligibility === "ELIGIBLE" ? "job-eligibility-note is-eligible" : "job-eligibility-note"}>
+                      <strong>{job.location_eligibility === "ELIGIBLE" ? "TANZANIA ELIGIBLE" : job.location_eligibility === "NOT_ELIGIBLE" ? "HAIKUBALI TANZANIA" : "LOCATION HAITHIBITISHWI"}</strong>
+                      {" · "}{job.eligibility_reason}
+                    </p>
+                  )}
                   {job.description && <p className="job-result-description">{job.description}</p>}
                   {job.tags?.length > 0 && <div className="job-tags">{job.tags.map(tag => <span key={tag}>{tag}</span>)}</div>}
                 </div>
@@ -871,6 +883,13 @@ export default function JobResearch() {
                     </span>
                   </div>
 
+                  {packet.location_eligibility && packet.location_eligibility !== "ELIGIBLE" && (
+                    <p className="job-eligibility-note">
+                      <strong>{packet.location_eligibility === "NOT_ELIGIBLE" ? "HAIKUBALI TANZANIA" : "LOCATION HAITHIBITISHWI"}</strong>
+                      {" · "}{packet.eligibility_reason || task.error}
+                    </p>
+                  )}
+
                   {Number.isFinite(Number(packet.match_score)) && packet.match_score !== null && (
                     <div className="job-match-score">
                       <span>CV MATCH</span>
@@ -895,7 +914,7 @@ export default function JobResearch() {
                     <div className="job-waiting-note">
                       {taskStatus === "WAITING_FOR_PROFILE"
                         ? "CV/profile haijakamilika. Hifadhi jina, email na skills au uzoefu ili MR AI atengeneze draft."
-                        : task.error || packet.submission?.reason || "Draft haipo bado."}
+                        : task.error || packet.eligibility_reason || packet.submission?.reason || "Draft haipo bado."}
                     </div>
                   )}
 
