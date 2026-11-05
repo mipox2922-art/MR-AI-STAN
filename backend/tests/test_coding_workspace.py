@@ -117,7 +117,7 @@ def test_coding_mission_reports_not_connected_without_fake_execution(monkeypatch
     db.close()
 
 
-def test_coding_mutation_mission_requires_owner_approval(monkeypatch):
+def test_coding_mutation_mission_reports_the_real_connection_blocker_without_fake_approval(monkeypatch):
     monkeypatch.setattr(settings, "coding_github_token", "")
     monkeypatch.setattr(settings, "coding_github_repository", "")
     db = _test_db()
@@ -125,8 +125,10 @@ def test_coding_mutation_mission_requires_owner_approval(monkeypatch):
 
     result = asyncio.run(execute_mission("rekebisha bug kwenye backend repository", user, db))
 
-    assert result["status"] == "WAITING_APPROVAL"
-    assert result["mission"]["status"] == "WAITING_APPROVAL"
+    assert result["status"] == "WAITING_FOR_HAND"
+    assert result["mission"]["status"] == "WAITING_FOR_HAND"
+    assert result["steps"][0]["status"] == "NOT_CONNECTED"
+    assert "CODING_GITHUB_TOKEN" in result["steps"][0]["evidence"]["message"]
     assert db.query(Task).filter_by(user_id=user.id, agent="orchestrator").count() == 1
     assert db.query(Task).filter_by(user_id=user.id, agent="coding").count() == 0
     db.close()
