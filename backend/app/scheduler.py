@@ -284,7 +284,7 @@ async def run_pending_coding_verifications(db: Session, limit: int = 5) -> int:
             }, ensure_ascii=False, default=str)
 
             requested_by = str(task.requested_by or "")
-            match = re.fullmatch(r"mission:(\\d+):(\\d+)", requested_by)
+            match = re.fullmatch(r"mission:(\d+):(\d+)", requested_by)
             if match:
                 mission_id = int(match.group(1))
                 position = int(match.group(2))
