@@ -312,3 +312,42 @@ def test_mr_ai_dashboard_and_chat_reviews_are_read_only_but_fixes_are_not():
     assert not _is_read_only_coding_review("Rekebisha MR AI chat")
     assert not _is_read_only_coding_review("Fix MR AI dashboard")
     assert not _is_read_only_coding_review("Review MR AI dashboard and add a feature")
+
+
+
+def test_compound_job_search_runs_while_submission_is_reported_as_blocked(monkeypatch):
+    import app.routers.jobs as jobs_module
+
+    db = make_db()
+    user = SimpleNamespace(id=501)
+    calls = []
+
+    async def fake_research(query, limit=15):
+        calls.append(query)
+        return {
+            "status": "COMPLETED",
+            "query": query,
+            "count": 1,
+            "results": [{
+                "title": "Remote Designer",
+                "company": "Example Studio",
+                "location": "Worldwide",
+                "url": "https://jobs.example.test/remote-designer",
+                "source": "Test",
+            }],
+            "sources": ["Test"],
+            "source_warnings": [],
+        }
+
+    monkeypatch.setattr(jobs_module, "research_public_jobs", fake_research)
+    result = asyncio.run(execute_mission("Find jobs and apply", user, db))
+
+    mission = db.query(Task).filter_by(user_id=user.id, agent="orchestrator").one()
+    packet = json.loads(mission.result)
+
+    assert calls == ["remote jobs"]
+    assert result["status"] == "WAITING_FOR_HAND"
+    assert [step["status"] for step in packet["steps"]] == ["COMPLETED", "WAITING_FOR_HAND"]
+    assert packet["steps"][1]["evidence"]["applications_submitted"] == 0
+    assert mission.status == "WAITING_FOR_HAND"
+    db.close()
