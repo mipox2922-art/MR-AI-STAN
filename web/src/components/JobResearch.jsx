@@ -160,6 +160,8 @@ export default function JobResearch() {
     jobs_found: 0,
     drafts_ready: 0,
     waiting_for_profile: 0,
+    not_eligible: 0,
+    waiting_for_eligibility: 0,
     applications_submitted_automatically: 0,
     failed: 0,
   });
@@ -235,6 +237,8 @@ export default function JobResearch() {
       jobs_found: 0,
       drafts_ready: 0,
       waiting_for_profile: 0,
+      not_eligible: 0,
+      waiting_for_eligibility: 0,
       applications_submitted_automatically: 0,
       failed: 0,
     });
@@ -600,6 +604,8 @@ export default function JobResearch() {
         <JobMetric label="NAFASI ZILIZOPATIKANA" value={metrics.jobs_found} />
         <JobMetric label="DRAFTS TAYARI" value={metrics.drafts_ready} />
         <JobMetric label="ZINASUBIRI CV" value={metrics.waiting_for_profile} />
+        <JobMetric label="HAIKUBALI TANZANIA" value={metrics.not_eligible} tone="job-metric-muted" />
+        <JobMetric label="LOCATION HAIJATHIBITISHWA" value={metrics.waiting_for_eligibility} tone="job-metric-muted" />
         <JobMetric label="AUTO-SUBMITTED" value={metrics.applications_submitted_automatically} tone="job-metric-muted" />
       </section>
 
