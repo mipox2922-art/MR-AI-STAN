@@ -237,6 +237,7 @@ def test_resume_text_is_used_when_refreshing_waiting_draft():
                 "company": "Example Studio",
                 "url": "https://jobs.example.test/role",
                 "description": "React, JavaScript and CSS.",
+                "location": "Worldwide",
                 "tags": ["frontend"],
             },
             "application_draft": None,
@@ -350,3 +351,245 @@ A saved CV summary.""",
     assert "sk-do-not-import-this-value" not in str(profile)
     db.close()
 
+
+
+
+def test_tanzania_job_eligibility_requires_explicit_country_access():
+    assert jobs._tanzania_job_eligibility({
+        "location": "Dar es Salaam, Tanzania",
+    })[0] == "ELIGIBLE"
+    assert jobs._tanzania_job_eligibility({
+        "location": "Worldwide",
+    })[0] == "ELIGIBLE"
+    assert jobs._tanzania_job_eligibility({
+        "location": "Remote",
+        "description": "This role is open to applicants worldwide.",
+    })[0] == "ELIGIBLE"
+    assert jobs._tanzania_job_eligibility({
+        "location": "Remote",
+        "description": "Applicants must be based in the United States.",
+    })[0] == "NOT_ELIGIBLE"
+    assert jobs._tanzania_job_eligibility({
+        "location": "Remote",
+        "description": "US citizens only.",
+    })[0] == "NOT_ELIGIBLE"
+    assert jobs._tanzania_job_eligibility({
+        "location": "Remote",
+        "description": "A remote position with no country information.",
+    })[0] == "UNVERIFIED"
+
+
+def test_job_autopilot_only_creates_tasks_for_tanzania_eligible_listings(monkeypatch):
+    db = make_db()
+    rows = [
+        {
+            **sample_result("graphic designer")["results"][0],
+            "id": "worldwide-role",
+            "title": "Worldwide Graphic Designer",
+            "location": "Worldwide",
+            "url": "https://jobs.example.test/worldwide",
+        },
+        {
+            **sample_result("graphic designer")["results"][0],
+            "id": "us-only-role",
+            "title": "US-only Graphic Designer",
+            "location": "Remote",
+            "description": "Applicants must be based in the United States.",
+            "url": "https://jobs.example.test/us-only",
+        },
+        {
+            **sample_result("graphic designer")["results"][0],
+            "id": "unknown-role",
+            "title": "Remote Graphic Designer",
+            "location": "Remote",
+            "description": "Create graphics for a distributed team.",
+            "url": "https://jobs.example.test/unknown-country",
+        },
+    ]
+
+    async def fake_research(query, limit=25):
+        return {
+            "status": "COMPLETED",
+            "query": query,
+            "count": len(rows),
+            "results": [dict(row) for row in rows],
+            "sources": ["Remotive"],
+            "source_warnings": [],
+        }
+
+    monkeypatch.setattr(jobs, "research_public_jobs", fake_research)
+    result = asyncio.run(jobs.run_job_autopilot_for_user(db, 52, force=True))
+    tasks = db.query(Task).filter(Task.user_id == 52, Task.source == "autopilot").all()
+
+    assert result["candidate_count"] == 3
+    assert result["eligible_candidate_count"] == 1
+    assert result["excluded_location"] == 1
+    assert result["unverified_location"] == 1
+    assert result["new_jobs"] == 1
+    assert len(tasks) == 1
+    assert "worldwide" in tasks[0].description.casefold()
+    db.close()
+
+
+def test_profile_refresh_never_prepares_application_for_us_only_remote_job():
+    db = make_db()
+    job = {
+        "title": "Remote Customer Support Specialist",
+        "company": "Example US Employer",
+        "url": "https://jobs.example.test/us-support",
+        "location": "Remote",
+        "description": "Applicants must be located in the United States.",
+        "tags": ["customer support"],
+    }
+    task = Task(
+        user_id=62,
+        title="Application prep: Remote Customer Support Specialist",
+        description="Company: Example US Employer",
+        status="WAITING_FOR_PROFILE",
+        priority="NORMAL",
+        agent="jobs",
+        source="autopilot",
+        result=json.dumps({
+            "workflow": "JOB_APPLICATION",
+            "status": "WAITING_FOR_PROFILE",
+            "job": job,
+            "application_draft": None,
+            "submission": {"status": "NOT_SUBMITTED"},
+        }),
+    )
+    db.add(task)
+    db.flush()
+    db.add(TaskStep(task_id=task.id, position=2, title="Prepare application", state="pending"))
+    db.commit()
+
+    profile = {
+        "full_name": "MR FERISI",
+        "email": "mr343ai@gmail.com",
+        "skills": ["customer support", "communication"],
+        "experience_summary": "Customer support and digital services.",
+    }
+    refreshed = jobs._refresh_waiting_application_drafts(db, 62, profile)
+    db.commit()
+    db.refresh(task)
+    packet = json.loads(task.result)
+
+    assert refreshed == 0
+    assert task.status == "NOT_ELIGIBLE"
+    assert packet["application_draft"] is None
+    assert packet["location_eligibility"] == "NOT_ELIGIBLE"
+    assert packet["submission"]["status"] == "NOT_SUBMITTED"
+    db.close()
+
+
+def test_profile_refresh_keeps_generic_remote_job_waiting_for_eligibility():
+    db = make_db()
+    task = Task(
+        user_id=63,
+        title="Application prep: Remote Designer",
+        description="Company: Example Studio",
+        status="WAITING_FOR_PROFILE",
+        priority="NORMAL",
+        agent="jobs",
+        source="autopilot",
+        result=json.dumps({
+            "workflow": "JOB_APPLICATION",
+            "status": "WAITING_FOR_PROFILE",
+            "job": {
+                "title": "Remote Designer",
+                "company": "Example Studio",
+                "url": "https://jobs.example.test/remote-designer",
+                "location": "Remote",
+                "description": "Design assets for a distributed team.",
+                "tags": ["graphic design"],
+            },
+            "application_draft": None,
+            "submission": {"status": "NOT_SUBMITTED"},
+        }),
+    )
+    db.add(task)
+    db.flush()
+    db.add(TaskStep(task_id=task.id, position=2, title="Prepare application", state="pending"))
+    db.commit()
+
+    profile = {
+        "full_name": "MR FERISI",
+        "email": "mr343ai@gmail.com",
+        "skills": ["graphic design"],
+        "experience_summary": "Practical graphic design work.",
+    }
+    refreshed = jobs._refresh_waiting_application_drafts(db, 63, profile)
+    db.commit()
+    db.refresh(task)
+    packet = json.loads(task.result)
+
+    assert refreshed == 0
+    assert task.status == "WAITING_FOR_ELIGIBILITY"
+    assert packet["application_draft"] is None
+    assert packet["location_eligibility"] == "UNVERIFIED"
+    db.close()
+
+
+
+def test_old_pending_tasks_are_location_classified_before_cv_is_ready():
+    db = make_db()
+    jobs_to_add = [
+        {
+            "title": "US-only Support Role",
+            "company": "US Employer",
+            "url": "https://jobs.example.test/us-only-pending",
+            "location": "Remote",
+            "description": "Applicants must be based in the United States.",
+        },
+        {
+            "title": "Worldwide Graphic Designer",
+            "company": "Global Employer",
+            "url": "https://jobs.example.test/worldwide-pending",
+            "location": "Worldwide",
+            "description": "Graphic design for a distributed team.",
+        },
+        {
+            "title": "Remote Designer",
+            "company": "Unclear Employer",
+            "url": "https://jobs.example.test/unclear-pending",
+            "location": "Remote",
+            "description": "Graphic design for a distributed team.",
+        },
+    ]
+    tasks = []
+    for index, job in enumerate(jobs_to_add, start=1):
+        task = Task(
+            user_id=64,
+            title=f"Application prep: {job['title']}",
+            description=f"Company: {job['company']}",
+            status="WAITING_FOR_PROFILE",
+            priority="NORMAL",
+            agent="jobs",
+            source="autopilot",
+            result=json.dumps({
+                "workflow": "JOB_APPLICATION",
+                "status": "WAITING_FOR_PROFILE",
+                "job": job,
+                "application_draft": None,
+                "submission": {"status": "NOT_SUBMITTED"},
+            }),
+        )
+        db.add(task)
+        db.flush()
+        db.add(TaskStep(task_id=task.id, position=2, title="Prepare application", state="pending"))
+        tasks.append(task)
+    db.commit()
+
+    refreshed = jobs._refresh_waiting_application_drafts(db, 64, {})
+    db.commit()
+    for task in tasks:
+        db.refresh(task)
+    packets = [json.loads(task.result) for task in tasks]
+
+    assert refreshed == 0
+    assert tasks[0].status == "NOT_ELIGIBLE"
+    assert packets[0]["application_draft"] is None
+    assert tasks[1].status == "WAITING_FOR_PROFILE"
+    assert packets[1]["location_eligibility"] == "ELIGIBLE"
+    assert tasks[2].status == "WAITING_FOR_ELIGIBILITY"
+    assert packets[2]["location_eligibility"] == "UNVERIFIED"
+    db.close()

@@ -45,6 +45,68 @@ def _clean_job(item: dict[str, Any], source: str) -> dict[str, Any] | None:
     }
 
 
+def _tanzania_job_eligibility(job: dict[str, Any]) -> tuple[str, str]:
+    """Classify whether a public job listing explicitly accepts a candidate in Tanzania.
+
+    Conservative by design: a generic 'Remote' label is not proof that a role
+    accepts applicants from Tanzania. Ambiguous listings remain available in
+    manual research but are not turned into unattended application tasks.
+    """
+    location = str(job.get("location") or "").strip()
+    description = str(job.get("description") or "").strip()
+    location_text = location.casefold()
+    description_text = description.casefold()
+
+    restricted_country = (
+        r"(?:united states|u\.s\.a?\.?|usa|canada|united kingdom|u\.k\.?|uk|"
+        r"australia|new zealand|india|philippines|singapore|malaysia|"
+        r"united arab emirates|uae|europe|european union|eu|latin america|"
+        r"north america|south africa|germany|france|spain|portugal|ireland)"
+    )
+    restriction_patterns = (
+        rf"\b(?:must be based in|must reside in|must live in|based in|located in|"
+        rf"residents? of|applicants? (?:must be )?(?:located|based|reside) in|"
+        rf"candidates? (?:must be )?(?:located|based|reside) in|"
+        rf"only open to|open only to|eligible only in|work authorization in)\s+"
+        rf"(?:the\s+)?{restricted_country}\b",
+        rf"\b{restricted_country}\s+(?:residents?|applicants?|candidates?)\s+only\b",
+        rf"\b(?:remote|work from home)\s*[-–:]\s*(?:the\s+)?{restricted_country}\b",
+        r"\b(?:us|u\.s\.?|american|canadian|uk)\s+(?:citizens?|nationals?)\s+only\b",
+        r"\b(?:must be|requires? applicants? to be)\s+(?:a\s+)?(?:us|u\.s\.?|american|canadian|uk)\s+(?:citizen|national)s?\b",
+    )
+    if any(re.search(pattern, description_text, re.IGNORECASE) for pattern in restriction_patterns):
+        return (
+            "NOT_ELIGIBLE",
+            "Tangazo linaweka masharti ya waombaji kuwa katika nchi/eneo jingine; halijathibitisha kukubali waombaji wa Tanzania.",
+        )
+
+    tanzania_pattern = r"\b(?:tanzania|united republic of tanzania|dar es salaam)\b"
+    worldwide_pattern = (
+        r"\b(?:worldwide|world wide|anywhere in the world|any country|all countries|"
+        r"open globally|global remote|remote worldwide|work from anywhere)\b"
+    )
+    if re.search(tanzania_pattern, location_text) or re.search(tanzania_pattern, description_text):
+        return "ELIGIBLE", "Tangazo linataja Tanzania/Dar es Salaam kama eneo linalokubalika."
+    if re.search(worldwide_pattern, location_text) or re.search(worldwide_pattern, description_text):
+        return "ELIGIBLE", "Tangazo linasema wazi kuwa kazi iko worldwide au inakubali nchi zote."
+
+    # Any named, non-Tanzanian work location is not a usable remote match for
+    # this account, even when an aggregator headline says only 'Remote'.
+    if location_text and not any(
+        word in location_text
+        for word in ("remote", "tanzania", "dar es salaam", "worldwide", "anywhere", "global")
+    ):
+        return (
+            "NOT_ELIGIBLE",
+            f"Eneo lililotajwa ni '{location}', si Tanzania; hakuna ruhusa ya kufanya kazi ukiwa Tanzania iliyoonyeshwa.",
+        )
+
+    return (
+        "UNVERIFIED",
+        "Tangazo linasema Remote lakini halielezi kama waombaji walioko Tanzania wanaruhusiwa. Hakiki country eligibility kwa mwajiri kabla ya kutengeneza ombi.",
+    )
+
+
 async def _fetch_remoteok(client: httpx.AsyncClient, query: str) -> list[dict[str, Any]]:
     response = await client.get("https://remoteok.com/api", headers={"User-Agent": "MR-AI-STAN job research contact=owner"})
     response.raise_for_status()
@@ -103,6 +165,11 @@ async def research_public_jobs(query: str, limit: int = 25) -> dict[str, Any]:
     )[:limit]
     if not ordered and len(errors) == 2:
         raise HTTPException(502, "Job sources are temporarily unavailable. Try again later.")
+
+    for job in ordered:
+        eligibility, eligibility_reason = _tanzania_job_eligibility(job)
+        job["location_eligibility"] = eligibility
+        job["eligibility_reason"] = eligibility_reason
 
     return {
         "status": "COMPLETED" if ordered else "NO_RESULTS",
@@ -280,8 +347,7 @@ def _refresh_waiting_application_drafts(
     profile: dict[str, Any],
 ) -> int:
     """Resume application drafts as soon as the candidate profile is completed."""
-    if not _profile_ready(profile):
-        return 0
+    profile_ready = _profile_ready(profile)
     refreshed = 0
     rows = (
         db.query(Task)
@@ -302,22 +368,64 @@ def _refresh_waiting_application_drafts(
         job = packet.get("job") if isinstance(packet, dict) else None
         if not isinstance(job, dict):
             continue
+        eligibility, eligibility_reason = _tanzania_job_eligibility(job)
+        packet["location_eligibility"] = eligibility
+        packet["eligibility_reason"] = eligibility_reason
+        packet["updated_at"] = datetime.now(timezone.utc).isoformat()
+        step = (
+            db.query(TaskStep)
+            .filter(TaskStep.task_id == task.id, TaskStep.position == 2)
+            .first()
+        )
+        if eligibility != "ELIGIBLE":
+            packet["application_draft"] = None
+            packet["status"] = "NOT_ELIGIBLE" if eligibility == "NOT_ELIGIBLE" else "WAITING_FOR_ELIGIBILITY"
+            task.status = packet["status"]
+            task.error = eligibility_reason
+            if step:
+                step.title = "Hakiki kama mwajiri anakubali waombaji walioko Tanzania"
+                step.state = "verified" if eligibility == "NOT_ELIGIBLE" else "pending"
+                step.evidence = json.dumps({
+                    "location_eligibility": eligibility,
+                    "reason": eligibility_reason,
+                    "application_prepared": False,
+                    "submitted": False,
+                }, ensure_ascii=False)
+                step.verified_at = (
+                    datetime.now(timezone.utc).replace(tzinfo=None)
+                    if eligibility == "NOT_ELIGIBLE" else None
+                )
+            task.result = json.dumps(packet, ensure_ascii=False, default=str)
+            continue
+
+        if not profile_ready:
+            packet["application_draft"] = None
+            packet["status"] = "WAITING_FOR_PROFILE"
+            task.status = "WAITING_FOR_PROFILE"
+            task.error = "Tangazo linaonekana kukubali Tanzania/worldwide. Hifadhi CV/profile ili MR AI aandae draft."
+            if step:
+                step.title = "Hifadhi CV/profile ili kuandaa barua ya maombi"
+                step.state = "pending"
+                step.evidence = json.dumps({
+                    "location_eligibility": "ELIGIBLE",
+                    "profile_ready": False,
+                    "application_prepared": False,
+                    "submitted": False,
+                }, ensure_ascii=False)
+                step.verified_at = None
+            task.result = json.dumps(packet, ensure_ascii=False, default=str)
+            continue
+
         draft = _build_application_draft(job, profile)
         if not draft:
             continue
         packet["application_draft"] = draft
         packet["status"] = "READY_FOR_REVIEW"
         packet["match_score"] = _match_score(job, profile)
-        packet["updated_at"] = datetime.now(timezone.utc).isoformat()
         task.result = json.dumps(packet, ensure_ascii=False, default=str)
         task.status = "READY_FOR_REVIEW"
         task.progress = 50
         task.error = "Draft prepared. Automatic submission is unavailable; review before sending."
-        step = (
-            db.query(TaskStep)
-            .filter(TaskStep.task_id == task.id, TaskStep.position == 2)
-            .first()
-        )
         if step:
             step.title = "Andaa barua ya maombi kutoka taarifa za profile"
             step.state = "pending"
@@ -325,7 +433,9 @@ def _refresh_waiting_application_drafts(
                 "draft_ready": True,
                 "submitted": False,
                 "blocker": "NO_CONNECTED_SUBMISSION_HAND",
+                "location_eligibility": "ELIGIBLE",
             }, ensure_ascii=False)
+            step.verified_at = None
         refreshed += 1
     return refreshed
 
@@ -430,7 +540,26 @@ async def run_job_autopilot_for_user(
             if url.startswith("https://"):
                 candidates.setdefault(url.casefold(), job)
 
-    cycle_status = "SOURCE_ERROR" if source_errors and not candidates else "COMPLETED"
+    eligible_candidates: dict[str, dict[str, Any]] = {}
+    excluded_location = 0
+    unverified_location = 0
+    for url_key, job in candidates.items():
+        eligibility, eligibility_reason = _tanzania_job_eligibility(job)
+        job["location_eligibility"] = eligibility
+        job["eligibility_reason"] = eligibility_reason
+        if eligibility == "ELIGIBLE":
+            eligible_candidates[url_key] = job
+        elif eligibility == "NOT_ELIGIBLE":
+            excluded_location += 1
+        else:
+            unverified_location += 1
+
+    if source_errors and not candidates:
+        cycle_status = "SOURCE_ERROR"
+    elif candidates and not eligible_candidates:
+        cycle_status = "NO_ELIGIBLE_JOBS"
+    else:
+        cycle_status = "COMPLETED"
     config["last_run_status"] = cycle_status
     config["last_run_error_count"] = len(source_errors)
     _write_json_setting(db, user_id, AUTOPILOT_CONFIG_KEY, config)
@@ -452,7 +581,7 @@ async def run_job_autopilot_for_user(
     ready_to_review = 0
     profile_ready = _profile_ready(profile)
 
-    for url_key, job in sorted(candidates.items(), key=lambda item: str(item[1].get("published_at") or ""), reverse=True):
+    for url_key, job in sorted(eligible_candidates.items(), key=lambda item: str(item[1].get("published_at") or ""), reverse=True):
         task = existing_by_url.get(url_key)
         if task is not None:
             # If the owner has since saved a profile, resume drafts that were
@@ -544,15 +673,17 @@ async def run_job_autopilot_for_user(
         user_id=user_id,
         action="JOB_AUTOPILOT_CYCLE",
         details=(
-            f"queries={len(queries)}; candidates={len(candidates)}; new={new_jobs}; "
+            f"queries={len(queries)}; candidates={len(candidates)}; eligible={len(eligible_candidates)}; "
+            f"excluded_location={excluded_location}; unverified_location={unverified_location}; new={new_jobs}; "
             f"drafts={drafts_ready}; waiting_profile={waiting_for_profile}; source_errors={len(source_errors)}"
         ),
     ))
-    if new_jobs or (source_errors and not candidates):
+    if new_jobs or (source_errors and not candidates) or (candidates and not eligible_candidates):
         report_message = (
-            f"Utafutaji umekamilika: nafasi mpya {new_jobs}, drafts {drafts_ready}, "
-            f"zinasubiri profile {waiting_for_profile}. Hakuna ombi lililotumwa kiotomatiki."
-            if new_jobs or candidates else
+            f"Utafutaji umekamilika: nafasi mpya zinazokubali Tanzania {new_jobs}, drafts {drafts_ready}, "
+            f"hazikubali Tanzania {excluded_location}, eligibility haijathibitishwa {unverified_location}. "
+            f"Zinasubiri profile {waiting_for_profile}. Hakuna ombi lililotumwa kiotomatiki."
+            if candidates else
             "Vyanzo vya ajira havikujibu. MR AI itajaribu tena baada ya dakika 30. "
             "Hakuna nafasi ya kubuniwa wala ombi lililotumwa."
         )
@@ -564,10 +695,13 @@ async def run_job_autopilot_for_user(
         ))
     db.commit()
     return {
-        "status": "COMPLETED" if not source_errors or candidates else "SOURCE_ERROR",
+        "status": cycle_status,
         "user_id": user_id,
         "queries": queries,
         "candidate_count": len(candidates),
+        "eligible_candidate_count": len(eligible_candidates),
+        "excluded_location": excluded_location,
+        "unverified_location": unverified_location,
         "new_jobs": new_jobs,
         "drafts_ready": drafts_ready,
         "waiting_for_profile": waiting_for_profile,
@@ -626,6 +760,8 @@ def get_job_autopilot_status(
             "jobs_found": len(rows),
             "drafts_ready": sum(1 for task in rows if task.status == "READY_FOR_REVIEW"),
             "waiting_for_profile": sum(1 for task in rows if task.status == "WAITING_FOR_PROFILE"),
+            "not_eligible": sum(1 for task in rows if task.status == "NOT_ELIGIBLE"),
+            "waiting_for_eligibility": sum(1 for task in rows if task.status == "WAITING_FOR_ELIGIBILITY"),
             "applications_submitted_automatically": 0,
             "failed": sum(1 for task in rows if task.status in {"FAILED", "ERROR"}),
         },
