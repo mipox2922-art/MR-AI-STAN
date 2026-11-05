@@ -95,14 +95,14 @@ def has_explicit_agent_route(text: str) -> bool:
 
 
 def select_agents(text: str) -> list[str]:
-    commands = explicit_agent_commands(text)
+    commands = explicit_agent_commands(text) or infer_goal_commands(text)
     return list(dict.fromkeys(item["agent"] for item in commands)) or ["research"]
 
 
 def build_plan(text: str) -> dict[str, Any]:
     request = str(text or "").strip()
     definitions = {agent.id: agent for agent in AGENTS}
-    commands = explicit_agent_commands(request)
+    commands = explicit_agent_commands(request) or infer_goal_commands(request)
     if not commands:
         commands = [{"agent": "research", "request": request}]
     steps = []
@@ -133,3 +133,117 @@ def build_plan(text: str) -> dict[str, Any]:
             "A mission is complete only when every required step is verified.",
         ],
     }
+
+
+_ACTION_PREFIX = re.compile(
+    r"^(?:(?:i\\s+need|i\\s+want)(?:\\s+you)?\\s+to|need|want|help\\s+me(?:\\s+to)?|"
+    r"can\\s+you|could\\s+you|please|handle|manage|find|search|research|look\\s+for|"
+    r"build|create|fix|review|improve|check|read|organize|take\\s+care\\s+of|"
+    r"nataka|nahitaji|nisaidie|naomba|fanya|tafuta|nitafutie|tafutia|panga|"
+    r"boresha|rekebisha|kagua|soma|angalia|simamia|fuatilia)\\b",
+    re.IGNORECASE,
+)
+_EXPLANATION_PREFIX = re.compile(
+    r"^(?:(?:can\\s+you\\s+)?explain|tell\\s+me\\s+about|what\\s+is|what\\s+are|"
+    r"how\\s+do|how\\s+does|why\\s+does|niambie|nielezee|fafanua|eleza)\\b",
+    re.IGNORECASE,
+)
+
+
+def infer_goal_commands(text: str) -> list[dict[str, str]]:
+    """Infer the smallest useful specialist set from a clearly actionable owner goal."""
+    request = str(text or "").strip()
+    value = request.casefold()
+    if not request or _EXPLANATION_PREFIX.search(value) or not _ACTION_PREFIX.search(value):
+        return []
+
+    commands: list[dict[str, str]] = []
+
+    def add(agent: str, instruction: str) -> None:
+        if not any(item["agent"] == agent for item in commands):
+            commands.append({"agent": agent, "request": instruction})
+
+    job_target = re.search(
+        r"\\b(?:jobs?|work\\s+opportunit(?:y|ies)|employment|career|kazi|ajira|nafasi\\s+za\\s+kazi)\\b",
+        value,
+    )
+    email_target = re.search(r"\\b(?:gmail|emails?|inbox|barua\\s+pepe)\\b", value)
+    client_target = re.search(
+        r"\\b(?:clients?|customers?|leads?|prospects?|wateja|business\\s+opportunit(?:y|ies)|fursa\\s+za\\s+biashara)\\b",
+        value,
+    )
+    coding_target = re.search(
+        r"\\b(?:mr\\s*ai|mr-ai-stan|stan\\s+dashboard|dashboard|repository|repo|code|coding|"
+        r"website|web\\s+app|backend|frontend|software|bug|api|agent\\s+team|orchestrator|"
+        r"autonomous\\s+agent|agent\\s+manager|kuji\\s+tuma|majukumu)\\b",
+        value,
+    )
+    creative_target = re.search(
+        r"\\b(?:logo|poster|banner|flyer|graphic\\s+design|artwork|creative\\s+design)\\b",
+        value,
+    )
+    device_target = re.search(r"\\b(?:android|device|simu|adb|fastboot|bluetooth|firmware)\\b", value)
+    security_target = re.search(r"\\b(?:security|usalama|vulnerabilit(?:y|ies)|malware|secret\\s+scan)\\b", value)
+    schedule_target = re.search(
+        r"\\b(?:schedule|reminder|ratiba|kumbusho|calendar|appointment)\\b",
+        value,
+    )
+
+    if job_target:
+        search_goal = re.sub(
+            r"\\b(?:apply|application|submit|send\\s+(?:my\\s+)?cv|tuma\\s+(?:maombi|cv)|"
+            r"wasilisha\\s+maombi|omba\\s+kazi)\\b",
+            "",
+            request,
+            flags=re.IGNORECASE,
+        ).strip()
+        add("jobs", "Search jobs matching this owner goal: " + search_goal[:900])
+        if re.search(
+            r"\\b(?:apply|submit|send\\s+(?:my\\s+)?cv|tuma\\s+(?:maombi|cv)|"
+            r"wasilisha\\s+maombi|omba\\s+kazi)\\b",
+            value,
+        ):
+            commands.append({
+                "agent": "jobs",
+                "request": "Submit applications for suitable jobs found for this owner goal: " + request[:800],
+            })
+
+    if email_target:
+        read_goal = re.sub(
+            r"\\b(?:reply|respond|send|forward|draft|delete|archive|jibu|tuma|sambaza|futa|hifadhi)\\b",
+            "",
+            request,
+            flags=re.IGNORECASE,
+        ).strip()
+        add("gmail", "Read and analyze Gmail messages for this owner goal: " + read_goal[:900])
+        if re.search(r"\\b(?:reply|respond|send|forward|draft|jibu|tuma|sambaza)\\b", value):
+            commands.append({
+                "agent": "gmail",
+                "request": "Prepare or send the specifically requested Gmail response for this owner goal: " + request[:800],
+            })
+
+    if client_target:
+        add("research", "Find and rank prospective clients or business leads for this owner goal: " + request[:900])
+    if coding_target:
+        add("coding", "Inspect and implement only the changes required in the MR AI project to satisfy this owner goal: " + request[:900])
+    if creative_target:
+        add("creative", "Create only the requested visual deliverable for this owner goal: " + request[:900])
+    if device_target:
+        add("device", "Diagnose only the requested authorized device issue for this owner goal: " + request[:900])
+    if security_target:
+        add("security", "Perform only the requested defensive security check for this owner goal: " + request[:900])
+    if schedule_target:
+        add("scheduler", "Create or inspect only the requested schedule for this owner goal: " + request[:900])
+
+    return commands[:7]
+
+
+def has_autonomous_goal(text: str) -> bool:
+    """True when a natural-language work outcome should be planned and delegated."""
+    return bool(explicit_agent_commands(text) or infer_goal_commands(text))
+
+
+def has_multiple_agent_routes(text: str) -> bool:
+    """Whether a request needs more than one independently executed specialist step."""
+    commands = explicit_agent_commands(text) or infer_goal_commands(text)
+    return len(commands) > 1
