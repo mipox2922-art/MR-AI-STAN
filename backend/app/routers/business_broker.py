@@ -93,7 +93,8 @@ def is_business_broker_request(goal: str) -> bool:
     value = str(goal or "").casefold()
     return any(term in value for term in (
         "business opportunity", "business opportunities", "business broker", "client lead",
-        "client leads", "potential clients", "find clients", "find customers", "supplier",
+        "client leads", "potential clients", "prospective client", "prospective clients",
+        "find clients", "find customers", "supplier",
         "suppliers", "manufacturer", "wholesale", "affiliate", "referral program",
         "fursa", "wateja", "wasambazaji", "bidhaa", "online income", "earn online",
         "mapato mtandaoni", "businesses that need", "customers for", "prospects",
