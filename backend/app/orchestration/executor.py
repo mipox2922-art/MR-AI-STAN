@@ -141,16 +141,16 @@ def _is_safe_for_autonomous_execution(
         # The owner may grant a narrow standing rule to fill non-sensitive fields.
         # The extension still enforces the domain allowlist and blocks credential/payment fields.
         if agent_id == "browser" and "browser_hands" in tools:
-            handoff = build_browser_handoff(step_request)
-            if handoff and handoff.get("action") in {"GET_PAGE_DATA", "SCROLL", "NAVIGATE"}:
-                continue
-            if handoff and handoff.get("action") == "TYPE":
-                from ..core.authorizations import authorization_enabled
-                if authorization_enabled(db, user_id, "browser.fill_non_sensitive"):
-                    continue
+            # The mission executor queues only read/navigation actions and narrowly
+            # authorized non-sensitive typing; all other browser mutations are blocked per-step.
+            continue
         # An explicit code-change request may prepare a patch only on an isolated branch and open a PR.
         # The production branch is never modified by the mission executor.
         if agent_id == "coding":
+            continue
+        # These registered agents have no verified backend execution adapter yet.
+        # Let other supported mission steps proceed while this step reports its missing hand.
+        if agent_id in {"creative", "device", "security", "scheduler"}:
             continue
         # Business brokerage is read-only discovery plus owner-scoped record/draft/task creation.
         # The broker returns NOT_CONNECTED when the selected source is not configured; it never fabricates leads.
@@ -897,6 +897,30 @@ async def execute_mission(
         if agent_id == "browser" and "browser_hands" in step.get("tools", []):
             handoff = build_browser_handoff(step_request)
             if handoff:
+                action = str(handoff.get("action") or "").upper()
+                action_authorized = action in {"GET_PAGE_DATA", "SCROLL", "NAVIGATE"}
+                if action == "TYPE":
+                    from ..core.authorizations import authorization_enabled
+                    action_authorized = authorization_enabled(db, user.id, "browser.fill_non_sensitive")
+                if not action_authorized:
+                    steps.append({
+                        "step": index,
+                        "agent": agent_id,
+                        "name": step_name,
+                        "tool": "browser_hands",
+                        "status": "WAITING_FOR_HAND",
+                        "verified": False,
+                        "evidence": {
+                            "message": (
+                                "Browser action imezuiwa kwa sababu click/submit au mabadiliko ya ukurasa "
+                                "hayana standing authorization inayohitajika. Hakuna command iliyowekwa kwenye queue."
+                            ),
+                            "requested_action": action,
+                            "command_queued": False,
+                        },
+                    })
+                    _persist_step_progress(db, mission, steps)
+                    continue
                 existing_commands = db.query(Task).filter(
                     Task.user_id == user.id,
                     Task.agent == "browser",
