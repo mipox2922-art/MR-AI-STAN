@@ -214,7 +214,13 @@ export default function JobResearch() {
   }
 
   async function reloadWorkspace() {
-    const [data, tasks] = await Promise.all([getJobAutopilot(), getTasks()]);
+    const [profileResult, tasksResult] = await Promise.allSettled([
+      getJobAutopilot(),
+      getTasks(),
+    ]);
+    if (profileResult.status !== "fulfilled") throw profileResult.reason;
+    const data = profileResult.value;
+    const tasks = tasksResult.status === "fulfilled" ? tasksResult.value : [];
     const nextConfig = { ...DEFAULT_CONFIG, ...(data?.config || {}) };
     const nextProfile = { ...EMPTY_PROFILE, ...(data?.profile || {}) };
     setConfig(nextConfig);
@@ -231,14 +237,17 @@ export default function JobResearch() {
       failed: 0,
     });
     hydrateTasks(tasks);
+    setWarning(tasksResult.status === "fulfilled" ? "" : "CV imepakiwa, lakini history ya Tasks haikupatikana.");
     return { data, tasks };
   }
 
   useEffect(() => {
     let active = true;
-    Promise.all([getJobAutopilot(), getTasks()])
-      .then(([data, tasks]) => {
+    Promise.allSettled([getJobAutopilot(), getTasks()])
+      .then(([profileResult, tasksResult]) => {
         if (!active) return;
+        if (profileResult.status !== "fulfilled") throw profileResult.reason;
+        const data = profileResult.value;
         const nextConfig = { ...DEFAULT_CONFIG, ...(data?.config || {}) };
         const nextProfile = { ...EMPTY_PROFILE, ...(data?.profile || {}) };
         setConfig(nextConfig);
@@ -248,7 +257,10 @@ export default function JobResearch() {
         setSkillsText(Array.isArray(skills) ? skills.join(", ") : String(skills || ""));
         setProfileReady(data?.profile_ready === true);
         setMetrics(data?.metrics || {});
-        hydrateTasks(tasks);
+        hydrateTasks(tasksResult.status === "fulfilled" ? tasksResult.value : []);
+        if (tasksResult.status !== "fulfilled") {
+          setWarning("CV imepakiwa, lakini history ya Tasks haikupatikana.");
+        }
       })
       .catch(err => {
         if (active) setError(err.message || "Job workspace haikuweza kupakia.");
