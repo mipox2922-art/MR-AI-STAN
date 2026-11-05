@@ -155,3 +155,12 @@ def test_manager_plan_falls_back_to_deterministic_routing_when_free_provider_mis
 
     assert plan["planner"] == "deterministic_goal_routing"
     assert [step["agent"] for step in plan["steps"]] == ["jobs", "research"]
+
+
+
+def test_owner_can_describe_autonomous_agent_goal_naturally_in_swahili():
+    request = (
+        "Sasa naitaji MR AI aweze kuji tuma mwenyewe majukumu, "
+        "ana timu ya agent na mimi napitia alichofanya"
+    )
+    assert select_agents(request) == ["coding"]
