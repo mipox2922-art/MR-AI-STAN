@@ -76,9 +76,16 @@ def explicit_agent_commands(text: str) -> list[dict[str, str]]:
     """Return the exact user clause assigned to each explicitly requested agent."""
     commands: list[dict[str, str]] = []
     for clause in command_clauses(text):
+        route_clause = re.sub(
+            r"^(?:(?:i\s+need|i\s+want)(?:\s+you)?\s+to|help\s+me(?:\s+to)?|"
+            r"can\s+you|could\s+you|please|nahitaji|nataka|nisaidie|naomba|tafadhali)\s+",
+            "",
+            clause,
+            flags=re.IGNORECASE,
+        ).strip()
         matched_agent = None
         for agent_id, patterns in _COMMAND_ROUTES:
-            if any(re.search(pattern, clause, flags=re.IGNORECASE) for pattern in patterns):
+            if any(re.search(pattern, route_clause, flags=re.IGNORECASE) for pattern in patterns):
                 matched_agent = agent_id
                 break
         if matched_agent:
