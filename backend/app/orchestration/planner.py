@@ -57,38 +57,59 @@ _COMMAND_ROUTES: tuple[tuple[str, tuple[str, ...]], ...] = (
 )
 
 
-def select_agents(text: str) -> list[str]:
-    value = str(text or "").strip().casefold()
+def command_clauses(text: str) -> list[str]:
+    """Split only explicit command clauses; do not turn arbitrary context into work."""
+    value = str(text or "").strip()
     if not value:
-        return ["research"]
+        return []
+    return [
+        clause.strip().strip(" .;,:")
+        for clause in re.split(r"\\s+(?:na|kisha|halafu|and\\s+then|and|then)\\s+", value, flags=re.IGNORECASE)
+        if clause.strip().strip(" .;,:")
+    ]
 
-    # Recognize explicit compound missions such as "Tafuta kazi na soma email".
-    # Only command clauses are routed; arbitrary keywords inside a payload are
-    # not treated as new work requests.
-    clauses = re.split(r"\s+(?:na|kisha|halafu|and\s+then|and|then)\s+", value)
-    selected: list[str] = []
-    for clause in clauses:
+
+def explicit_agent_commands(text: str) -> list[dict[str, str]]:
+    """Return the exact user clause assigned to each explicitly requested agent."""
+    commands: list[dict[str, str]] = []
+    for clause in command_clauses(text):
         for agent_id, patterns in _COMMAND_ROUTES:
             if any(re.search(pattern, clause, flags=re.IGNORECASE) for pattern in patterns):
-                if agent_id not in selected:
-                    selected.append(agent_id)
+                existing = next((item for item in commands if item["agent"] == agent_id), None)
+                if existing:
+                    existing["request"] += " na " + clause
+                else:
+                    commands.append({"agent": agent_id, "request": clause})
                 break
+    return commands
 
-    return selected or ["research"]
+
+def has_explicit_agent_route(text: str) -> bool:
+    """Whether the user wrote a command handled by a specialist, not ordinary chat."""
+    return bool(explicit_agent_commands(text))
+
+
+def select_agents(text: str) -> list[str]:
+    commands = explicit_agent_commands(text)
+    return [item["agent"] for item in commands] or ["research"]
 
 
 def build_plan(text: str) -> dict[str, Any]:
     request = str(text or "").strip()
     definitions = {agent.id: agent for agent in AGENTS}
-    agent_ids = select_agents(request)
+    commands = explicit_agent_commands(request)
+    if not commands:
+        commands = [{"agent": "research", "request": request}]
     steps = []
 
-    for index, agent_id in enumerate(agent_ids, start=1):
+    for index, command in enumerate(commands, start=1):
+        agent_id = command["agent"]
         agent = definitions[agent_id]
         steps.append({
             "step": index,
             "agent": agent.id,
             "name": agent.name,
+            "request": command["request"],
             "risk": agent.risk,
             "capabilities": list(agent.capabilities),
             "tools": list(agent.tools),
@@ -98,7 +119,7 @@ def build_plan(text: str) -> dict[str, Any]:
     return {
         "request": request,
         "status": "PLANNED",
-        "agents": [definitions[item].name for item in agent_ids],
+        "agents": [definitions[item["agent"]].name for item in commands],
         "steps": steps,
         "verification": [
             "Every external action must return a verified result from its actual execution tool.",
