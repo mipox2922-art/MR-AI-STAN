@@ -76,3 +76,12 @@ def test_same_agent_actions_remain_separate_so_unsupported_side_effects_are_not_
     assert [step["agent"] for step in plan["steps"]] == ["jobs", "jobs"]
     assert [step["request"] for step in plan["steps"]] == ["Find jobs", "apply"]
     assert select_agents("Find jobs and apply") == ["jobs"]
+
+
+
+def test_descriptive_tail_after_agent_command_is_not_dropped():
+    plan = build_plan("Create logo and banner")
+
+    assert len(plan["steps"]) == 1
+    assert plan["steps"][0]["agent"] == "creative"
+    assert plan["steps"][0]["request"] == "Create logo na banner"
