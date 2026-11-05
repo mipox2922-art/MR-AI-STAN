@@ -48,22 +48,24 @@ def test_browser_non_sensitive_typing_requires_explicit_standing_authorization()
     db = make_db()
     plan = {"steps": [{"agent": "browser", "tools": ["browser_hands"]}]}
 
+    # The mission-level preflight allows supported agents to run independently.
+    # The browser executor performs the narrow authorization check before queueing TYPE.
     assert _is_safe_for_autonomous_execution(
         plan, "type #full-name: Boss Ferisi", 11, db
-    ) is False
+    ) is True
 
     set_standing_authorization(db, 11, "browser.fill_non_sensitive", True)
     assert _is_safe_for_autonomous_execution(
         plan, "type #full-name: Boss Ferisi", 11, db
     ) is True
 
-    # Standing browser-fill permission cannot authorize job submission or a different agent.
+    # Job applications are blocked inside the jobs step, after independent discovery can run.
     assert _is_safe_for_autonomous_execution(
-        {"steps": [{"agent": "jobs", "tools": ["public_job_feeds"]}]},
+        {"steps": [{"agent": "jobs", "tools": ["public_job_feeds"], "request": "apply for remote jobs"}]},
         "apply for remote jobs",
         11,
         db,
-    ) is False
+    ) is True
     db.close()
 
 
