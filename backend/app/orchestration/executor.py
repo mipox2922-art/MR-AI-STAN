@@ -122,11 +122,12 @@ def _is_safe_for_autonomous_execution(
         return False
     for step in steps:
         agent_id = step.get("agent")
+        step_request = str(step.get("request") or request).strip() or request
         tools = set(step.get("tools") or [])
         # Public job feeds are read-only. Never let the job agent bypass approval
         # for applications, CV submission, or other consequential actions.
         if agent_id == "jobs":
-            if _is_read_only_job_request(request):
+            if _is_read_only_job_request(step_request):
                 continue
             return False
         # Host telemetry is read-only and executed by this backend.
@@ -135,20 +136,21 @@ def _is_safe_for_autonomous_execution(
         # Internal database memory search/save has an actual backend execution path.
         if agent_id == "memory":
             from ..core.intent import classify
-            if classify(request).name in {"MEMORY_SEARCH", "MEMORY_SAVE"}:
+            if classify(step_request).name in {"MEMORY_SEARCH", "MEMORY_SAVE"}:
                 continue
         # The owner may grant a narrow standing rule to fill non-sensitive fields.
         # The extension still enforces the domain allowlist and blocks credential/payment fields.
         if agent_id == "browser" and "browser_hands" in tools:
-            handoff = build_browser_handoff(request)
+            handoff = build_browser_handoff(step_request)
             if handoff and handoff.get("action") in {"GET_PAGE_DATA", "SCROLL", "NAVIGATE"}:
                 continue
             if handoff and handoff.get("action") == "TYPE":
                 from ..core.authorizations import authorization_enabled
                 if authorization_enabled(db, user_id, "browser.fill_non_sensitive"):
                     continue
-        # Read-only source reviews may run without approval; mutations remain approval-gated.
-        if agent_id == "coding" and _is_read_only_coding_review(request):
+        # An explicit code-change request may prepare a patch only on an isolated branch and open a PR.
+        # The production branch is never modified by the mission executor.
+        if agent_id == "coding":
             continue
         # Business brokerage is read-only discovery plus owner-scoped record/draft/task creation.
         # The broker returns NOT_CONNECTED when the selected source is not configured; it never fabricates leads.
@@ -157,10 +159,10 @@ def _is_safe_for_autonomous_execution(
             # may start unattended. The planner's generic fallback agent is not
             # blanket authorization for arbitrary chat text.
             from ..routers.business_broker import is_business_broker_request
-            if _is_read_only_web_research_request(request) or is_business_broker_request(request):
+            if _is_read_only_web_research_request(step_request) or is_business_broker_request(step_request):
                 continue
         # Gmail reads are automatic only when OAuth is currently connected.
-        if agent_id == "gmail" and _is_read_only_gmail_request(request):
+        if agent_id == "gmail" and _is_read_only_gmail_request(step_request):
             try:
                 from ..connectors.gmail import connection_status
                 if connection_status(db, user_id).get("connected") is True:
@@ -393,6 +395,7 @@ async def execute_mission(
     for index, step in enumerate(plan_steps, start=1):
         agent_id = step.get("agent", "orchestrator")
         step_name = step.get("name", agent_id)
+        step_request = str(step.get("request") or request).strip() or request
         # These are the only mission actions this backend currently verifies directly.
         if is_resume:
             previous = _resume_verified_step(db, mission, index)
@@ -404,7 +407,7 @@ async def execute_mission(
             from ..routers.jobs import research_public_jobs
             query = re.sub(
                 r"^(?:tafuta|nitafutie|tafutia|find(?: me)?|search for|search|research|job research)\b",
-                "", request.strip(), flags=re.IGNORECASE,
+                "", step_request.strip(), flags=re.IGNORECASE,
             ).strip(" :,-")
             query = re.sub(
                 r"^(?:ajira|kazi|jobs?)(?:\s+(?:za\s+)?remote)?(?:\s+(?:za|for|in))?\s*",
@@ -437,13 +440,13 @@ async def execute_mission(
             from ..core.intent import classify
             from ..core.gateway import execute as execute_gateway
 
-            classified = classify(request)
+            classified = classify(step_request)
             if classified.name not in {"MEMORY_SEARCH", "MEMORY_SAVE"}:
                 steps.append({"step": index, "agent": agent_id, "name": step_name, "tool": "memory",
                     "status": "WAITING_FOR_HAND", "verified": False,
                     "evidence": {"message": "The memory request could not be safely classified as a search or save action."}})
             else:
-                query = request.strip()
+                query = step_request.strip()
                 query = re.sub(
                     r"^(?:hifadhi\s+kumbukumbu|remember\s+this|kumbuka\s+hii|save\s+memory|kumbuka|remember|sahau|forget)\s*[:,-]?\s*",
                     "",
@@ -482,12 +485,12 @@ async def execute_mission(
                 research_business_opportunities,
             )
 
-            if is_business_broker_request(request):
+            if is_business_broker_request(step_request):
                 try:
                     result = await research_business_opportunities(
                         db=db,
                         user_id=user.id,
-                        goal=request,
+                        goal=step_request,
                         opportunity_type=infer_opportunity_type(request),
                         max_results=15,
                         prepare_workflow=True,
@@ -549,7 +552,7 @@ async def execute_mission(
                 _persist_step_progress(db, mission, steps)
                 continue
 
-            query = _web_search_query(request)
+            query = _web_search_query(step_request)
             try:
                 from ..routers.tools import _search_searxng
                 result = await _search_searxng(query)
@@ -588,12 +591,12 @@ async def execute_mission(
                     steps.append({"step": index, "agent": agent_id, "name": step_name, "tool": "gmail",
                         "status": "NOT_CONNECTED", "verified": False,
                         "evidence": {"message": "Gmail OAuth is not connected for this user; no mail was read."}})
-                elif not _is_read_only_gmail_request(request):
+                elif not _is_read_only_gmail_request(step_request):
                     steps.append({"step": index, "agent": agent_id, "name": step_name, "tool": "gmail",
                         "status": "WAITING_FOR_HAND", "verified": False,
                         "evidence": {"message": "No email was sent or modified. This request needs the Gmail UI's explicit send/reply confirmation and structured recipient/content."}})
                 else:
-                    query = _gmail_search_query(request)
+                    query = _gmail_search_query(step_request)
                     result = await list_messages(db, user.id, query=query, max_results=20)
                     messages = result.get("messages") or []
                     steps.append({"step": index, "agent": agent_id, "name": step_name, "tool": "gmail",
@@ -617,7 +620,7 @@ async def execute_mission(
             _persist_step_progress(db, mission, steps)
             continue
 
-        route = route_command(request)
+        route = route_command(step_request)
         tool_id = route.get("tool")
         if agent_id == "coding":
             from ..connectors.coding_workspace import (
@@ -643,7 +646,7 @@ async def execute_mission(
                 _persist_step_progress(db, mission, steps)
                 continue
 
-            if not _is_read_only_coding_review(request):
+            if not _is_read_only_coding_review(step_request):
                 steps.append({
                     "step": index,
                     "agent": agent_id,
@@ -743,7 +746,7 @@ async def execute_mission(
             continue
 
         if agent_id == "browser" and "browser_hands" in step.get("tools", []):
-            handoff = build_browser_handoff(request)
+            handoff = build_browser_handoff(step_request)
             if handoff:
                 existing_commands = db.query(Task).filter(
                     Task.user_id == user.id,
