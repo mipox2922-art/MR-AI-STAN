@@ -144,10 +144,10 @@ def build_plan(text: str) -> dict[str, Any]:
 
 
 _ACTION_PREFIX = re.compile(
-    r"^(?:(?:i\s+need|i\s+want)(?:\s+you)?\s+to|need|want|help\s+me(?:\s+to)?|"
+    r"^(?:(?:i\s+need|i\s+want)(?:\s+you)?(?:\s+to)?|need|want|help\s+me(?:\s+to)?|"
     r"can\s+you|could\s+you|please|handle|manage|find|search|research|look\s+for|"
     r"build|create|fix|review|improve|check|read|organize|take\s+care\s+of|"
-    r"nataka|nahitaji|nisaidie|naomba|fanya|tafuta|nitafutie|tafutia|panga|"
+    r"nataka|nahitaji|naitaji|nisaidie|naomba|fanya|tafuta|nitafutie|tafutia|panga|"
     r"boresha|rekebisha|kagua|soma|angalia|simamia|fuatilia)\b",
     re.IGNORECASE,
 )
