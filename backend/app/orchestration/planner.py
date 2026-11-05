@@ -144,7 +144,7 @@ def build_plan(text: str) -> dict[str, Any]:
 
 
 _ACTION_PREFIX = re.compile(
-    r"^(?:(?:i\s+need|i\s+want)(?:\s+you)?(?:\s+to)?|need|want|help\s+me(?:\s+to)?|"
+    r"^(?:(?:sasa|now)\s+)*(?:(?:i\s+need|i\s+want)(?:\s+you)?(?:\s+to)?|need|want|help\s+me(?:\s+to)?|"
     r"can\s+you|could\s+you|please|handle|manage|find|search|research|look\s+for|"
     r"build|create|fix|review|improve|check|read|organize|take\s+care\s+of|"
     r"nataka|nahitaji|naitaji|nisaidie|naomba|fanya|tafuta|nitafutie|tafutia|panga|"
@@ -183,7 +183,7 @@ def infer_goal_commands(text: str) -> list[dict[str, str]]:
     coding_target = re.search(
         r"\b(?:mr\s*ai|mr-ai-stan|stan\s+dashboard|dashboard|repository|repo|code|coding|"
         r"website|web\s+app|backend|frontend|software|bug|api|agent\s+team|orchestrator|"
-        r"autonomous\s+agent|agent\s+manager|kuji\s+tuma|majukumu)\b",
+        r"autonomous\s+agent|agent\s+manager|agent\s+team|timu\s+ya\s+agent|agents?|kuji\s+tuma|majukumu)\b",
         value,
     )
     creative_target = re.search(
