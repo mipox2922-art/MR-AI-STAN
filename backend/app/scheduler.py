@@ -347,6 +347,16 @@ async def run_pending_coding_verifications(db: Session, limit: int = 5) -> int:
                     )
                     failed_parent = any(str(row.state or "").lower() == "failed" for row in parent_rows)
                     all_verified = bool(parent_rows) and verified_count == len(parent_rows)
+                    waiting_for_hand = False
+                    for row in parent_rows:
+                        try:
+                            step_evidence = json.loads(row.evidence or "{}")
+                        except (TypeError, ValueError):
+                            step_evidence = {}
+                        execution_status = str(step_evidence.get("execution_status") or "").upper()
+                        if execution_status in {"WAITING_FOR_HAND", "NOT_CONNECTED", "WAITING_APPROVAL"}:
+                            waiting_for_hand = True
+                            break
                     parent.progress = int(verified_count / len(parent_rows) * 100) if parent_rows else 0
                     if failed_parent:
                         parent.status = "FAILED"
@@ -354,8 +364,11 @@ async def run_pending_coding_verifications(db: Session, limit: int = 5) -> int:
                     elif all_verified:
                         parent.status = "COMPLETED"
                         parent.error = None
+                    elif waiting_for_hand:
+                        parent.status = "WAITING_FOR_HAND"
                     else:
                         parent.status = "WAITING_FOR_VERIFICATION"
+                    parent_result["status"] = parent.status
                     parent_result["steps"] = mission_steps
                     parent_result["verified_steps"] = verified_count
                     parent_result["total_steps"] = len(parent_rows)
