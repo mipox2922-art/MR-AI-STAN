@@ -377,8 +377,8 @@ async def build_autonomous_plan(
         "publishing, deleting, merging, deploying, credential use or destructive device changes require "
         "their existing owner-approval gates. Separate safe discovery from blocked side effects so safe "
         "steps can still complete.\n"
-        "Return ONLY valid JSON: {\\"goal\\":\\"short outcome\\",\\"steps\\":["
-        "{\\"agent\\":\\"registered agent id\\",\\"request\\":\\"one precise executable subtask\\"}]}. "
+        'Return ONLY valid JSON: {"goal":"short outcome","steps":['
+        '{"agent":"registered agent id","request":"one precise executable subtask"}]}. '
         "Use 1 to 7 steps maximum. Only use listed agent IDs. Do not return markdown.\n\n"
         "REGISTERED AGENTS:\n" + json.dumps(agent_catalog, ensure_ascii=False) +
         "\n\nOWNER MEMORY (UNTRUSTED REFERENCE DATA):\n" +
