@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from .config import settings
 from .database import SessionLocal, get_db
 from .dependencies import get_current_user
-from .models import ActivityLog, Notification, ScheduledJob, Task, User
+from .models import ActivityLog, Notification, ScheduledJob, Task, TaskStep, User
 from .schemas import ScheduleCreate, ScheduleUpdate
 from .task_runner import run_pending_tasks
 from .self_audit import maybe_run_self_audit
@@ -219,6 +219,167 @@ async def run_approved_pending_missions(db: Session, limit: int = 3) -> int:
     return processed
 
 
+async def run_pending_coding_verifications(db: Session, limit: int = 5) -> int:
+    """Poll Coding Agent PR checks and reconcile the parent mission when CI finishes."""
+    from .connectors.coding_workspace import CodingWorkspaceError, get_commit_checks
+
+    rows = (
+        db.query(Task)
+        .filter(
+            Task.agent == "coding",
+            Task.source == "coding_agent",
+            Task.status == "IN_PROGRESS",
+        )
+        .order_by(Task.created_at.asc(), Task.id.asc())
+        .limit(max(1, min(int(limit), 20)))
+        .all()
+    )
+    processed = 0
+    for task in rows:
+        try:
+            result = json.loads(task.result or "{}")
+            if not isinstance(result, dict):
+                continue
+            commit_sha = str(result.get("commit_sha") or "").strip()
+            if not commit_sha:
+                continue
+            checks = await get_commit_checks(commit_sha)
+            ci_status = str(checks.get("status") or "RUNNING").upper()
+            if ci_status not in {"PASSED", "FAILED"}:
+                continue
+
+            now = datetime.utcnow()
+            verified = ci_status == "PASSED"
+            task.status = "COMPLETED" if verified else "FAILED"
+            task.progress = 100 if verified else 25
+            task.error = None if verified else "GitHub Actions checks failed for the Coding Agent commit."
+            result["ci"] = ci_status
+            result["checks"] = checks
+            result["verified_at"] = now.replace(tzinfo=timezone.utc).isoformat()
+            task.result = json.dumps(result, ensure_ascii=False, default=str)
+
+            child_step = (
+                db.query(TaskStep)
+                .filter(TaskStep.task_id == task.id)
+                .order_by(TaskStep.position.asc())
+                .first()
+            )
+            if child_step is None:
+                child_step = TaskStep(
+                    task_id=task.id,
+                    position=1,
+                    title="Verify GitHub Actions for the isolated patch PR",
+                )
+                db.add(child_step)
+            child_step.state = "verified" if verified else "failed"
+            child_step.verified_at = now if verified else None
+            child_step.evidence = json.dumps({
+                "commit_sha": commit_sha,
+                "branch": result.get("branch"),
+                "pull_request": (result.get("pull_request") or {}).get("url"),
+                "ci_status": ci_status,
+                "checks": checks.get("checks") or [],
+                "verified": verified,
+            }, ensure_ascii=False, default=str)
+
+            requested_by = str(task.requested_by or "")
+            match = re.fullmatch(r"mission:(\\d+):(\\d+)", requested_by)
+            if match:
+                mission_id = int(match.group(1))
+                position = int(match.group(2))
+                parent = db.query(Task).filter(
+                    Task.id == mission_id,
+                    Task.user_id == task.user_id,
+                    Task.agent == "orchestrator",
+                    Task.source == "orchestrator",
+                ).first()
+                if parent is not None:
+                    try:
+                        parent_result = json.loads(parent.result or "{}")
+                    except (TypeError, ValueError):
+                        parent_result = {}
+                    if not isinstance(parent_result, dict):
+                        parent_result = {}
+                    mission_steps = parent_result.get("steps") or []
+                    updated_step = next(
+                        (item for item in mission_steps if int(item.get("step") or 0) == position),
+                        None,
+                    )
+                    if updated_step is not None:
+                        updated_step["status"] = "COMPLETED" if verified else "FAILED"
+                        updated_step["verified"] = verified
+                        updated_step["evidence"] = {
+                            **(updated_step.get("evidence") or {}),
+                            "message": (
+                                "GitHub Actions imekamilika: checks zote zimepita."
+                                if verified else
+                                "GitHub Actions imeripoti failure; patch haijathibitishwa."
+                            ),
+                            "ci_status": ci_status,
+                            "checks": checks.get("checks") or [],
+                            "commit_sha": commit_sha,
+                            "pull_request": (result.get("pull_request") or {}).get("url"),
+                            "coding_task_id": task.id,
+                        }
+                        parent_step = db.query(TaskStep).filter(
+                            TaskStep.task_id == parent.id,
+                            TaskStep.position == position,
+                        ).first()
+                        if parent_step is not None:
+                            parent_step.state = "verified" if verified else "failed"
+                            parent_step.verified_at = now if verified else None
+                            parent_step.evidence = json.dumps({
+                                "task_id": parent.id,
+                                "agent": "coding",
+                                "tool": "coding_agent",
+                                "execution_status": updated_step["status"],
+                                "verified": verified,
+                                "output": updated_step["evidence"],
+                                "step_result": updated_step,
+                            }, ensure_ascii=False, default=str)
+
+                    parent_rows = db.query(TaskStep).filter(TaskStep.task_id == parent.id).all()
+                    verified_count = sum(
+                        str(row.state or "").lower() == "verified" and bool(str(row.evidence or "").strip())
+                        for row in parent_rows
+                    )
+                    failed_parent = any(str(row.state or "").lower() == "failed" for row in parent_rows)
+                    all_verified = bool(parent_rows) and verified_count == len(parent_rows)
+                    parent.progress = int(verified_count / len(parent_rows) * 100) if parent_rows else 0
+                    if failed_parent:
+                        parent.status = "FAILED"
+                        parent.error = "A Coding Agent step failed GitHub Actions verification."
+                    elif all_verified:
+                        parent.status = "COMPLETED"
+                        parent.error = None
+                    else:
+                        parent.status = "WAITING_FOR_VERIFICATION"
+                    parent_result["steps"] = mission_steps
+                    parent_result["verified_steps"] = verified_count
+                    parent_result["total_steps"] = len(parent_rows)
+                    parent.result = json.dumps(parent_result, ensure_ascii=False, default=str)
+                    db.add(ActivityLog(
+                        user_id=parent.user_id,
+                        action="MISSION_CODING_CI_VERIFIED" if verified else "MISSION_CODING_CI_FAILED",
+                        details=f"mission_id={parent.id}; coding_task_id={task.id}; commit={commit_sha}; ci={ci_status}",
+                    ))
+
+            db.add(ActivityLog(
+                user_id=task.user_id,
+                action="CODING_AGENT_CI_VERIFIED" if verified else "CODING_AGENT_CI_FAILED",
+                details=f"task_id={task.id}; commit={commit_sha}; ci={ci_status}",
+            ))
+            db.commit()
+            processed += 1
+        except CodingWorkspaceError as exc:
+            db.rollback()
+            logger.warning("Coding verification unavailable: task_id=%s status=%s", task.id, exc.status_code)
+        except Exception as exc:
+            db.rollback()
+            logger.warning("Coding verification failed: task_id=%s error_type=%s", task.id, type(exc).__name__)
+    return processed
+
+
 async def run_scheduler_cycle() -> tuple[int, int]:
     """Run one scheduler cycle at a time across poller and external wake-ups.
 
@@ -248,6 +409,7 @@ async def _run_scheduler_cycle_once() -> tuple[int, int]:
         "application_drafts_ready": 0,
         "job_source_errors": 0,
         "approved_missions_processed": 0,
+        "coding_prs_verified": 0,
         "gmail_users_checked": 0,
         "gmail_messages_processed": 0,
         "gmail_drafts_created": 0,
@@ -284,6 +446,12 @@ async def _run_scheduler_cycle_once() -> tuple[int, int]:
         except Exception as exc:
             db.rollback()
             logger.error("Approved mission dispatcher failed: error_type=%s", type(exc).__name__)
+
+        try:
+            summary["coding_prs_verified"] = await run_pending_coding_verifications(db, limit=5)
+        except Exception as exc:
+            db.rollback()
+            logger.error("Coding Agent verification polling failed: error_type=%s", type(exc).__name__)
 
         try:
             from .gmail_assistant import run_gmail_assistant_cycle
