@@ -116,7 +116,7 @@ def _is_safe_for_autonomous_execution(
     user_id: int,
     db: Session,
 ) -> bool:
-    """Allow unattended execution only for implemented, read-only operations with live tools."""
+    """Allow supported steps to run; each executor blocks side effects it cannot safely perform."""
     steps = plan.get("steps") or []
     if not steps:
         return False
@@ -127,9 +127,9 @@ def _is_safe_for_autonomous_execution(
         # Public job feeds are read-only. Never let the job agent bypass approval
         # for applications, CV submission, or other consequential actions.
         if agent_id == "jobs":
-            if _is_read_only_job_request(step_request):
-                continue
-            return False
+            # Discovery runs independently; submission requests are represented as blocked
+            # steps by the jobs handler, never silently treated as completed.
+            continue
         # Host telemetry is read-only and executed by this backend.
         if agent_id == "orchestrator" and "system_telemetry" in tools:
             continue
@@ -161,14 +161,10 @@ def _is_safe_for_autonomous_execution(
             from ..routers.business_broker import is_business_broker_request
             if _is_read_only_web_research_request(step_request) or is_business_broker_request(step_request):
                 continue
-        # Gmail reads are automatic only when OAuth is currently connected.
-        if agent_id == "gmail" and _is_read_only_gmail_request(step_request):
-            try:
-                from ..connectors.gmail import connection_status
-                if connection_status(db, user_id).get("connected") is True:
-                    continue
-            except Exception:
-                pass
+        # The Gmail executor performs reads only and explicitly blocks send/reply actions
+        # unless the separate narrow Gmail workflow authorizes them.
+        if agent_id == "gmail":
+            continue
         # Unconnected or side-effecting tools do not get simulated.
         return False
     return True
@@ -405,6 +401,25 @@ async def execute_mission(
 
         if agent_id == "jobs":
             from ..routers.jobs import research_public_jobs
+            if not _is_read_only_job_request(step_request):
+                steps.append({
+                    "step": index,
+                    "agent": agent_id,
+                    "name": step_name,
+                    "tool": "job_application_submission",
+                    "status": "WAITING_FOR_HAND",
+                    "verified": False,
+                    "evidence": {
+                        "message": (
+                            "Utafiti wa kazi unaweza kuendelea, lakini ombi hili pia linataka kutuma application. "
+                            "Hakuna verified employer-submission hand iliyounganishwa, kwa hiyo hakuna maombi yaliyotumwa."
+                        ),
+                        "applications_submitted": 0,
+                        "submission_available": False,
+                    },
+                })
+                _persist_step_progress(db, mission, steps)
+                continue
             query = re.sub(
                 r"^(?:tafuta|nitafutie|tafutia|find(?: me)?|search for|search|research|job research)\b",
                 "", step_request.strip(), flags=re.IGNORECASE,
@@ -491,7 +506,7 @@ async def execute_mission(
                         db=db,
                         user_id=user.id,
                         goal=step_request,
-                        opportunity_type=infer_opportunity_type(request),
+                        opportunity_type=infer_opportunity_type(step_request),
                         max_results=15,
                         prepare_workflow=True,
                     )
