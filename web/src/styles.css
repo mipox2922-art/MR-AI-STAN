@@ -9089,7 +9089,7 @@ body.dashboard-canvas-active #root {
 }
 .app-shell .job-metrics {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 10px;
 }
 .app-shell .job-metric {
@@ -9541,6 +9541,9 @@ body.dashboard-canvas-active #root {
 .app-shell .job-application-tracking { margin-top: 12px; }
 .app-shell .job-application-tracking .job-action-row { align-items: center; }
 
+@media (max-width: 1100px) {
+  .app-shell .job-metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
 @media (max-width: 900px) {
   .app-shell .job-local-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .app-shell .job-autopilot-controls { grid-template-columns: minmax(0, 1fr) 1fr; }
