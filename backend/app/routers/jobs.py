@@ -760,6 +760,8 @@ def get_job_autopilot_status(
             "jobs_found": len(rows),
             "drafts_ready": sum(1 for task in rows if task.status == "READY_FOR_REVIEW"),
             "waiting_for_profile": sum(1 for task in rows if task.status == "WAITING_FOR_PROFILE"),
+            "not_eligible": sum(1 for task in rows if task.status == "NOT_ELIGIBLE"),
+            "waiting_for_eligibility": sum(1 for task in rows if task.status == "WAITING_FOR_ELIGIBILITY"),
             "applications_submitted_automatically": 0,
             "failed": sum(1 for task in rows if task.status in {"FAILED", "ERROR"}),
         },
