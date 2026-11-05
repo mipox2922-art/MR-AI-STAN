@@ -67,3 +67,12 @@ def test_explicit_commands_keep_each_agent_inside_its_own_clause():
     assert has_explicit_agent_route("Tengeneza website")
     assert has_explicit_agent_route("Kagua MR AI dashboard")
     assert not has_explicit_agent_route("Habari kaka, unaendeleaje?")
+
+
+
+def test_same_agent_actions_remain_separate_so_unsupported_side_effects_are_not_hidden():
+    plan = build_plan("Find jobs and apply")
+
+    assert [step["agent"] for step in plan["steps"]] == ["jobs", "jobs"]
+    assert [step["request"] for step in plan["steps"]] == ["Find jobs", "apply"]
+    assert select_agents("Find jobs and apply") == ["jobs"]
