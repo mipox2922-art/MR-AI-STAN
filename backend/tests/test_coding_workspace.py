@@ -132,3 +132,69 @@ def test_coding_mutation_mission_reports_the_real_connection_blocker_without_fak
     assert db.query(Task).filter_by(user_id=user.id, agent="orchestrator").count() == 1
     assert db.query(Task).filter_by(user_id=user.id, agent="coding").count() == 0
     db.close()
+
+
+
+def test_coding_mission_prepares_isolated_pr_and_waits_for_ci(monkeypatch):
+    import app.connectors.coding_agent as coding_agent_module
+    import app.connectors.coding_workspace as workspace_module
+
+    db = _test_db()
+    user = SimpleNamespace(id=910)
+    calls = []
+
+    monkeypatch.setattr(coding_agent_module, "coding_agent_status", lambda: {
+        "configured": True,
+        "can_apply": True,
+        "free_provider_available": True,
+        "status": "READY",
+    })
+    monkeypatch.setattr(workspace_module, "coding_workspace_status", lambda: {
+        "configured": True,
+        "base_branch": "main",
+        "repository": "owner/repo",
+    })
+
+    async def fake_plan(request):
+        calls.append(("plan", request))
+        return {
+            "plan": {"plan_id": "plan-1", "summary": "Fix backend bug", "risk": "LOW"},
+            "proposal_signature": "signed-plan",
+        }
+
+    def fake_verify(plan, signature):
+        assert signature == "signed-plan"
+        return plan
+
+    async def fake_apply(plan, signature):
+        calls.append(("apply", plan["plan_id"]))
+        return {
+            "status": "PR_OPENED",
+            "summary": "Fix backend bug",
+            "risk": "LOW",
+            "provider": "gemini",
+            "branch": "mr-ai/coding-agent/plan-1",
+            "commit_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "pull_request": {"url": "https://github.com/owner/repo/pull/10", "number": 10},
+            "changed_files": ["backend/app/example.py"],
+            "tests_to_run": ["pytest -q"],
+        }
+
+    monkeypatch.setattr(coding_agent_module, "plan_coding_task", fake_plan)
+    monkeypatch.setattr(coding_agent_module, "verify_coding_plan", fake_verify)
+    monkeypatch.setattr(coding_agent_module, "apply_coding_plan", fake_apply)
+
+    result = asyncio.run(execute_mission("Fix bug in backend repository", user, db))
+
+    mission = db.query(Task).filter_by(user_id=user.id, agent="orchestrator").one()
+    child = db.query(Task).filter_by(user_id=user.id, agent="coding", source="coding_agent").one()
+    mission_step = db.query(TaskStep).filter_by(task_id=mission.id).one()
+
+    assert calls == [("plan", "Fix bug in backend repository"), ("apply", "plan-1")]
+    assert result["status"] == "WAITING_FOR_VERIFICATION"
+    assert mission.status == "WAITING_FOR_VERIFICATION"
+    assert child.status == "IN_PROGRESS"
+    assert child.requested_by == f"mission:{mission.id}:1"
+    assert mission_step.state == "pending"
+    assert json.loads(mission.result)["steps"][0]["evidence"]["pull_request"]["number"] == 10
+    db.close()
