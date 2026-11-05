@@ -234,6 +234,7 @@ def _persist_step_progress(db: Session, mission: Task, steps: list[dict[str, Any
     if not isinstance(previous_packet, dict):
         previous_packet = {}
     memory_context = previous_packet.get("memory_context") or []
+    saved_plan = previous_packet.get("plan")
     existing = {
         row.position: row
         for row in db.query(TaskStep).filter(TaskStep.task_id == mission.id).all()
@@ -271,6 +272,7 @@ def _persist_step_progress(db: Session, mission: Task, steps: list[dict[str, Any
         "total_steps": len(existing),
         "owner_approved": _mission_explicitly_approved(db, mission),
         "memory_context": memory_context,
+        "plan": saved_plan,
     }, ensure_ascii=False, default=str)
     db.commit()
     db.refresh(mission)
@@ -301,10 +303,24 @@ async def execute_mission(
     mission: Task | None = None,
 ) -> dict[str, Any]:
     """Create an approval proposal first; execute only an already-approved mission."""
-    from .planner import build_plan
+    from .planner import build_autonomous_plan
 
-    plan = build_plan(request)
-    memory_context = recall_relevant_memories(db, user.id, request, limit=5)
+    try:
+        previous_packet = json.loads(mission.result or "{}") if mission is not None else {}
+    except (TypeError, ValueError):
+        previous_packet = {}
+    if not isinstance(previous_packet, dict):
+        previous_packet = {}
+    memory_context = (
+        previous_packet.get("memory_context")
+        if mission is not None and isinstance(previous_packet.get("memory_context"), list)
+        else recall_relevant_memories(db, user.id, request, limit=5)
+    )
+    saved_plan = previous_packet.get("plan") if mission is not None else None
+    if isinstance(saved_plan, dict) and isinstance(saved_plan.get("steps"), list) and saved_plan.get("steps"):
+        plan = saved_plan
+    else:
+        plan = await build_autonomous_plan(request, memory_context=memory_context)
     if mission is None:
         auto_execute = _is_safe_for_autonomous_execution(plan, request, user.id, db)
         proposed = Task(
@@ -318,7 +334,7 @@ async def execute_mission(
             requested_by="MR AI Orchestrator",
             approved_by=user.id if auto_execute else None,
             progress=0,
-            result=json.dumps({"memory_context": memory_context}, ensure_ascii=False, default=str),
+            result=json.dumps({"memory_context": memory_context, "plan": plan}, ensure_ascii=False, default=str),
         )
         db.add(proposed)
         db.flush()

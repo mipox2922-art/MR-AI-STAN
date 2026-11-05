@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from ..models import Execution, ActivityLog, ApprovalRequest, Task, TaskStep
 from ..audit import record_safe_error
 from .intent import classify
+from ..orchestration.planner import has_multiple_agent_routes
 
 
 async def run(user_id: int, text: str, db: Session) -> dict:
@@ -22,7 +23,7 @@ async def run(user_id: int, text: str, db: Session) -> dict:
     # Public job-feed research is read-only and does not submit applications.
     # Run it directly so a normal "tafuta kazi" request never becomes a
     # meaningless approval request that blocks the user's actual goal.
-    if intent.name == "JOB_RESEARCH":
+    if intent.name == "JOB_RESEARCH" and not has_multiple_agent_routes(request):
         words = request.strip(" :,-").split()
         prefixes = (
             ("nitafutie",), ("tafutia",), ("tafuta",),

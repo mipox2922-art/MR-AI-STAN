@@ -46,7 +46,7 @@ from ..realtime import manager
 from ..schemas import ChatRequest, ChatResponse
 from ..core.intent import classify
 from ..core.orchestrator import run as run_orchestration
-from ..orchestration.planner import has_explicit_agent_route
+from ..orchestration.planner import has_autonomous_goal, has_multiple_agent_routes
 
 # ==============================================================================
 # CONSTANTS & CONFIGURATION
@@ -693,7 +693,7 @@ async def chat(data: ChatRequest, current_user: User = Depends(get_current_user)
         intent = classify(data.message)
         context = data.tool_context or {}
         provider_name = data.provider
-        if intent.name != "CHAT" or has_explicit_agent_route(data.message):
+        if intent.name != "CHAT" or has_autonomous_goal(data.message):
             try:
                 orchestration_result = await run_orchestration(current_user.id, data.message, db)
             except Exception as exc:
@@ -709,7 +709,7 @@ async def chat(data: ChatRequest, current_user: User = Depends(get_current_user)
             if orchestration_status == "WAITING_APPROVAL":
                 answer = f"Kitendo {intent.name} kinasubiri idhini ya Boss Ferisi. Approval ID: {orchestration_result.get('approval_id', 'Haijathibitishwa')}."
                 provider_name = "orchestrator"
-            elif intent.name == "JOB_RESEARCH":
+            elif intent.name == "JOB_RESEARCH" and not has_multiple_agent_routes(data.message):
                 # Deliver verified job-feed results directly. A provider outage
                 # must not turn a successful read-only search into a failed chat.
                 answer = _format_job_research_reply(orchestration_result)

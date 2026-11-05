@@ -85,3 +85,82 @@ def test_descriptive_tail_after_agent_command_is_not_dropped():
     assert len(plan["steps"]) == 1
     assert plan["steps"][0]["agent"] == "creative"
     assert plan["steps"][0]["request"] == "Create logo na banner"
+
+
+
+def test_natural_language_goal_is_delegated_without_naming_agents():
+    from app.orchestration.planner import has_autonomous_goal, has_multiple_agent_routes
+
+    request = "I need you to find remote jobs and check my Gmail inbox"
+
+    assert has_autonomous_goal(request)
+    assert has_multiple_agent_routes(request)
+    assert select_agents(request) == ["jobs", "gmail"]
+
+
+def test_broad_owner_goal_assigns_research_and_jobs_specialists():
+    request = "I need more clients and remote job opportunities"
+
+    assert select_agents(request) == ["jobs", "research"]
+    plan = build_plan(request)
+    assert [step["agent"] for step in plan["steps"]] == ["jobs", "research"]
+    assert all(step["request"] for step in plan["steps"])
+
+
+def test_explanatory_question_does_not_start_agent_work():
+    from app.orchestration.planner import has_autonomous_goal
+
+    assert not has_autonomous_goal("Can you explain remote jobs?")
+    assert not has_autonomous_goal("Nielezee kuhusu email automation")
+
+
+def test_manager_plan_uses_free_ai_and_validates_agent_assignments(monkeypatch):
+    import asyncio
+    import json
+    import app.routers.ai as ai_module
+    import app.routers.system as system_module
+    from app.orchestration.planner import build_autonomous_plan
+
+    monkeypatch.setattr(system_module, "_default_ai_provider", lambda: ("openrouter", "openrouter/free", "OPENROUTER_FREE"))
+    calls = {}
+
+    async def fake_reply(provider, prompt, timeout=85):
+        calls.update(provider=provider, prompt=prompt, timeout=timeout)
+        return json.dumps({
+            "goal": "Find employment and clients",
+            "steps": [
+                {"agent": "jobs", "request": "Search remote jobs matching the owner's skills"},
+                {"agent": "research", "request": "Find prospective clients for MOOG Digital"},
+                {"agent": "unknown-agent", "request": "Do unrelated work"},
+            ],
+        }), "openrouter"
+
+    monkeypatch.setattr(ai_module, "generate_reply_with_fallback", fake_reply)
+    plan = asyncio.run(build_autonomous_plan("I need more clients and remote job opportunities"))
+
+    assert calls["provider"] == "openrouter"
+    assert calls["timeout"] == 18
+    assert plan["planner"] == "free_ai_manager:openrouter"
+    assert [step["agent"] for step in plan["steps"]] == ["jobs", "research"]
+    assert all(step["status"] == "PLANNED" for step in plan["steps"])
+
+
+def test_manager_plan_falls_back_to_deterministic_routing_when_free_provider_missing(monkeypatch):
+    import asyncio
+    import app.routers.system as system_module
+    from app.orchestration.planner import build_autonomous_plan
+
+    monkeypatch.setattr(system_module, "_default_ai_provider", lambda: (None, None, None))
+    plan = asyncio.run(build_autonomous_plan("I need more clients and remote job opportunities"))
+
+    assert plan["planner"] == "deterministic_goal_routing"
+    assert [step["agent"] for step in plan["steps"]] == ["jobs", "research"]
+
+
+
+def test_owner_can_describe_autonomous_agent_goal_naturally_in_swahili():
+    request = (
+        "Sasa naitaji MR AI aweze kuji tuma mwenyewe majukumu, "
+        "ana timu ya agent na mimi napitia alichofanya"
+    )
+    assert select_agents(request) == ["coding"]
