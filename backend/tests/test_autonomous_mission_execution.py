@@ -63,7 +63,7 @@ def test_connected_gmail_read_executes_real_read_only_connector(monkeypatch):
     db.close()
 
 
-def test_gmail_not_connected_waits_for_approval_without_claiming_execution(monkeypatch):
+def test_gmail_not_connected_reports_specific_blocker_without_fake_execution(monkeypatch):
     import app.connectors.gmail as gmail_module
 
     db = make_db()
@@ -78,12 +78,12 @@ def test_gmail_not_connected_waits_for_approval_without_claiming_execution(monke
     result = asyncio.run(execute_mission("Soma email zangu", user, db))
 
     task = db.query(Task).one()
-    assert result["status"] == "WAITING_APPROVAL"
-    assert task.status == "WAITING_APPROVAL"
-    assert task.approved_by is None
-    assert db.query(ApprovalRequest).count() == 1
-    assert db.query(TaskStep).filter_by(task_id=task.id).count() == 1
-    assert db.query(TaskStep).filter_by(task_id=task.id).one().state == "pending"
+    step = db.query(TaskStep).filter_by(task_id=task.id).one()
+    assert result["status"] == "WAITING_FOR_HAND"
+    assert task.status == "WAITING_FOR_HAND"
+    assert step.state == "pending"
+    assert "OAuth" in step.evidence
+    assert db.query(ApprovalRequest).count() == 0
     db.close()
 
 
