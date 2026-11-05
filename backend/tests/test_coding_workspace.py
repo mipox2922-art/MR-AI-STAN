@@ -7,7 +7,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.database import Base
-from app.models import Task
+from app.models import Task, TaskStep
 from app.orchestration.executor import execute_mission
 from app.orchestration.planner import select_agents
 
