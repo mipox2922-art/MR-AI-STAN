@@ -9576,3 +9576,28 @@ body.dashboard-canvas-active #root {
   .app-shell .job-draft-heading { align-items: flex-start; flex-direction: column; gap: 4px; }
   .app-shell .job-action-row button { flex: 1 1 auto; }
 }
+
+
+/* Explicit country-eligibility evidence in job research */
+.app-shell .job-eligibility-note {
+  margin: 8px 0;
+  padding: 8px 10px;
+  border-left: 2px solid rgba(255,190,90,.58);
+  border-radius: 0 6px 6px 0;
+  background: rgba(255,190,90,.045);
+  color: #e3bc80;
+  font-size: 10px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.app-shell .job-eligibility-note strong {
+  color: #f0c27a;
+  font-size: 9px;
+  letter-spacing: .45px;
+}
+.app-shell .job-eligibility-note.is-eligible {
+  border-left-color: rgba(94,225,161,.55);
+  background: rgba(94,225,161,.04);
+  color: #9dceba;
+}
+.app-shell .job-eligibility-note.is-eligible strong { color: #76e7ad; }
