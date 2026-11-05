@@ -85,20 +85,21 @@ def test_safe_system_status_mission_runs_without_manual_approval(monkeypatch):
     assert "verified" in (step.evidence or "").lower() or "ONLINE" in (step.evidence or "")
 
 
-def test_orchestrator_mission_starts_as_approval_proposal_and_runs_nothing():
+def test_unsafe_browser_mission_is_scoped_and_held_without_enqueuing_submission():
     db = make_db()
     user = SimpleNamespace(id=1)
     import asyncio
     result = asyncio.run(execute_mission("open browser and submit form", user, db))
     task = db.query(Task).one()
-    approval = db.query(ApprovalRequest).one()
-    assert result["status"] == "WAITING_APPROVAL"
-    assert task.status == "WAITING_APPROVAL"
+    steps = db.query(TaskStep).filter_by(task_id=task.id).all()
+    assert result["status"] in {"WAITING_FOR_HAND", "WAITING_FOR_VERIFICATION"}
+    assert task.status in {"WAITING_FOR_HAND", "WAITING_FOR_VERIFICATION"}
     assert task.source == "orchestrator"
-    assert task.approved_by is None
-    assert approval.status == "PENDING"
-    assert db.query(TaskStep).filter_by(task_id=task.id).count() >= 1
-    assert all(step.state == "pending" and not step.evidence for step in db.query(TaskStep).filter_by(task_id=task.id).all())
+    assert len(steps) >= 1
+    assert db.query(ApprovalRequest).count() == 0
+    browser_tasks = db.query(Task).filter_by(user_id=user.id, agent="browser", source="browser_hands").all()
+    assert all(row.status != "QUEUED" for row in browser_tasks)
+    db.close()
 
 
 def test_agent_proposal_is_waiting_approval():
