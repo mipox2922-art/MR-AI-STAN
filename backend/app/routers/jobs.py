@@ -71,6 +71,8 @@ def _tanzania_job_eligibility(job: dict[str, Any]) -> tuple[str, str]:
         rf"(?:the\s+)?{restricted_country}\b",
         rf"\b{restricted_country}\s+(?:residents?|applicants?|candidates?)\s+only\b",
         rf"\b(?:remote|work from home)\s*[-–:]\s*(?:the\s+)?{restricted_country}\b",
+        r"\b(?:us|u\.s\.?|american|canadian|uk)\s+(?:citizens?|nationals?)\s+only\b",
+        r"\b(?:must be|requires? applicants? to be)\s+(?:a\s+)?(?:us|u\.s\.?|american|canadian|uk)\s+(?:citizen|national)s?\b",
     )
     if any(re.search(pattern, description_text, re.IGNORECASE) for pattern in restriction_patterns):
         return (
