@@ -20,10 +20,12 @@ _COMMAND_ROUTES: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("jobs", (
         r"^(?:remote\s+jobs?|job\s+search|search\s+jobs?|find\s+jobs?|job\s+research)\b",
         r"^(?:nitafutie|tafutia|tafuta|find(?:\s+me)?|search(?:\s+for)?|research|apply|omba)\b.*\b(?:kazi|ajira|jobs?|employment|position|career|nafasi)\b",
+        r"^(?:apply|submit|omba|tuma\s+(?:maombi|cv)|send\s+(?:my\s+)?cv)\b",
     )),
     ("gmail", (
         r"^(?:email|emails|gmail|inbox|barua\s+pepe)\b",
         r"^(?:soma|read|show|check|angalia|tafuta|search|find|onyesha|nipe|jibu|reply|draft|send|tuma|sambaza|forward)\b.*\b(?:email|emails|mail|gmail|inbox|barua\s+pepe)\b",
+        r"^(?:jibu|reply|draft|send|tuma)\b",
     )),
     ("browser", (
         r"^(?:soma\s+ukurasa|read\s+(?:the\s+)?page|show\s+(?:the\s+)?page|angalia\s+ukurasa)\b",
@@ -75,11 +77,7 @@ def explicit_agent_commands(text: str) -> list[dict[str, str]]:
     for clause in command_clauses(text):
         for agent_id, patterns in _COMMAND_ROUTES:
             if any(re.search(pattern, clause, flags=re.IGNORECASE) for pattern in patterns):
-                existing = next((item for item in commands if item["agent"] == agent_id), None)
-                if existing:
-                    existing["request"] += " na " + clause
-                else:
-                    commands.append({"agent": agent_id, "request": clause})
+                commands.append({"agent": agent_id, "request": clause})
                 break
     return commands
 
@@ -91,7 +89,7 @@ def has_explicit_agent_route(text: str) -> bool:
 
 def select_agents(text: str) -> list[str]:
     commands = explicit_agent_commands(text)
-    return [item["agent"] for item in commands] or ["research"]
+    return list(dict.fromkeys(item["agent"] for item in commands)) or ["research"]
 
 
 def build_plan(text: str) -> dict[str, Any]:
@@ -119,7 +117,7 @@ def build_plan(text: str) -> dict[str, Any]:
     return {
         "request": request,
         "status": "PLANNED",
-        "agents": [definitions[item["agent"]].name for item in commands],
+        "agents": list(dict.fromkeys(definitions[item["agent"]].name for item in commands)),
         "steps": steps,
         "verification": [
             "Every external action must return a verified result from its actual execution tool.",
