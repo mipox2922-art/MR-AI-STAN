@@ -64,7 +64,7 @@ def command_clauses(text: str) -> list[str]:
         return []
     return [
         clause.strip().strip(" .;,:")
-        for clause in re.split(r"\\s+(?:na|kisha|halafu|and\\s+then|and|then)\\s+", value, flags=re.IGNORECASE)
+        for clause in re.split(r"\s+(?:na|kisha|halafu|and\s+then|and|then)\s+", value, flags=re.IGNORECASE)
         if clause.strip().strip(" .;,:")
     ]
 
