@@ -122,7 +122,11 @@ def run_due_jobs(db: Session, now: Optional[datetime] = None) -> int:
                 description=job.command,
                 status="PENDING",
                 priority="NORMAL",
-                agent="scheduler",
+                agent="orchestrator",
+                source="orchestrator",
+                requested_by=f"schedule:{job.id}"[:100],
+                approved_by=job.user_id,
+                approved_at=now,
             )
         )
         db.add(
