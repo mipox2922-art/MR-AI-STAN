@@ -257,7 +257,7 @@ def infer_goal_commands(text: str) -> list[dict[str, str]]:
     if security_target:
         add("security", "Perform only the requested defensive security check for this owner goal: " + request[:900])
     if shop_target:
-        add("shop", "Read and audit 343Shop products, recent orders and store overview; do not change prices or send customer messages: " + request[:900])
+        add("shop", "Run a read-only audit of 343Shop products, recent orders and store overview: " + request[:900])
 
     if schedule_target:
         add("scheduler", "Create or inspect only the requested schedule for this owner goal: " + request[:900])
