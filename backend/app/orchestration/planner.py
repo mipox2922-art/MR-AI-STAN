@@ -264,9 +264,9 @@ def infer_goal_commands(text: str) -> list[dict[str, str]]:
         add("scheduler", "Create or inspect only the requested schedule for this owner goal: " + request[:900])
 
     if owner_wide_target:
-        add("jobs", "Review remote and freelance job opportunities matching the owner's saved skills; do not submit applications: " + request[:650])
+        add("jobs", "Search remote jobs matching the owner's saved skills; do not submit applications: " + request[:650])
         add("gmail", "Review the owner's inbox for recruitment, business, customer and shop messages; do not send or modify messages: " + request[:650])
-        add("research", "Review MOOG Digital Printing & Branding opportunities and source-backed prospective clients: " + request[:650])
+        add("research", "Research MOOG Digital Printing & Branding and find source-backed prospective clients: " + request[:650])
         add("shop", "Audit 343Shop products, recent orders and store performance using the private store API: " + request[:650])
         add("coding", "Inspect the MR AI STAN project health and report only changes essential to keeping the owner's command center operational: " + request[:650])
         add("scheduler", "Show owner schedules and outstanding reminders; report next due and overdue follow-ups: " + request[:650])
