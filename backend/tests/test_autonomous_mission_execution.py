@@ -351,3 +351,47 @@ def test_compound_job_search_runs_while_submission_is_reported_as_blocked(monkey
     assert packet["steps"][1]["evidence"]["applications_submitted"] == 0
     assert mission.status == "WAITING_FOR_HAND"
     db.close()
+
+
+def test_343shop_mission_executes_verified_read_only_store_snapshot(monkeypatch):
+    import app.connectors.shop as shop_module
+
+    db = make_db()
+    user = SimpleNamespace(id=73)
+
+    async def fake_snapshot(product_limit=40, order_limit=20):
+        return {
+            "status": "COMPLETED",
+            "store": "343SHOP",
+            "verified": True,
+            "generated_at": "2026-11-06T08:00:00Z",
+            "overview": {
+                "products": {"total": 12, "active": 10, "inactive": 2, "own": 8, "partner": 4},
+                "orders": {"total": 3, "byStatus": {"pending_payment": 3}, "pendingPayment": 3},
+            },
+            "products": [{"slug": "logo-pack", "name": "Logo Pack", "priceCents": 2500}],
+            "orders": [{"id": "ORDER-1", "status": "pending_payment", "totals": {"totalCents": 2500}}],
+            "limitations": ["Pending orders are not paid revenue."],
+        }
+
+    monkeypatch.setattr(shop_module, "shop_snapshot", fake_snapshot)
+    result = asyncio.run(execute_mission("Kagua 343Shop bidhaa na oda mpya", user, db))
+
+    task = db.query(Task).one()
+    step = db.query(TaskStep).filter_by(task_id=task.id).one()
+    evidence = json.loads(step.evidence)
+
+    assert result["status"] == "COMPLETED"
+    assert task.status == "COMPLETED"
+    assert step.state == "verified"
+    assert evidence["verified"] is True
+    assert evidence["step_result"]["evidence"]["products"]["total"] == 12
+    assert evidence["step_result"]["evidence"]["orders"]["pending_value_is_revenue"] is False
+    db.close()
+
+
+def test_343shop_product_write_is_not_treated_as_read_only(monkeypatch):
+    from app.orchestration.executor import _is_read_only_shop_request
+
+    assert _is_read_only_shop_request("Kagua 343Shop catalog and orders")
+    assert not _is_read_only_shop_request("Badilisha bei ya product kwenye 343Shop")
