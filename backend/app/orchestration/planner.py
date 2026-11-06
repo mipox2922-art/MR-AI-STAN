@@ -261,7 +261,7 @@ def infer_goal_commands(text: str) -> list[dict[str, str]]:
         add("shop", "Run a read-only audit of 343Shop products, recent orders and store overview: " + request[:900])
 
     if schedule_target:
-        if re.search(r"^(?:show|list|view|check|onyesha|orodhesha|kagua|angalia)\\b", value):
+        if re.search(r"^(?:show|list|view|check|onyesha|orodhesha|kagua|angalia)\b", value):
             add("scheduler", "Show my schedules")
         else:
             add("scheduler", request[:900])
