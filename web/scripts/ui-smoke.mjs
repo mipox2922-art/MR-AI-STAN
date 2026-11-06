@@ -244,31 +244,31 @@ async function apiMock(route) {
     status: "COMPLETED",
     generated_at: "2026-10-29T10:00:00Z",
     timezone: "Africa/Dar_es_Salaam",
-    agents: { total: 8, working: 1, waiting: 7, fleet: [] },
+    agents: { total: 8, working: 0, waiting: 8, fleet: [] },
     tasks: {
       total: 4, completed: 1, working: 0, waiting: 3, failed: 0,
       counts: { COMPLETED: 1, WAITING_FOR_PROFILE: 1, WAITING_FOR_ELIGIBILITY: 1, WAITING_FOR_HAND: 1 },
       items: [
         {
-          id: 910, title: "E2E verified memory task", source: "agent", requested_by: "Boss Ferisi",
+          id: 920, title: "E2E verified memory task", source: "agent", requested_by: "Boss Ferisi",
           agent: "memory", status: "COMPLETED", priority: "NORMAL", progress: 100,
           verified_steps: 1, step_count: 1, steps: [{ id: 1, title: "Save evidence", state: "verified", has_evidence: true }], error: null,
           next_action: "Hatua zote zimethibitishwa kwa ushahidi."
         },
         {
-          id: 911, title: "Remote role profile review", source: "autopilot", requested_by: "Boss Ferisi",
+          id: 921, title: "Remote role profile review", source: "autopilot", requested_by: "Boss Ferisi",
           agent: "jobs", status: "WAITING_FOR_PROFILE", priority: "NORMAL", progress: 0,
           verified_steps: 0, step_count: 1, steps: [{ id: 2, title: "Check profile", state: "pending", has_evidence: false }], error: null,
           next_action: "Kamilisha taarifa za profile."
         },
         {
-          id: 912, title: "Remote role eligibility check", source: "autopilot", requested_by: "Boss Ferisi",
+          id: 922, title: "Remote role eligibility check", source: "autopilot", requested_by: "Boss Ferisi",
           agent: "jobs", status: "WAITING_FOR_ELIGIBILITY", priority: "NORMAL", progress: 0,
           verified_steps: 0, step_count: 1, steps: [{ id: 3, title: "Check eligibility", state: "pending", has_evidence: false }], error: null,
           next_action: "Thibitisha masharti ya nafasi."
         },
         {
-          id: 913, title: "Gmail follow-up review", source: "agent", requested_by: "Boss Ferisi",
+          id: 923, title: "Gmail follow-up review", source: "agent", requested_by: "Boss Ferisi",
           agent: "gmail", status: "WAITING_FOR_HAND", priority: "NORMAL", progress: 0,
           verified_steps: 0, step_count: 1, steps: [{ id: 4, title: "Check OAuth", state: "pending", has_evidence: false }], error: null,
           next_action: "Unganisha Gmail OAuth."
