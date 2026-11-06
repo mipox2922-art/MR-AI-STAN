@@ -734,7 +734,7 @@ async function main() {
     await page.waitForFunction(expected => document.querySelector(".cc-quick-head strong")?.textContent?.includes(expected), label, { timeout: 7000 });
   }
   await page.getByText("LIMITED FALLBACK READY", { exact: true }).waitFor({ state: "visible", timeout: 7000 });
-  await page.getByText("Wikipedia and Hacker News", { exact: false }).waitFor({ state: "visible", timeout: 7000 });
+  await page.getByText("Wikipedia na Hacker News", { exact: false }).waitFor({ state: "visible", timeout: 7000 });
   const dashboardSearch = page.locator(".cc-research-search input");
   await dashboardSearch.fill("MR AI smoke query");
   await dashboardSearch.press("Enter");
