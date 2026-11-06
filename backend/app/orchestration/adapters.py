@@ -80,9 +80,16 @@ def execute_scheduler_request(db: Session, user_id: int, request: str) -> dict[s
         .limit(50)
         .all()
     )
-    wants_list = any(term in lowered for term in ("list", "show", "view", "check", "onyesha", "angalia", "ratiba zangu", "reminders"))
-    wants_create = any(term in lowered for term in ("remind", "reminder", "schedule", "ratiba", "kumbusha", "kumbusho", "panga"))
-    if wants_list and not wants_create:
+    wants_list = any(term in lowered for term in (
+        "list", "show", "view", "check", "onyesha", "angalia", "ratiba zangu", "reminders", "ratiba zilizopo"
+    ))
+    explicit_create = bool(re.search(
+        r"\\b(?:remind(?: me)?|set (?:a )?reminder|create (?:a )?(?:reminder|schedule)|"
+        r"add (?:a )?(?:reminder|schedule)|schedule\\s+(?!list\\b)|panga|kumbusha|kumbusho)\\b",
+        lowered,
+    ))
+    wants_create = explicit_create
+    if wants_list and not explicit_create:
         return {
             "status": "COMPLETED",
             "verified": True,
