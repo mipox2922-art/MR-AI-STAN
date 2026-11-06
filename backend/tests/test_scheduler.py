@@ -4,8 +4,8 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.database import Base
-from app.models import Notification, ScheduledJob, Task
-from app.scheduler import run_due_jobs
+from app.models import Notification, ScheduledJob, Setting, Task, User
+from app.scheduler import run_chief_of_staff_cycle, run_due_jobs
 from app.routers.scheduler import run_schedule_now
 
 
@@ -146,4 +146,56 @@ def test_due_schedule_queues_an_owner_approved_orchestrator_mission():
     assert task.source == "orchestrator"
     assert task.approved_by == 17
     assert task.description == "Review 343Shop and Gmail"
+    db.close()
+
+
+
+def test_chief_of_staff_starts_one_daily_self_initiated_moog_research_mission(monkeypatch):
+    import asyncio
+    from app import scheduler as scheduler_module
+
+    db = make_db()
+    user = User(username="owner", password_hash="test-hash")
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    calls = []
+
+    async def fake_execute_mission(goal, owner, session):
+        calls.append((goal, owner.id))
+        mission = Task(
+            user_id=owner.id,
+            title="MOOG lead research",
+            description=goal,
+            status="COMPLETED",
+            agent="orchestrator",
+            source="orchestrator",
+            requested_by="MR AI Orchestrator",
+            approved_by=owner.id,
+            progress=100,
+        )
+        session.add(mission)
+        session.commit()
+        session.refresh(mission)
+        return {"status": "COMPLETED", "mission": {"id": mission.id, "status": mission.status}}
+
+    monkeypatch.setattr(
+        "app.orchestration.executor.execute_mission",
+        fake_execute_mission,
+    )
+    first = asyncio.run(run_chief_of_staff_cycle(db))
+    second = asyncio.run(run_chief_of_staff_cycle(db))
+
+    assert first["users_checked"] == 1
+    assert first["missions_started"] == 1
+    assert first["missions_completed"] == 1
+    assert second["missions_started"] == 0
+    assert len(calls) == 1
+    mission = db.query(Task).one()
+    assert mission.requested_by == scheduler_module.CHIEF_OF_STAFF_REQUESTED_BY
+    assert "MOOG Digital Printing & Branding" in mission.description
+    assert db.query(Setting).filter(
+        Setting.user_id == user.id,
+        Setting.key == scheduler_module.CHIEF_OF_STAFF_CYCLE_KEY,
+    ).count() == 1
     db.close()
