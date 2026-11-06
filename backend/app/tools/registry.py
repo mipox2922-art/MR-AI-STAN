@@ -162,7 +162,7 @@ def get_tool_registry() -> list[dict[str, Any]]:
             "id": "343shop",
             "name": "343Shop Owner Operations",
             "category": "COMMERCE",
-            "status": "CONNECTED" if shop.get("configured") else "NOT_CONNECTED",
+            "status": "AVAILABLE" if shop.get("configured") else "NOT_CONNECTED",
             "mode": "CLOUDFLARE_WORKER_API",
             "free": True,
             "owner_dashboard": "CONFIGURED" if shop.get("owner_dashboard_configured") else "OWNER_SECRET_REQUIRED",
