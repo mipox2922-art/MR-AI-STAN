@@ -149,7 +149,7 @@ def build_plan(text: str) -> dict[str, Any]:
 
 _ACTION_PREFIX = re.compile(
     r"^(?:(?:sasa|now)\s+)*(?:(?:i\s+need|i\s+want)(?:\s+you)?(?:\s+to)?|need|want|help\s+me(?:\s+to)?|"
-    r"can\s+you|could\s+you|please|handle|manage|find|search|research|look\s+for|"
+    r"can\s+you|could\s+you|please|handle|manage|find|search|show|list|view|research|look\s+for|"
     r"build|create|fix|review|improve|check|read|organize|take\s+care\s+of|"
     r"nataka|nahitaji|naitaji|nisaidie|naomba|fanya|tafuta|nitafutie|tafutia|panga|"
     r"boresha|rekebisha|kagua|soma|angalia|onyesha|orodhesha|fungua|simamia|fuatilia)\b",
@@ -177,7 +177,7 @@ def infer_goal_commands(text: str) -> list[dict[str, str]]:
 
     owner_wide_target = re.search(
         r"\b(?:kila\s+kitu|shughuli\s+zangu(?:\s+zote)?|kazi\s+zangu(?:\s+zote)?|"
-        r"majukumu(?:\s+(?:yangu|yake))?(?:\s+(?:yote|unayajua|unayoyajua))?|"
+        r"majukumu\s+(?:yangu(?:\s+yote)?|yake\s+(?:unayajua|unayoyajua)|yote|unayajua|unayoyajua)|"
         r"biashara\s+zangu(?:\s+zote)?|manage\s+everything|take\s+care\s+of\s+everything|"
         r"all\s+my\s+(?:work|responsibilities|operations)|run\s+my\s+operations)\b",
         value,
@@ -249,7 +249,7 @@ def infer_goal_commands(text: str) -> list[dict[str, str]]:
 
     if client_target:
         add("research", "Find and rank prospective clients or business leads for this owner goal: " + request[:900])
-    if coding_target:
+    if coding_target and not owner_wide_target:
         add("coding", "Inspect and implement only the changes required in the MR AI project to satisfy this owner goal: " + request[:900])
     if creative_target:
         add("creative", "Create only the requested visual deliverable for this owner goal: " + request[:900])
@@ -261,7 +261,10 @@ def infer_goal_commands(text: str) -> list[dict[str, str]]:
         add("shop", "Run a read-only audit of 343Shop products, recent orders and store overview: " + request[:900])
 
     if schedule_target:
-        add("scheduler", "Create or inspect only the requested schedule for this owner goal: " + request[:900])
+        if re.search(r"^(?:show|list|view|check|onyesha|orodhesha|kagua|angalia)\\b", value):
+            add("scheduler", "Show my schedules")
+        else:
+            add("scheduler", request[:900])
 
     if owner_wide_target:
         add("jobs", "Search remote jobs matching the owner's saved skills; do not submit applications: " + request[:650])
