@@ -762,8 +762,8 @@ async function main() {
   await dashboardChatInput.fill("kwanini");
   await page.locator(".cc-chat-panel .chat-input > button").last().click();
   await page.locator(".cc-chat-panel .messages").getByText("Sababu hizi zimetolewa kwenye Task records", { exact: false }).waitFor({ state: "visible", timeout: 7000 });
-  await page.locator(".cc-chat-panel .messages").getByText("WAITING_FOR_ELIGIBILITY", { exact: false }).waitFor({ state: "visible", timeout: 7000 });
-  await page.locator(".cc-chat-panel .messages").getByText("WAITING_FOR_PROFILE", { exact: false }).waitFor({ state: "visible", timeout: 7000 });
+  await page.locator(".cc-chat-panel .messages").getByText("WAITING_FOR_ELIGIBILITY", { exact: false }).first().waitFor({ state: "visible", timeout: 7000 });
+  await page.locator(".cc-chat-panel .messages").getByText("WAITING_FOR_PROFILE", { exact: false }).first().waitFor({ state: "visible", timeout: 7000 });
   assert.equal(delayedChatRequests, chatCallsBeforeStatus, "Task status explanations must use the saved briefing, not a second LLM guess.");
   completedChecks.push("informal Swahili task status and why follow-up use authoritative briefing counts");
 
