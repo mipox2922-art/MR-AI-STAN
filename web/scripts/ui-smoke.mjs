@@ -20,6 +20,7 @@ const taskSummaryProbe = getTaskSummary([
   { id: 6, agent: "coding", status: "RUNNING" },
   { id: 7, agent: "research", status: "FAILED" },
   { id: 8, agent: "memory", status: "COMPLETED", step_count: 1, verified_steps: 1 },
+  { id: 9, agent: "jobs", status: "WAITING_FOR_ELIGIBILITY" },
 ]);
 assert.deepEqual(
   {
@@ -30,10 +31,10 @@ assert.deepEqual(
     completed: taskSummaryProbe.completed,
     workingNow: taskSummaryProbe.workingNow,
   },
-  { total: 8, inProgress: 2, waiting: 4, failed: 1, completed: 1, workingNow: 1 },
+  { total: 9, inProgress: 2, waiting: 5, failed: 1, completed: 1, workingNow: 1 },
   "Agent/task dashboard counts must match the real task lifecycle states."
 );
-completedChecks.push("task lifecycle summary counts profile, review, hand and approval states");
+completedChecks.push("task lifecycle summary counts profile, eligibility, review, hand and approval states");
 let mockTasks = [];
 let mockMemories = [{ id: 1, key: "preferred_language", value: "Swahili" }];
 let mockSchedules = [];
@@ -79,7 +80,7 @@ let mockJobAutopilot = {
 };
 const services = {
   ai_core: "CONFIGURED", database: "ONLINE", memory: "ONLINE", web_app: "ONLINE",
-  agents: "REGISTERED", web_search: "CONFIGURED", security: "CONFIGURED", voice: "NOT_CONFIGURED", extension: "NOT_CONNECTED",
+  agents: "REGISTERED", web_search: "AVAILABLE", security: "CONFIGURED", voice: "NOT_CONFIGURED", extension: "NOT_CONNECTED",
   gemini: "CONFIGURED", kimi: "NOT_CONFIGURED", openrouter: "CONFIGURED",
   mistral: "CONFIGURED", grok: "CONFIGURED", gmail: "NOT_CONFIGURED",
 };
@@ -243,21 +244,47 @@ async function apiMock(route) {
     status: "COMPLETED",
     generated_at: "2026-10-29T10:00:00Z",
     timezone: "Africa/Dar_es_Salaam",
-    agents: { total: 8, working: 1, waiting: 7, fleet: [] },
+    agents: { total: 8, working: 0, waiting: 8, fleet: [] },
     tasks: {
-      total: 2, completed: 1, working: 1, waiting: 0, failed: 0,
-      counts: { COMPLETED: 1, IN_PROGRESS: 1 },
-      items: [{
-        id: 910, title: "E2E verified coding task", source: "agent", requested_by: "Boss Ferisi",
-        agent: "coding", status: "IN_PROGRESS", priority: "NORMAL", progress: 50,
-        verified_steps: 1, step_count: 2, steps: [], error: null,
-        next_action: "Finish regression tests before marking this task completed."
-      }],
+      total: 5, completed: 1, working: 1, waiting: 3, failed: 0,
+      counts: { COMPLETED: 1, IN_PROGRESS: 1, WAITING_FOR_PROFILE: 1, WAITING_FOR_ELIGIBILITY: 1, WAITING_FOR_HAND: 1 },
+      items: [
+        {
+          id: 919, title: "E2E verified coding task", source: "agent", requested_by: "Boss Ferisi",
+          agent: "coding", status: "IN_PROGRESS", priority: "NORMAL", progress: 50,
+          verified_steps: 1, step_count: 2, steps: [{ id: 1, title: "Review patch", state: "verified", has_evidence: true }, { id: 2, title: "Run tests", state: "pending", has_evidence: false }], error: null,
+          next_action: "Finish regression tests before marking this task completed."
+        },
+        {
+          id: 920, title: "E2E verified memory task", source: "agent", requested_by: "Boss Ferisi",
+          agent: "memory", status: "COMPLETED", priority: "NORMAL", progress: 100,
+          verified_steps: 1, step_count: 1, steps: [{ id: 3, title: "Save evidence", state: "verified", has_evidence: true }], error: null,
+          next_action: "Hatua zote zimethibitishwa kwa ushahidi."
+        },
+        {
+          id: 921, title: "Remote role profile review", source: "autopilot", requested_by: "Boss Ferisi",
+          agent: "jobs", status: "WAITING_FOR_PROFILE", priority: "NORMAL", progress: 0,
+          verified_steps: 0, step_count: 1, steps: [{ id: 4, title: "Check profile", state: "pending", has_evidence: false }], error: null,
+          next_action: "Kamilisha taarifa za profile."
+        },
+        {
+          id: 922, title: "Remote role eligibility check", source: "autopilot", requested_by: "Boss Ferisi",
+          agent: "jobs", status: "WAITING_FOR_ELIGIBILITY", priority: "NORMAL", progress: 0,
+          verified_steps: 0, step_count: 1, steps: [{ id: 5, title: "Check eligibility", state: "pending", has_evidence: false }], error: null,
+          next_action: "Thibitisha masharti ya nafasi."
+        },
+        {
+          id: 923, title: "Gmail follow-up review", source: "agent", requested_by: "Boss Ferisi",
+          agent: "gmail", status: "WAITING_FOR_HAND", priority: "NORMAL", progress: 0,
+          verified_steps: 0, step_count: 1, steps: [{ id: 6, title: "Check OAuth", state: "pending", has_evidence: false }], error: null,
+          next_action: "Unganisha Gmail OAuth."
+        }
+      ],
       pending_approval: []
     },
     recent_activity: [{ id: 44, action: "E2E_OPERATION_RECORDED", details: "QA fixture only", created_at: "2026-10-29T09:58:00Z" }],
     errors: [], tools: {}, job_autopilot: {
-      jobs_found: 0, drafts_ready: 0, waiting_for_profile: 0,
+      jobs_found: 11, drafts_ready: 0, waiting_for_profile: 1,
       applications_submitted_automatically: 0, auto_submit_available: false
     },
     blockers: [], next_action: "Finish regression tests before marking this task completed.",
@@ -712,6 +739,8 @@ async function main() {
     await page.locator(".cc-quick-grid button").filter({ hasText: label }).click();
     await page.waitForFunction(expected => document.querySelector(".cc-quick-head strong")?.textContent?.includes(expected), label, { timeout: 7000 });
   }
+  await page.getByText("LIMITED FALLBACK READY", { exact: true }).waitFor({ state: "visible", timeout: 7000 });
+  await page.getByText("Wikipedia na Hacker News", { exact: false }).waitFor({ state: "visible", timeout: 7000 });
   const dashboardSearch = page.locator(".cc-research-search input");
   await dashboardSearch.fill("MR AI smoke query");
   await dashboardSearch.press("Enter");
@@ -720,6 +749,23 @@ async function main() {
   await dashboardChatInput.fill("Nisaidie kwa smoke test");
   await page.locator(".cc-chat-panel .chat-input > button").last().click();
   await page.locator(".cc-chat-panel .messages").getByText("E2E response from mocked API", { exact: true }).waitFor({ state: "visible", timeout: 7000 });
+
+  // Informal Swahili status questions and their "why?" follow-ups must use
+  // the fresh backend briefing, never the free-form model's guessed counts.
+  const chatCallsBeforeStatus = delayedChatRequests;
+  await dashboardChatInput.fill("kazi vp");
+  await page.locator(".cc-chat-panel .chat-input > button").last().click();
+  await page.locator(".cc-chat-panel .messages").getByText("Jumla: 5", { exact: false }).waitFor({ state: "visible", timeout: 7000 });
+  await page.locator(".cc-chat-panel .messages").getByText("Zinasubiri: 3", { exact: false }).waitFor({ state: "visible", timeout: 7000 });
+  assert.equal(delayedChatRequests, chatCallsBeforeStatus, "Informal task status questions must not be sent to the free-form AI model.");
+
+  await dashboardChatInput.fill("kwanini");
+  await page.locator(".cc-chat-panel .chat-input > button").last().click();
+  await page.locator(".cc-chat-panel .messages").getByText("Sababu hizi zimetolewa kwenye Task records", { exact: false }).waitFor({ state: "visible", timeout: 7000 });
+  await page.locator(".cc-chat-panel .messages").getByText("WAITING_FOR_ELIGIBILITY", { exact: false }).first().waitFor({ state: "visible", timeout: 7000 });
+  await page.locator(".cc-chat-panel .messages").getByText("WAITING_FOR_PROFILE", { exact: false }).first().waitFor({ state: "visible", timeout: 7000 });
+  assert.equal(delayedChatRequests, chatCallsBeforeStatus, "Task status explanations must use the saved briefing, not a second LLM guess.");
+  completedChecks.push("informal Swahili task status and why follow-up use authoritative briefing counts");
 
   // An explicit action must cross the mission-execution boundary. Tool routing
   // alone is metadata and must never be mistaken for an executed mission.

@@ -409,21 +409,28 @@ function Radar({ findings = [], onRadarScan, sensorStatus = {}, onOpenDevice }) 
   );
 }
 
-function WebResearch({ available = false }) {
+function WebResearch({ availability = "NOT_CONFIGURED" }) {
+  const connectionStatus = String(availability || "NOT_CONFIGURED").toUpperCase();
+  const available = ["CONFIGURED", "AVAILABLE"].includes(connectionStatus);
+  const limitedFallback = connectionStatus === "AVAILABLE";
+  const readyLabel = limitedFallback ? "LIMITED FALLBACK READY" : "SEARCH PROVIDER CONNECTED";
+  const readyMessage = limitedFallback
+    ? "SearXNG haijaunganishwa. Utafutaji wa msingi unatumia Wikipedia na Hacker News pekee; si full-web metasearch."
+    : "";
   const [query, setQuery] = useState("");
-  const [status, setStatus] = useState(available ? "IKO TAYARI" : "HAIJAUNGANISHWA");
+  const [status, setStatus] = useState(available ? readyLabel : "HAIJAUNGANISHWA");
   const [results, setResults] = useState([]);
   const [message, setMessage] = useState(
-    available ? "" : "Utafutaji wa mtandao haujaunganishwa. Tafuta kazi kupitia Job Research, au washa search provider kwenye Settings."
+    available ? readyMessage : "Utafutaji wa mtandao haujaunganishwa. Tafuta kazi kupitia Job Research, au washa search provider kwenye Settings."
   );
 
   useEffect(() => {
-    setStatus(available ? "IKO TAYARI" : "HAIJAUNGANISHWA");
+    setStatus(available ? readyLabel : "HAIJAUNGANISHWA");
     setMessage(
-      available ? "" : "Utafutaji wa mtandao haujaunganishwa. Tafuta kazi kupitia Job Research, au washa search provider kwenye Settings."
+      available ? readyMessage : "Utafutaji wa mtandao haujaunganishwa. Tafuta kazi kupitia Job Research, au washa search provider kwenye Settings."
     );
     if (!available) setResults([]);
-  }, [available]);
+  }, [available, readyLabel, readyMessage]);
 
   async function runSearch(event) {
     event?.preventDefault();
@@ -483,7 +490,7 @@ function WebResearch({ available = false }) {
 function QuickCommands({ system = null, working = false }) {
   const services = system?.services || {};
   const aiConfigured = services.ai_core === "CONFIGURED";
-  const webConfigured = services.web_search === "CONFIGURED";
+  const webConfigured = ["CONFIGURED", "AVAILABLE"].includes(String(services.web_search || "").toUpperCase());
   const securityConfigured = services.security === "CONFIGURED";
   const commands = [
     { icon: "⌕", label: "SCAN SYSTEM", kind: "scan" },
@@ -1194,7 +1201,7 @@ function ExecutiveMorningBrief({ system, gmailStatus, tasks = [], agents = [], o
   const taskStatusCounts = {
     active: Number.isFinite(briefing?.tasks?.working) ? briefing.tasks.working : (taskRows ? activeTaskRows.length : null),
     completed: Number.isFinite(briefing?.tasks?.completed) ? briefing.tasks.completed : (taskRows ? taskRows.filter(task => ["COMPLETED", "DONE"].includes(String(task.status || "").toUpperCase())).length : null),
-    waiting: Number.isFinite(briefing?.tasks?.waiting) ? briefing.tasks.waiting : (taskRows ? taskRows.filter(task => ["PENDING", "WAITING", "BLOCKED", "WAITING_APPROVAL", "WAITING_FOR_HAND", "WAITING_FOR_VERIFICATION", "WAITING_FOR_PROFILE", "READY_FOR_REVIEW"].includes(String(task.status || "").toUpperCase())).length : null),
+    waiting: Number.isFinite(briefing?.tasks?.waiting) ? briefing.tasks.waiting : (taskRows ? taskRows.filter(task => ["PENDING", "WAITING", "BLOCKED", "WAITING_APPROVAL", "WAITING_FOR_HAND", "WAITING_FOR_VERIFICATION", "WAITING_FOR_PROFILE", "WAITING_FOR_ELIGIBILITY", "READY_FOR_REVIEW"].includes(String(task.status || "").toUpperCase())).length : null),
     failed: Number.isFinite(briefing?.tasks?.failed) ? briefing.tasks.failed : (taskRows ? failedTasks.length : null),
   };
 
@@ -1685,7 +1692,7 @@ export default function DashboardHome({
         </Panel>
 
         <Panel eyebrow="WEB RESEARCH" title="Utafutaji wa Mtandaoni" className="cc-research-panel">
-          <WebResearch available={services.web_search === "CONFIGURED"} />
+          <WebResearch availability={services.web_search} />
         </Panel>
       </div>
 

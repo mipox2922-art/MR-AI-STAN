@@ -110,6 +110,8 @@ function getTaskStatusReply(value, tasks, tasksAvailable, briefing = null) {
   const asksStatus =
     /\bumefanya\s+kazi\s+gani/.test(text) ||
     /\bkazi\s+ngapi\b.{0,70}(?:zime.{0,20}(?:kamil|kamli|isha|fanyika)|completed|done|zinaendelea|zinafanyika)/.test(text) ||
+    /\bkazi\s+(?:vp|vipi|iko\s+vipi|zipo\s+vipi|zikoje|inaendeleaje|zinaendeleaje|zimefika\s+wapi)\b/.test(text) ||
+    /\b(?:progress|hali)\s+(?:ya\s+)?(?:kazi|tasks?)\b/.test(text) ||
     /\b(?:kazi|tasks?)\b.{0,70}\b(?:zimekamilika|completed|finished|done|status|progress|zinaendelea)\b/.test(text) ||
     /\b(?:what work have you done|what have you done so far|how many tasks|completed tasks|task status|task summary)\b/.test(text) ||
     /\bmuhtasari wa kazi\b|\bhali ya kazi\b|\bkazi zilizokamilika\b/.test(text) ||
@@ -136,7 +138,7 @@ function getTaskStatusReply(value, tasks, tasksAvailable, briefing = null) {
   const active = count("working", ["RUNNING", "IN_PROGRESS", "WORKING", "STARTED", "EXECUTING"]);
   const waiting = count("waiting", [
     "PENDING", "QUEUED", "WAITING", "BLOCKED", "WAITING_APPROVAL",
-    "WAITING_FOR_HAND", "WAITING_FOR_PROFILE", "WAITING_FOR_VERIFICATION",
+    "WAITING_FOR_HAND", "WAITING_FOR_PROFILE", "WAITING_FOR_ELIGIBILITY", "WAITING_FOR_VERIFICATION",
     "READY_FOR_REVIEW", "NEEDS_APPROVAL"
   ]);
   const failed = count("failed", ["FAILED", "ERROR"]);
@@ -166,6 +168,69 @@ function getTaskStatusReply(value, tasks, tasksAvailable, briefing = null) {
   return lines.join("\n");
 }
 
+function isTaskStatusWhyFollowUp(value, history = []) {
+  const text = String(value || "").trim().toLowerCase().replace(/[.!?]+$/g, "");
+  if (!/^(?:kwa nini|kwanini|mbona|why)$/.test(text)) return false;
+  const previousUser = [...history].reverse().find(item => item?.role === "user");
+  const previousText = String(previousUser?.content || "").trim().toLowerCase();
+  return /\bkazi\s+(?:vp|vipi|iko\s+vipi|zipo\s+vipi|zikoje|inaendeleaje|zinaendeleaje|zimefika\s+wapi)\b/.test(previousText)
+    || /\b(?:hali|progress|muhtasari)\s+(?:ya\s+)?kazi\b/.test(previousText)
+    || /\b(?:task status|task summary)\b/.test(previousText);
+}
+
+function getTaskStatusWhyReply(briefing) {
+  const taskData = briefing?.tasks;
+  if (!taskData || !Array.isArray(taskData.items) || !taskData.counts) {
+    return "Sijaweza kupata Task briefing mpya kutoka backend. Sitabuni sababu za kusubiri.";
+  }
+  const rows = taskData.items;
+  const counts = taskData.counts;
+  const countFor = status => Number.isFinite(Number(counts[status]))
+    ? Number(counts[status])
+    : rows.filter(task => String(task.status || "").toUpperCase() === status).length;
+  const waitingReasons = [
+    ["WAITING_FOR_PROFILE", "Taarifa za profile hazijakamilika."],
+    ["WAITING_FOR_ELIGIBILITY", "Masharti ya kustahiki nafasi bado yanahitaji kuthibitishwa."],
+    ["WAITING_APPROVAL", "Yanahitaji idhini ya Boss."],
+    ["WAITING_FOR_HAND", "Yanahitaji muunganisho wa browser, Gmail au kifaa husika."],
+    ["WAITING_FOR_VERIFICATION", "Yanahitaji ushahidi wa utekelezaji kabla ya kuhesabiwa yamekamilika."],
+    ["READY_FOR_REVIEW", "Matokeo au draft yanasubiri ukaguzi."],
+    ["PENDING", "Bado hayajaanzishwa na executor."],
+    ["WAITING", "Yanasubiri hatua inayofuata."],
+    ["BLOCKED", "Yamezuiliwa; sababu mahususi inapaswa kuwa kwenye rekodi ya task."],
+  ];
+  const lines = [
+    "Sababu hizi zimetolewa kwenye Task records za backend, si makisio ya AI.",
+    "Kazi hai: " + (taskData.working ?? "Haijathibitishwa") +
+      ". Kazi zinazosubiri: " + (taskData.waiting ?? "Haijathibitishwa") +
+      ". Zilizothibitishwa: " + (taskData.completed ?? "Haijathibitishwa") + ".",
+  ];
+  for (const [status, explanation] of waitingReasons) {
+    const count = countFor(status);
+    if (count > 0) lines.push(count + " · " + status + ": " + explanation);
+  }
+  const ineligible = countFor("NOT_ELIGIBLE");
+  if (ineligible > 0) lines.push(ineligible + " · NOT_ELIGIBLE: rekodi hizi hazijahesabiwa kama maombi yaliyotumwa au kazi zilizokamilika.");
+  const jobStats = briefing.job_autopilot;
+  if (jobStats && Number.isFinite(jobStats.applications_submitted_automatically)) {
+    lines.push("Job Autopilot: nafasi " + (jobStats.jobs_found ?? 0) +
+      " zimehifadhiwa; drafts tayari " + (jobStats.drafts_ready ?? 0) +
+      "; maombi yaliyotumwa na mfumo na kuthibitishwa " +
+      jobStats.applications_submitted_automatically + ".");
+  }
+  const examples = rows.filter(task => waitingReasons.some(([status]) =>
+    String(task.status || "").toUpperCase() === status
+  )).slice(0, 4);
+  if (examples.length) {
+    lines.push("Mifano ya kazi zinazosubiri:");
+    examples.forEach(task => lines.push(
+      "• " + (task.title || "Kazi bila jina") + " · " + task.status +
+      " · " + (task.next_action || "Hatua inayofuata haijarekodiwa.")
+    ));
+  }
+  return lines.join("\n");
+}
+
 function getAmbiguousDelegationReply(value) {
   const text = String(value || "").trim().toLowerCase();
   const asksDelegate = /\bwambie\b.{0,50}\b(?:vijana|mawakala|agents|crew)\b.{0,50}\b(?:kazi|pige|fanye|work|task)\b/.test(text) ||
@@ -181,7 +246,7 @@ function getProactiveTaskSummary(tasks, tasksAvailable) {
   const statusOf = task => String(task?.status || "").toUpperCase();
   const completed = tasks.filter(task => ["COMPLETED", "DONE", "VERIFIED"].includes(statusOf(task)));
   const active = tasks.filter(task => ["RUNNING", "IN_PROGRESS", "WORKING", "STARTED", "EXECUTING"].includes(statusOf(task)));
-  const waiting = tasks.filter(task => ["PENDING", "WAITING", "BLOCKED", "WAITING_APPROVAL", "WAITING_FOR_HAND", "WAITING_FOR_VERIFICATION", "WAITING_FOR_PROFILE", "READY_FOR_REVIEW"].includes(statusOf(task)));
+  const waiting = tasks.filter(task => ["PENDING", "WAITING", "BLOCKED", "WAITING_APPROVAL", "WAITING_FOR_HAND", "WAITING_FOR_VERIFICATION", "WAITING_FOR_PROFILE", "WAITING_FOR_ELIGIBILITY", "READY_FOR_REVIEW"].includes(statusOf(task)));
   const failed = tasks.filter(task => ["FAILED", "ERROR", "CANCELLED"].includes(statusOf(task)));
   const summary = `Ripoti ya kazi: ${tasks.length} zimeorodheshwa, ${completed.length} zimethibitishwa kukamilika, ${active.length} zinaendelea, ${waiting.length} zinasubiri, na ${failed.length} zimeshindwa.`;
   const current = active[0]
@@ -615,6 +680,26 @@ export default function Chat({
         setMessages(prev => [...prev, {
           role: "assistant",
           content: "Nimekuelewa Boss. Sijaweza kusoma hali ya CV kwenye MR AI sasa hivi, kwa hiyo sitadai kuwa imehifadhiwa au haipo. Tafadhali jaribu tena baada ya backend kuunganishwa."
+        }]);
+      } finally {
+        setSending(false);
+        reportRuntimeState("IDLE");
+      }
+      return;
+    }
+
+    if (isTaskStatusWhyFollowUp(text, messages)) {
+      setMessages(prev => [...prev, { role: "user", content: text }]);
+      setMessage("");
+      setSending(true);
+      reportRuntimeState("THINKING");
+      try {
+        const latestBriefing = await getExecutiveBriefing();
+        setMessages(prev => [...prev, { role: "assistant", content: getTaskStatusWhyReply(latestBriefing) }]);
+      } catch {
+        setMessages(prev => [...prev, {
+          role: "assistant",
+          content: "Sijaweza kusoma Task records kwa sasa. Sitabuni sababu za kusubiri; angalia Executive Briefing baada ya kuunganishwa."
         }]);
       } finally {
         setSending(false);
