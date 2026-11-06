@@ -15,7 +15,7 @@ def _base64url_integer(value: int) -> str:
     return base64.urlsafe_b64encode(raw).rstrip(b"=").decode("ascii")
 
 
-def _signed_token(repository="mipox2922-art/MR-AI-STAN", workflow_ref=None):
+def _signed_token(repository="mipox2922-art/MR-AI-STAN", workflow_ref=None, event_name="schedule"):
     private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
     private_pem = private_key.private_bytes(Encoding.PEM, PrivateFormat.PKCS8, NoEncryption())
     public_numbers = private_key.public_key().public_numbers()
@@ -38,7 +38,7 @@ def _signed_token(repository="mipox2922-art/MR-AI-STAN", workflow_ref=None):
         "repository_owner": "mipox2922-art",
         "ref": "refs/heads/main",
         "workflow_ref": workflow_ref or github_oidc.TRUSTED_WORKFLOW,
-        "event_name": "schedule",
+        "event_name": event_name,
     }
     token = jwt.encode(claims, private_pem, algorithm="RS256", headers={"kid": "test-key"})
     return token, public_jwk
@@ -113,3 +113,39 @@ def test_github_oidc_rejects_a_different_workflow(monkeypatch):
         assert exc.status_code == 403
     else:
         raise AssertionError("A different workflow must not be authorized")
+
+
+
+def test_github_oidc_accepts_trusted_five_minute_heartbeat_push(monkeypatch):
+    token, public_jwk = _signed_token(
+        workflow_ref=github_oidc.TRUSTED_HEARTBEAT_WORKFLOW,
+        event_name="push",
+    )
+    monkeypatch.setattr(
+        github_oidc.httpx,
+        "AsyncClient",
+        lambda **kwargs: _AsyncClient([public_jwk], **kwargs),
+    )
+
+    claims = asyncio.run(github_oidc.verify_github_actions_token(token))
+    assert claims["workflow_ref"] == github_oidc.TRUSTED_HEARTBEAT_WORKFLOW
+    assert claims["event_name"] == "push"
+
+
+def test_github_oidc_rejects_unapproved_event_for_heartbeat(monkeypatch):
+    token, public_jwk = _signed_token(
+        workflow_ref=github_oidc.TRUSTED_HEARTBEAT_WORKFLOW,
+        event_name="pull_request",
+    )
+    monkeypatch.setattr(
+        github_oidc.httpx,
+        "AsyncClient",
+        lambda **kwargs: _AsyncClient([public_jwk], **kwargs),
+    )
+
+    try:
+        asyncio.run(github_oidc.verify_github_actions_token(token))
+    except HTTPException as exc:
+        assert exc.status_code == 403
+    else:
+        raise AssertionError("Unapproved heartbeat workflow event must be rejected")
