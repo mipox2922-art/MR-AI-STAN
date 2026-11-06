@@ -114,6 +114,14 @@ def test_explanatory_question_does_not_start_agent_work():
     assert not has_autonomous_goal("Nielezee kuhusu email automation")
 
 
+def test_schedule_listing_routes_directly_to_persistent_scheduler():
+    from app.orchestration.planner import build_plan, select_agents
+
+    assert select_agents("Show my schedules") == ["scheduler"]
+    step = build_plan("Show my schedules")["steps"][0]
+    assert step["request"] == "Show my schedules"
+
+
 def test_manager_plan_uses_free_ai_and_validates_agent_assignments(monkeypatch):
     import asyncio
     import json
@@ -164,3 +172,45 @@ def test_owner_can_describe_autonomous_agent_goal_naturally_in_swahili():
         "ana timu ya agent na mimi napitia alichofanya"
     )
     assert select_agents(request) == ["coding"]
+
+
+def test_343shop_goals_are_routed_to_the_shop_specialist():
+    from app.orchestration.planner import infer_goal_commands, select_agents
+
+    request = "Kagua 343Shop bidhaa na oda mpya"
+    assert "shop" in select_agents(request)
+    commands = infer_goal_commands(request)
+    shop_step = next(item for item in commands if item["agent"] == "shop")
+    assert "343Shop" in shop_step["request"]
+    assert "read-only audit" in shop_step["request"]
+
+
+def test_owner_wide_goal_delegates_known_owner_workstreams_without_agent_names():
+    from app.orchestration.planner import infer_goal_commands, select_agents
+
+    request = "Simamia shughuli zangu zote"
+    selected = select_agents(request)
+    assert selected == ["jobs", "gmail", "research", "shop", "coding", "scheduler"]
+    plan = infer_goal_commands(request)
+    assert len(plan) == 6
+    assert all(item["request"] for item in plan)
+
+
+
+def test_known_owner_responsibilities_trigger_a_broad_work_plan():
+    from app.orchestration.planner import infer_goal_commands, select_agents
+
+    request = "Fanya kazi, sio tu biashara, bali majukumu yake unayajua"
+    commands = infer_goal_commands(request)
+    assert select_agents(request) == ["jobs", "gmail", "research", "shop", "coding", "scheduler"]
+    assert any(item["agent"] == "scheduler" and "outstanding reminders" in item["request"] for item in commands)
+    assert any(item["agent"] == "jobs" and "Search remote jobs" in item["request"] for item in commands)
+    assert any(item["agent"] == "research" and item["request"].startswith("Research MOOG") for item in commands)
+
+
+
+def test_show_reminders_routes_to_persistent_scheduler():
+    from app.orchestration.planner import build_plan, select_agents
+
+    assert select_agents("Show my reminders") == ["scheduler"]
+    assert build_plan("Show my reminders")["steps"][0]["request"] == "Show my reminders"

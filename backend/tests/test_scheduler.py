@@ -124,3 +124,26 @@ def test_overlapping_scheduler_cycle_is_skipped(monkeypatch):
         assert calls == 1
 
     asyncio.run(scenario())
+
+
+def test_due_schedule_queues_an_owner_approved_orchestrator_mission():
+    db = make_db()
+    now = datetime(2026, 11, 6, 8, 0, 0)
+    job = ScheduledJob(
+        user_id=17,
+        title="Daily owner briefing",
+        command="Review 343Shop and Gmail",
+        status="ACTIVE",
+        run_at=now - timedelta(minutes=1),
+        next_run_at=now - timedelta(minutes=1),
+    )
+    db.add(job)
+    db.commit()
+
+    assert run_due_jobs(db, now=now) == 1
+    task = db.query(Task).one()
+    assert task.agent == "orchestrator"
+    assert task.source == "orchestrator"
+    assert task.approved_by == 17
+    assert task.description == "Review 343Shop and Gmail"
+    db.close()

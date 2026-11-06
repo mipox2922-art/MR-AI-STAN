@@ -365,6 +365,23 @@ async function apiMock(route) {
     });
   }
   if (method === "POST" && path === "/tools/dispatch") return sendJson(route, { status: "COMPLETED", route: { agent: "orchestrator", tool: "system_telemetry" }, result: systemStatus });
+  if (method === "GET" && path === "/shop/status") return sendJson(route, {
+    configured: false,
+    connected: false,
+    status: "NOT_CONFIGURED",
+    message: "Mock fixture only; 343Shop private API credentials are not configured in this test.",
+  });
+  if (method === "GET" && path === "/shop/overview") return sendJson(route, {
+    status: "COMPLETED", store: "343SHOP", generated_at: null,
+    overview: {
+      currency: "USD",
+      products: { total: 0, active: 0, inactive: 0, own: 0, partner: 0 },
+      orders: { total: 0, pendingPayment: 0, byStatus: {} },
+    },
+    limitations: ["UI smoke fixture only."],
+  });
+  if (method === "GET" && path === "/shop/products") return sendJson(route, { status: "COMPLETED", products: [], returned: 0 });
+  if (method === "GET" && path === "/shop/orders") return sendJson(route, { status: "COMPLETED", orders: [], returned: 0 });
   if (method === "GET" && path === "/broker/status") return sendJson(route, {
     status: "AVAILABLE",
     owner_scoped_pipeline: true,
@@ -651,8 +668,12 @@ async function main() {
       await page.locator(".command-center-reference").waitFor({ state: "visible", timeout: 7000 });
       return;
     }
-    const expectedTitle = label === "343Shop" ? "343Shop Manager" : label;
-    await page.waitForFunction(expected => document.querySelector(".topbar h1")?.textContent === expected, expectedTitle, { timeout: 7000 });
+    try {
+      await page.waitForFunction(expected => document.querySelector(".topbar h1")?.textContent === expected, label, { timeout: 7000 });
+    } catch (error) {
+      const actual = await page.locator(".topbar h1").textContent().catch(() => "missing heading");
+      throw new Error("Navigation to " + label + " did not render. Current heading: " + actual + ". " + error.message);
+    }
   }
 
   async function goTo(label) {
@@ -797,7 +818,7 @@ async function main() {
     ["Open Browser Hands", "Browser Hands"], ["Open Device Lab", "Device Lab"],
     ["Open Creative Studio", "Creative Studio"], ["Open Tracking Map", "Tracking Map"],
     ["Open Security", "Security"], ["Open Toolbox", "Toolbox"],
-    ["Open Job Research", "Job Research"], ["Open Business Broker", "Business Broker"], ["Open Gmail", "Gmail"], ["Open Schedules", "Schedules"], ["Open Tasks", "Tasks"],
+    ["Open Job Research", "Job Research"], ["Open Business Broker", "Business Broker"], ["Open 343Shop", "343Shop"], ["Open Gmail", "Gmail"], ["Open Schedules", "Schedules"], ["Open Tasks", "Tasks"],
     ["Open Memory", "Memory"], ["Open Settings", "Settings"],
   ];
   for (const [action, destination] of paletteTargets) {

@@ -252,10 +252,11 @@ def test_agent_fleet_reports_missing_execution_hands_instead_of_fake_ready_statu
     report = build_executive_briefing(user, db)
     fleet = {agent["id"]: agent for agent in report["agents"]["fleet"]}
 
-    assert report["agents"]["total"] == 11
+    assert report["agents"]["total"] == 12
     assert fleet["orchestrator"]["runtime_status"] == "READY"
     assert fleet["jobs"]["runtime_status"] == "READY"
     assert fleet["memory"]["runtime_status"] == "READY"
+    assert fleet["shop"]["runtime_status"] in {"CONFIGURED", "NOT_CONFIGURED"}
     for agent_id in ("browser", "coding", "creative", "device", "security"):
         assert fleet[agent_id]["runtime_status"] == "WAITING_FOR_HAND"
     assert fleet["gmail"]["runtime_status"] in {"NOT_CONNECTED", "NOT_CONFIGURED"}

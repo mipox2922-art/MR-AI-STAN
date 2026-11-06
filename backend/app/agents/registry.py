@@ -89,6 +89,13 @@ AGENTS: tuple[AgentDefinition, ...] = (
         "LOW",
     ),
     AgentDefinition(
+        "shop", "343Shop Operations Agent",
+        "Reads and audits the owner's 343SHOP catalog and orders through the private store API. It never invents stock or treats pending orders as paid revenue.",
+        ("read_catalog", "read_orders", "store_audit", "sales_summary", "product_health"),
+        ("shop_api",),
+        "LOW",
+    ),
+    AgentDefinition(
         "scheduler", "Scheduler Agent",
         "Manages durable tasks and scheduled execution requests.",
         ("schedule", "queue", "cancel", "status"),

@@ -3,12 +3,13 @@ from __future__ import annotations
 import json
 import re
 from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 from typing import Any
 
 from sqlalchemy.orm import Session
 
 from ..config import settings
-from ..models import ActivityLog, ApprovalRequest, Task, TaskStep
+from ..models import ActivityLog, ApprovalRequest, ScheduledJob, Task, TaskStep
 from ..core.memory_context import recall_relevant_memories
 from ..routers.system import _default_ai_provider, system_status
 from ..tools.registry import registry_summary
@@ -67,6 +68,111 @@ def _is_read_only_gmail_request(request: str) -> bool:
     )
     return any(term in value for term in read_intents)
 
+
+
+def _parse_owner_schedule_request(request: str) -> dict[str, Any] | None:
+    """Parse only a clear schedule command; store it in the owner's local timezone."""
+    value = str(request or "").strip()
+    normalized = value.casefold()
+    if re.search(r"\b(?:show|list|view|check|onyesha|orodhesha|kagua|angalia)\b.*\b(?:schedule|schedules|reminder|reminders|ratiba|kumbusho|vikumbusho)\b", normalized):
+        return {"action": "list"}
+
+    recurrence = None
+    if re.search(r"\b(?:daily|every\s+day|kila\s+siku)\b", normalized):
+        recurrence = 1440
+    elif re.search(r"\b(?:weekly|every\s+week|kila\s+wiki)\b", normalized):
+        recurrence = 10080
+    elif re.search(r"\b(?:hourly|every\s+hour|kila\s+saa)\b", normalized):
+        recurrence = 60
+    else:
+        every = re.search(r"\bevery\s+(\d{1,3})\s+(minutes?|hours?|days?)\b", normalized)
+        if every:
+            amount = int(every.group(1))
+            unit = every.group(2)
+            recurrence = amount * (60 if unit.startswith("hour") else 1440 if unit.startswith("day") else 1)
+            if recurrence < 1 or recurrence > 525600:
+                return None
+
+    clock = re.search(
+        r"\b(?:at|saa)\s+(\d{1,2})(?::([0-5]\d))?\s*(am|pm)?\b|"
+        r"\b(\d{1,2}):([0-5]\d)\b|\b(\d{1,2})(am|pm)\b",
+        normalized,
+    )
+    local_tz = ZoneInfo("Africa/Dar_es_Salaam")
+    now = datetime.now(local_tz)
+    if clock:
+        if clock.group(1):
+            hour = int(clock.group(1))
+            minute = int(clock.group(2) or 0)
+            meridiem = clock.group(3)
+        elif clock.group(4):
+            hour = int(clock.group(4))
+            minute = int(clock.group(5))
+            meridiem = None
+        else:
+            hour = int(clock.group(6))
+            minute = 0
+            meridiem = clock.group(7)
+        if meridiem == "pm" and hour < 12:
+            hour += 12
+        elif meridiem == "am" and hour == 12:
+            hour = 0
+        if hour > 23:
+            return None
+        next_run = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+        if next_run <= now:
+            next_run += timedelta(days=1)
+    elif re.search(r"\b(?:tomorrow|kesho)\b", normalized):
+        next_run = (now + timedelta(days=1)).replace(second=0, microsecond=0)
+    elif recurrence:
+        # An interval-only schedule runs relative to the moment the owner requested it.
+        next_run = (now + timedelta(minutes=recurrence)).replace(second=0, microsecond=0)
+    else:
+        return None
+
+    if re.search(r"\b(?:tomorrow|kesho)\b", normalized) and recurrence is None:
+        next_run = next_run.replace(hour=now.hour, minute=now.minute)
+
+    command = value
+    command = re.sub(r"^(?:please\s+)?(?:schedule|create\s+(?:a\s+)?schedule|set\s+(?:a\s+)?reminder|remind(?:\s+me)?|ratiba|kumbusha)\s*", "", command, flags=re.IGNORECASE)
+    command = re.sub(r"\b(?:daily|every\s+day|kila\s+siku|weekly|every\s+week|kila\s+wiki|hourly|every\s+hour|kila\s+saa|every\s+\d{1,3}\s+(?:minutes?|hours?|days?))\b", "", command, flags=re.IGNORECASE)
+    command = re.sub(r"\b(?:at|saa)\s+\d{1,2}(?::[0-5]\d)?\s*(?:am|pm)?\b|\b\d{1,2}:[0-5]\d\b|\b\d{1,2}(?:am|pm)\b", "", command, flags=re.IGNORECASE)
+    command = re.sub(r"\b(?:tomorrow|kesho)\b", "", command, flags=re.IGNORECASE)
+    command = command.strip(" \t:,-;")
+    command = re.sub(r"^(?:to|ya|ili)\s+", "", command, flags=re.IGNORECASE)
+    if len(command) < 4:
+        return None
+
+    title = re.sub(r"\s+", " ", command).strip()[:240]
+    return {
+        "action": "create",
+        "title": title,
+        "command": command[:4000],
+        "run_at": next_run.astimezone(timezone.utc).replace(tzinfo=None),
+        "interval_minutes": recurrence,
+        "timezone": "Africa/Dar_es_Salaam",
+    }
+
+
+def _is_read_only_shop_request(request: str) -> bool:
+    """Allow verified 343SHOP reads only; catalog edits and customer/order actions are not reads."""
+    value = str(request or "").strip().casefold()
+    if not value:
+        return False
+    write_action = re.search(
+        r"\b(?:update|change|edit|delete|remove|hide|deactivate|activate|publish|add|create|set|"
+        r"badilisha|ongeza|futa|ondoa|hariri|chapisha|weka)\b.*\b"
+        r"(?:product|item|price|bei|stock|inventory|order|oda|customer|mteja|bidhaa)\b",
+        value,
+    )
+    if write_action:
+        return False
+    return bool(re.search(
+        r"\b(?:343\s*shop|shop|store|duka|dukani|catalog|products?|bidhaa|orders?|oda|sales|mauzo)\b",
+        value,
+    ))
+
+
 def _is_read_only_web_research_request(request: str) -> bool:
     """Permit explicit public-search commands only; never infer research from arbitrary chat."""
     value = str(request or "").strip().casefold()
@@ -116,57 +222,46 @@ def _is_safe_for_autonomous_execution(
     user_id: int,
     db: Session,
 ) -> bool:
-    """Allow supported steps to run; each executor blocks side effects it cannot safely perform."""
+    """Allow routine read-only and persisted workflow steps; each adapter enforces its own limits."""
     steps = plan.get("steps") or []
     if not steps:
         return False
+
     for step in steps:
         agent_id = step.get("agent")
         step_request = str(step.get("request") or request).strip() or request
         tools = set(step.get("tools") or [])
-        # Public job feeds are read-only. Never let the job agent bypass approval
-        # for applications, CV submission, or other consequential actions.
-        if agent_id == "jobs":
-            # Discovery runs independently; submission requests are represented as blocked
-            # steps by the jobs handler, never silently treated as completed.
+
+        if agent_id in {"jobs", "gmail", "coding"}:
             continue
-        # Host telemetry is read-only and executed by this backend.
         if agent_id == "orchestrator" and "system_telemetry" in tools:
             continue
-        # Internal database memory search/save has an actual backend execution path.
         if agent_id == "memory":
             from ..core.intent import classify
             if classify(step_request).name in {"MEMORY_SEARCH", "MEMORY_SAVE"}:
                 continue
-        # The owner may grant a narrow standing rule to fill non-sensitive fields.
-        # The extension still enforces the domain allowlist and blocks credential/payment fields.
+            return False
         if agent_id == "browser" and "browser_hands" in tools:
-            # The mission executor queues only read/navigation actions and narrowly
-            # authorized non-sensitive typing; all other browser mutations are blocked per-step.
+            # The browser adapter enforces the per-domain allowlist and non-sensitive standing rules.
             continue
-        # An explicit code-change request may prepare a patch only on an isolated branch and open a PR.
-        # The production branch is never modified by the mission executor.
-        if agent_id == "coding":
+        if agent_id == "shop" and "shop_api" in tools:
+            if _is_read_only_shop_request(step_request):
+                continue
+            return False
+        if agent_id == "scheduler" and "scheduler" in tools:
+            schedule_action = _parse_owner_schedule_request(step_request)
+            if schedule_action and schedule_action.get("action") in {"list", "create"}:
+                continue
+            return False
+        if agent_id in {"creative", "device", "security"}:
+            # The actual execution loop reports the missing adapter. No work is simulated.
             continue
-        # These registered agents have no verified backend execution adapter yet.
-        # Let other supported mission steps proceed while this step reports its missing hand.
-        if agent_id in {"creative", "device", "security", "scheduler"}:
-            continue
-        # Business brokerage is read-only discovery plus owner-scoped record/draft/task creation.
-        # The broker returns NOT_CONNECTED when the selected source is not configured; it never fabricates leads.
         if agent_id == "research" and "searxng" in tools:
-            # Only explicit read-only research or a recognized broker request
-            # may start unattended. The planner's generic fallback agent is not
-            # blanket authorization for arbitrary chat text.
             from ..routers.business_broker import is_business_broker_request
             if _is_read_only_web_research_request(step_request) or is_business_broker_request(step_request):
                 continue
-        # The Gmail executor performs reads only and explicitly blocks send/reply actions
-        # unless the separate narrow Gmail workflow authorizes them.
-        if agent_id == "gmail":
-            continue
-        # Unconnected or side-effecting tools do not get simulated.
         return False
+
     return True
 
 
@@ -648,6 +743,179 @@ async def execute_mission(
                 steps.append({"step": index, "agent": agent_id, "name": step_name, "tool": "gmail",
                     "status": "FAILED", "verified": False,
                     "evidence": {"message": f"Gmail read failed: {type(exc).__name__}."}})
+            _persist_step_progress(db, mission, steps)
+            continue
+
+        if agent_id == "shop" and "shop_api" in step.get("tools", []):
+            from ..connectors.shop import ShopConnectorError, shop_snapshot
+
+            if not _is_read_only_shop_request(step_request):
+                steps.append({
+                    "step": index,
+                    "agent": agent_id,
+                    "name": step_name,
+                    "tool": "343shop_private_api",
+                    "status": "WAITING_FOR_APPROVAL",
+                    "verified": False,
+                    "evidence": {
+                        "message": "343Shop read operations are separate from product edits, customer contact, order fulfilment, payment and refunds. This side-effecting request was not executed.",
+                        "write_executed": False,
+                    },
+                })
+                _persist_step_progress(db, mission, steps)
+                continue
+
+            try:
+                result = await shop_snapshot(product_limit=40, order_limit=20)
+                overview = result.get("overview") or {}
+                products = result.get("products") or []
+                orders = result.get("orders") or []
+                store_products = overview.get("products") or {}
+                store_orders = overview.get("orders") or {}
+                pending = [
+                    order for order in orders
+                    if str(order.get("status") or "").casefold() in {"pending_payment", "pending", "awaiting_payment"}
+                ]
+                evidence = {
+                    "message": "343SHOP private API health, catalog, overview and recent order endpoints returned verified data. Pending orders are not counted as paid revenue.",
+                    "store": result.get("store"),
+                    "generated_at": result.get("generated_at"),
+                    "products": {
+                        "total": store_products.get("total", len(products)),
+                        "active": store_products.get("active"),
+                        "inactive": store_products.get("inactive"),
+                        "own": store_products.get("own"),
+                        "partner": store_products.get("partner"),
+                        "items": products[:20],
+                    },
+                    "orders": {
+                        "total": store_orders.get("total", len(orders)),
+                        "by_status": store_orders.get("byStatus") or {},
+                        "pending_payment": store_orders.get("pendingPayment", len(pending)),
+                        "recent": orders[:20],
+                        "pending_value_is_revenue": False,
+                    },
+                    "limitations": result.get("limitations") or [],
+                    "private_api_verified": True,
+                    "writes_performed": False,
+                }
+                steps.append({
+                    "step": index,
+                    "agent": agent_id,
+                    "name": step_name,
+                    "tool": "343shop_private_api",
+                    "status": "COMPLETED",
+                    "verified": True,
+                    "evidence": evidence,
+                })
+            except ShopConnectorError as exc:
+                steps.append({
+                    "step": index,
+                    "agent": agent_id,
+                    "name": step_name,
+                    "tool": "343shop_private_api",
+                    "status": "NOT_CONNECTED" if exc.status_code in {401, 503, 504} else "FAILED",
+                    "verified": False,
+                    "evidence": {
+                        "message": str(exc)[:400],
+                        "private_api_verified": False,
+                        "writes_performed": False,
+                    },
+                })
+            except Exception as exc:
+                steps.append({
+                    "step": index,
+                    "agent": agent_id,
+                    "name": step_name,
+                    "tool": "343shop_private_api",
+                    "status": "FAILED",
+                    "verified": False,
+                    "evidence": {
+                        "message": f"343SHOP read failed: {type(exc).__name__}.",
+                        "private_api_verified": False,
+                    },
+                })
+            _persist_step_progress(db, mission, steps)
+            continue
+
+        if agent_id == "scheduler" and "scheduler" in step.get("tools", []):
+            schedule_request = _parse_owner_schedule_request(step_request)
+            if not schedule_request:
+                steps.append({
+                    "step": index,
+                    "agent": agent_id,
+                    "name": step_name,
+                    "tool": "persistent_scheduler",
+                    "status": "WAITING_FOR_HAND",
+                    "verified": False,
+                    "evidence": {
+                        "message": "Ratiba haikuundwa. Tarehe/muda au interval inayoeleweka na kazi ya kutekeleza vinahitajika.",
+                        "schedule_created": False,
+                    },
+                })
+            elif schedule_request["action"] == "list":
+                rows = db.query(ScheduledJob).filter(
+                    ScheduledJob.user_id == user.id
+                ).order_by(ScheduledJob.next_run_at.asc().nullslast(), ScheduledJob.id.desc()).limit(50).all()
+                steps.append({
+                    "step": index,
+                    "agent": agent_id,
+                    "name": step_name,
+                    "tool": "persistent_scheduler",
+                    "status": "COMPLETED",
+                    "verified": True,
+                    "evidence": {
+                        "message": "Ratiba za mmiliki zimesomwa kutoka kwenye database.",
+                        "count": len(rows),
+                        "schedules": [{
+                            "id": row.id,
+                            "title": row.title,
+                            "command": row.command,
+                            "status": row.status,
+                            "run_at": row.run_at.isoformat() if row.run_at else None,
+                            "next_run_at": row.next_run_at.isoformat() if row.next_run_at else None,
+                            "interval_minutes": row.interval_minutes,
+                        } for row in rows],
+                    },
+                })
+            else:
+                job = ScheduledJob(
+                    user_id=user.id,
+                    title=schedule_request["title"][:255],
+                    command=schedule_request["command"],
+                    status="ACTIVE",
+                    run_at=schedule_request["run_at"],
+                    interval_minutes=schedule_request["interval_minutes"],
+                    next_run_at=schedule_request["run_at"],
+                )
+                db.add(job)
+                db.add(ActivityLog(
+                    user_id=user.id,
+                    action="SCHEDULE_CREATED_BY_MANAGER",
+                    details=f"schedule_id=pending; interval_minutes={schedule_request['interval_minutes']}; timezone={schedule_request['timezone']}",
+                ))
+                db.flush()
+                evidence = {
+                    "message": "Ratiba imehifadhiwa kwenye database na imewekwa ACTIVE.",
+                    "schedule_id": job.id,
+                    "title": job.title,
+                    "command": job.command,
+                    "status": job.status,
+                    "run_at": job.run_at.isoformat(),
+                    "next_run_at": job.next_run_at.isoformat(),
+                    "interval_minutes": job.interval_minutes,
+                    "timezone": schedule_request["timezone"],
+                    "future_execution": "Scheduled runs re-enter MR AI Orchestrator; individual steps still enforce their own approval gates.",
+                }
+                steps.append({
+                    "step": index,
+                    "agent": agent_id,
+                    "name": step_name,
+                    "tool": "persistent_scheduler",
+                    "status": "COMPLETED",
+                    "verified": True,
+                    "evidence": evidence,
+                })
             _persist_step_progress(db, mission, steps)
             continue
 

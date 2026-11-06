@@ -40,6 +40,8 @@ def _agent_runtime_status(agent_id: str, user: Any, db: Session, tool_status: di
     if agent_id == "browser":
         from ..routers.agents import _browser_heartbeat_status
         return _browser_heartbeat_status(db, user.id)["status"]
+    if agent_id == "shop":
+        return "CONFIGURED" if tool_status.get("shop_api") == "CONFIGURED" else "NOT_CONFIGURED"
     if agent_id == "scheduler":
         return "AVAILABLE"
     # Registered does not imply a live execution connection.

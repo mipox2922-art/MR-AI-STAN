@@ -106,3 +106,15 @@ Configure `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`, `GMAIL_REDIRECT_URI`, and `G
 - `GET /health` checks both the API process and database connection.
 - The first account is created through the **Initialize operator** screen when there are no users.
 - The API does not ship a hard-coded production username or password.
+
+
+## 343SHOP private store connector
+
+MR AI supports a dedicated read-only 343SHOP adapter. Configure the following variables on the MR AI backend after the private store API PR is deployed:
+
+- `SHOP_API_BASE_URL=https://343shop.chugastan343.workers.dev/api/ai`
+- `SHOP_API_KEY`: the same unique 32+ character secret configured as `MR_AI_SHOP_API_KEY` on the shop runtime.
+
+The dashboard and mission engine verify the private health endpoint before reading products or orders. Missing credentials are reported as NOT_CONFIGURED/NOT_CONNECTED; they are never guessed. Product edits, customer contact, fulfilment, payment, refunds and order deletion are not enabled by the read-only adapter.
+
+Owner-wide work orders can delegate to the saved owner workstreams: remote jobs, Gmail review, MOOG Digital client research, 343SHOP audit and MR AI project health. Scheduled work re-enters the same orchestrator and retains the existing per-action approval guards.
