@@ -176,9 +176,9 @@ def infer_goal_commands(text: str) -> list[dict[str, str]]:
             commands.append({"agent": agent, "request": instruction})
 
     owner_wide_target = re.search(
-        r"\\b(?:kila\\s+kitu|shughuli\\s+zangu(?:\\s+zote)?|majukumu\\s+yangu(?:\\s+yote)?|"
-        r"biashara\\s+zangu(?:\\s+zote)?|manage\\s+everything|take\\s+care\\s+of\\s+everything|"
-        r"all\\s+my\\s+(?:work|responsibilities|operations)|run\\s+my\\s+operations)\\b",
+        r"\b(?:kila\s+kitu|shughuli\s+zangu(?:\s+zote)?|majukumu\s+yangu(?:\s+yote)?|"
+        r"biashara\s+zangu(?:\s+zote)?|manage\s+everything|take\s+care\s+of\s+everything|"
+        r"all\s+my\s+(?:work|responsibilities|operations)|run\s+my\s+operations)\b",
         value,
     )
     job_target = re.search(
@@ -203,9 +203,9 @@ def infer_goal_commands(text: str) -> list[dict[str, str]]:
     device_target = re.search(r"\b(?:android|device|simu|adb|fastboot|bluetooth|firmware)\b", value)
     security_target = re.search(r"\b(?:security|usalama|vulnerabilit(?:y|ies)|malware|secret\s+scan)\b", value)
     shop_target = re.search(
-        r"\\b(?:343\\s*shop|shop|store|dukani|duka|e-?commerce|online\\s+store|"
-        r"store\\s+orders?|product\\s+catalog|orders?|oda\\s+za\\s+(?:duka|dukani)|"
-        r"bidhaa\\s+za\\s+(?:duka|dukani)|mauzo\\s+ya\\s+(?:duka|shop))\\b",
+        r"\b(?:343\s*shop|shop|store|dukani|duka|e-?commerce|online\s+store|"
+        r"store\s+orders?|product\s+catalog|orders?|oda\s+za\s+(?:duka|dukani)|"
+        r"bidhaa\s+za\s+(?:duka|dukani)|mauzo\s+ya\s+(?:duka|shop))\b",
         value,
     )
     schedule_target = re.search(
