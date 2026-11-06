@@ -409,21 +409,28 @@ function Radar({ findings = [], onRadarScan, sensorStatus = {}, onOpenDevice }) 
   );
 }
 
-function WebResearch({ available = false }) {
+function WebResearch({ availability = "NOT_CONFIGURED" }) {
+  const connectionStatus = String(availability || "NOT_CONFIGURED").toUpperCase();
+  const available = ["CONFIGURED", "AVAILABLE"].includes(connectionStatus);
+  const limitedFallback = connectionStatus === "AVAILABLE";
+  const readyLabel = limitedFallback ? "LIMITED FALLBACK READY" : "SEARCH PROVIDER CONNECTED";
+  const readyMessage = limitedFallback
+    ? "SearXNG haijaunganishwa. Utafutaji wa msingi unatumia Wikipedia na Hacker News pekee; si full-web metasearch."
+    : "";
   const [query, setQuery] = useState("");
-  const [status, setStatus] = useState(available ? "IKO TAYARI" : "HAIJAUNGANISHWA");
+  const [status, setStatus] = useState(available ? readyLabel : "HAIJAUNGANISHWA");
   const [results, setResults] = useState([]);
   const [message, setMessage] = useState(
-    available ? "" : "Utafutaji wa mtandao haujaunganishwa. Tafuta kazi kupitia Job Research, au washa search provider kwenye Settings."
+    available ? readyMessage : "Utafutaji wa mtandao haujaunganishwa. Tafuta kazi kupitia Job Research, au washa search provider kwenye Settings."
   );
 
   useEffect(() => {
-    setStatus(available ? "IKO TAYARI" : "HAIJAUNGANISHWA");
+    setStatus(available ? readyLabel : "HAIJAUNGANISHWA");
     setMessage(
-      available ? "" : "Utafutaji wa mtandao haujaunganishwa. Tafuta kazi kupitia Job Research, au washa search provider kwenye Settings."
+      available ? readyMessage : "Utafutaji wa mtandao haujaunganishwa. Tafuta kazi kupitia Job Research, au washa search provider kwenye Settings."
     );
     if (!available) setResults([]);
-  }, [available]);
+  }, [available, readyLabel, readyMessage]);
 
   async function runSearch(event) {
     event?.preventDefault();
