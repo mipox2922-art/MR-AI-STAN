@@ -84,8 +84,8 @@ def execute_scheduler_request(db: Session, user_id: int, request: str) -> dict[s
         "list", "show", "view", "check", "onyesha", "angalia", "ratiba zangu", "reminders", "ratiba zilizopo"
     ))
     explicit_create = bool(re.search(
-        r"\\b(?:remind(?: me)?|set (?:a )?reminder|create (?:a )?(?:reminder|schedule)|"
-        r"add (?:a )?(?:reminder|schedule)|schedule\\s+(?!list\\b)|panga|kumbusha|kumbusho)\\b",
+        r"\b(?:remind(?: me)?|set (?:a )?reminder|create (?:a )?(?:reminder|schedule)|"
+        r"add (?:a )?(?:reminder|schedule)|schedule\s+(?!list\b)|panga|kumbusha|kumbusho)\b",
         lowered,
     ))
     wants_create = explicit_create
