@@ -3,7 +3,7 @@ name: MR AI STAN CI
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: [main, feat/jarvis-owner-operations]
   pull_request:
     branches: [main]
 
