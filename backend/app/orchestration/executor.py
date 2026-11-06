@@ -3,12 +3,13 @@ from __future__ import annotations
 import json
 import re
 from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 from typing import Any
 
 from sqlalchemy.orm import Session
 
 from ..config import settings
-from ..models import ActivityLog, ApprovalRequest, Task, TaskStep
+from ..models import ActivityLog, ApprovalRequest, ScheduledJob, Task, TaskStep
 from ..core.memory_context import recall_relevant_memories
 from ..routers.system import _default_ai_provider, system_status
 from ..tools.registry import registry_summary
@@ -66,6 +67,91 @@ def _is_read_only_gmail_request(request: str) -> bool:
         "show", "check", "email zangu", "barua pepe zangu", "gmail",
     )
     return any(term in value for term in read_intents)
+
+
+
+def _parse_owner_schedule_request(request: str) -> dict[str, Any] | None:
+    """Parse only a clear schedule command; store it in the owner's local timezone."""
+    value = str(request or "").strip()
+    normalized = value.casefold()
+    if re.search(r"\b(?:show|list|view|check|onyesha|orodhesha|kagua|angalia)\b.*\b(?:schedule|schedules|ratiba)\b", normalized):
+        return {"action": "list"}
+
+    recurrence = None
+    if re.search(r"\b(?:daily|every\s+day|kila\s+siku)\b", normalized):
+        recurrence = 1440
+    elif re.search(r"\b(?:weekly|every\s+week|kila\s+wiki)\b", normalized):
+        recurrence = 10080
+    elif re.search(r"\b(?:hourly|every\s+hour|kila\s+saa)\b", normalized):
+        recurrence = 60
+    else:
+        every = re.search(r"\bevery\s+(\d{1,3})\s+(minutes?|hours?|days?)\b", normalized)
+        if every:
+            amount = int(every.group(1))
+            unit = every.group(2)
+            recurrence = amount * (60 if unit.startswith("hour") else 1440 if unit.startswith("day") else 1)
+            if recurrence < 1 or recurrence > 525600:
+                return None
+
+    clock = re.search(
+        r"\b(?:at|saa)\s+(\d{1,2})(?::([0-5]\d))?\s*(am|pm)?\b|"
+        r"\b(\d{1,2}):([0-5]\d)\b|\b(\d{1,2})(am|pm)\b",
+        normalized,
+    )
+    local_tz = ZoneInfo("Africa/Dar_es_Salaam")
+    now = datetime.now(local_tz)
+    if clock:
+        if clock.group(1):
+            hour = int(clock.group(1))
+            minute = int(clock.group(2) or 0)
+            meridiem = clock.group(3)
+        elif clock.group(4):
+            hour = int(clock.group(4))
+            minute = int(clock.group(5))
+            meridiem = None
+        else:
+            hour = int(clock.group(6))
+            minute = 0
+            meridiem = clock.group(7)
+        if meridiem == "pm" and hour < 12:
+            hour += 12
+        elif meridiem == "am" and hour == 12:
+            hour = 0
+        if hour > 23:
+            return None
+        next_run = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+        if next_run <= now:
+            next_run += timedelta(days=1)
+    elif re.search(r"\b(?:tomorrow|kesho)\b", normalized):
+        next_run = (now + timedelta(days=1)).replace(second=0, microsecond=0)
+    elif recurrence:
+        # An interval-only schedule runs relative to the moment the owner requested it.
+        next_run = (now + timedelta(minutes=recurrence)).replace(second=0, microsecond=0)
+    else:
+        return None
+
+    if re.search(r"\b(?:tomorrow|kesho)\b", normalized) and recurrence is None:
+        next_run = next_run.replace(hour=now.hour, minute=now.minute)
+
+    command = value
+    command = re.sub(r"^(?:please\s+)?(?:schedule|create\s+(?:a\s+)?schedule|set\s+(?:a\s+)?reminder|remind(?:\s+me)?|ratiba|kumbusha)\s*", "", command, flags=re.IGNORECASE)
+    command = re.sub(r"\b(?:daily|every\s+day|kila\s+siku|weekly|every\s+week|kila\s+wiki|hourly|every\s+hour|kila\s+saa|every\s+\d{1,3}\s+(?:minutes?|hours?|days?))\b", "", command, flags=re.IGNORECASE)
+    command = re.sub(r"\b(?:at|saa)\s+\d{1,2}(?::[0-5]\d)?\s*(?:am|pm)?\b|\b\d{1,2}:[0-5]\d\b|\b\d{1,2}(?:am|pm)\b", "", command, flags=re.IGNORECASE)
+    command = re.sub(r"\b(?:tomorrow|kesho)\b", "", command, flags=re.IGNORECASE)
+    command = command.strip(" \t:,-;")
+    if len(command) < 4:
+        return None
+
+    title = re.sub(r"\s+", " ", command).strip()[:240]
+    return {
+        "action": "create",
+        "title": title,
+        "command": command[:4000],
+        "run_at": next_run.astimezone(timezone.utc).replace(tzinfo=None),
+        "interval_minutes": recurrence,
+        "timezone": "Africa/Dar_es_Salaam",
+    }
+
 
 def _is_read_only_shop_request(request: str) -> bool:
     """Allow verified 343SHOP reads only; catalog edits and customer/order actions are not reads."""
@@ -261,8 +347,97 @@ def _is_safe_for_autonomous_execution(
             _persist_step_progress(db, mission, steps)
             continue
 
-        if agent_id in {"creative", "device", "security", "scheduler"}:
+        if agent_id == "scheduler" and "scheduler" in step.get("tools", []):
+            schedule_request = _parse_owner_schedule_request(step_request)
+            if not schedule_request:
+                steps.append({
+                    "step": index,
+                    "agent": agent_id,
+                    "name": step_name,
+                    "tool": "persistent_scheduler",
+                    "status": "WAITING_FOR_HAND",
+                    "verified": False,
+                    "evidence": {
+                        "message": "Ratiba haikuundwa. Tarehe/muda au interval inayoeleweka na kazi ya kutekeleza vinahitajika.",
+                        "schedule_created": False,
+                    },
+                })
+            elif schedule_request["action"] == "list":
+                rows = db.query(ScheduledJob).filter(
+                    ScheduledJob.user_id == user.id
+                ).order_by(ScheduledJob.next_run_at.asc().nullslast(), ScheduledJob.id.desc()).limit(50).all()
+                steps.append({
+                    "step": index,
+                    "agent": agent_id,
+                    "name": step_name,
+                    "tool": "persistent_scheduler",
+                    "status": "COMPLETED",
+                    "verified": True,
+                    "evidence": {
+                        "message": "Ratiba za mmiliki zimesomwa kutoka kwenye database.",
+                        "count": len(rows),
+                        "schedules": [{
+                            "id": row.id,
+                            "title": row.title,
+                            "command": row.command,
+                            "status": row.status,
+                            "run_at": row.run_at.isoformat() if row.run_at else None,
+                            "next_run_at": row.next_run_at.isoformat() if row.next_run_at else None,
+                            "interval_minutes": row.interval_minutes,
+                        } for row in rows],
+                    },
+                })
+            else:
+                job = ScheduledJob(
+                    user_id=user.id,
+                    title=schedule_request["title"][:255],
+                    command=schedule_request["command"],
+                    status="ACTIVE",
+                    run_at=schedule_request["run_at"],
+                    interval_minutes=schedule_request["interval_minutes"],
+                    next_run_at=schedule_request["run_at"],
+                )
+                db.add(job)
+                db.add(ActivityLog(
+                    user_id=user.id,
+                    action="SCHEDULE_CREATED_BY_MANAGER",
+                    details=f"schedule_id=pending; interval_minutes={schedule_request['interval_minutes']}; timezone={schedule_request['timezone']}",
+                ))
+                db.flush()
+                evidence = {
+                    "message": "Ratiba imehifadhiwa kwenye database na imewekwa ACTIVE.",
+                    "schedule_id": job.id,
+                    "title": job.title,
+                    "command": job.command,
+                    "status": job.status,
+                    "run_at": job.run_at.isoformat(),
+                    "next_run_at": job.next_run_at.isoformat(),
+                    "interval_minutes": job.interval_minutes,
+                    "timezone": schedule_request["timezone"],
+                    "future_execution": "Scheduled runs re-enter MR AI Orchestrator; individual steps still enforce their own approval gates.",
+                }
+                steps.append({
+                    "step": index,
+                    "agent": agent_id,
+                    "name": step_name,
+                    "tool": "persistent_scheduler",
+                    "status": "COMPLETED",
+                    "verified": True,
+                    "evidence": evidence,
+                })
+            _persist_step_progress(db, mission, steps)
             continue
+
+        if agent_id in {"creative", "device", "security"}:
+            continue
+        if agent_id == "scheduler":
+            schedule_action = _parse_owner_schedule_request(step_request)
+            if schedule_action and (
+                schedule_action.get("action") == "list"
+                or schedule_action.get("action") == "create"
+            ):
+                continue
+            return False
         if agent_id == "shop" and "shop_api" in tools:
             # Store missions are unattended only for verified read-only operations.
             if _is_read_only_shop_request(step_request):
