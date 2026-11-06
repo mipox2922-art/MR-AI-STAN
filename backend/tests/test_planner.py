@@ -182,7 +182,17 @@ def test_owner_wide_goal_delegates_known_owner_workstreams_without_agent_names()
 
     request = "Simamia shughuli zangu zote"
     selected = select_agents(request)
-    assert selected == ["jobs", "gmail", "research", "shop", "coding"]
+    assert selected == ["jobs", "gmail", "research", "shop", "coding", "scheduler"]
     plan = infer_goal_commands(request)
-    assert len(plan) == 5
+    assert len(plan) == 6
     assert all(item["request"] for item in plan)
+
+
+
+def test_known_owner_responsibilities_trigger_a_broad_work_plan():
+    from app.orchestration.planner import infer_goal_commands, select_agents
+
+    request = "Fanya kazi, sio tu biashara, bali majukumu yake unayajua"
+    commands = infer_goal_commands(request)
+    assert select_agents(request) == ["jobs", "gmail", "research", "shop", "coding", "scheduler"]
+    assert any(item["agent"] == "scheduler" and "outstanding reminders" in item["request"] for item in commands)
