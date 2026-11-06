@@ -53,6 +53,7 @@ jobs:
                       "scheduler_running": scheduler.get("loop_running"),
                       "last_cycle_status": scheduler.get("last_cycle_status"),
                       "last_cycle_at": scheduler.get("last_cycle_at"),
+            "last_cycle_summary": scheduler.get("last_cycle_summary") or {},
                   }, ensure_ascii=False))
                   if (
                       payload.get("status") == "healthy"
