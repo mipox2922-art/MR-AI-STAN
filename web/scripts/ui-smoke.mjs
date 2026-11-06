@@ -651,7 +651,12 @@ async function main() {
       await page.locator(".command-center-reference").waitFor({ state: "visible", timeout: 7000 });
       return;
     }
-    await page.waitForFunction(expected => document.querySelector(".topbar h1")?.textContent === expected, label, { timeout: 7000 });
+    try {
+      await page.waitForFunction(expected => document.querySelector(".topbar h1")?.textContent === expected, label, { timeout: 7000 });
+    } catch (error) {
+      const actual = await page.locator(".topbar h1").textContent().catch(() => "missing heading");
+      throw new Error("Navigation to " + label + " did not render. Current heading: " + actual + ". " + error.message);
+    }
   }
 
   async function goTo(label) {
