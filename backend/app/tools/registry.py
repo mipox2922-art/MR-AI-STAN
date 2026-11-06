@@ -157,6 +157,15 @@ def get_tool_registry() -> list[dict[str, Any]]:
             "description": "Secondary AI provider. Availability depends on the configured API account.",
         },
         {
+            "id": "shop_api",
+            "name": "343SHOP Private Operations API",
+            "category": "BUSINESS",
+            "status": "CONFIGURED" if settings.shop_api_key and settings.shop_api_base_url.startswith("https://") else "NOT_CONFIGURED",
+            "mode": "PRIVATE_HTTPS_API",
+            "free": True,
+            "description": "Read-only catalog, orders and store overview. Live execution is verified only after the private shop API health check succeeds.",
+        },
+        {
             "id": "business_broker",
             "name": "Business Broker Pipeline",
             "category": "BUSINESS",
