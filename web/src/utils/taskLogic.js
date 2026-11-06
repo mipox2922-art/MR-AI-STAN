@@ -48,7 +48,7 @@ export function isTaskInProgress(task) {
 export function isTaskWaiting(task) {
   return [
     "pending", "queued", "waiting", "blocked", "waiting_approval",
-    "waiting_for_hand", "waiting_for_verification", "waiting_for_profile",
+    "waiting_for_hand", "waiting_for_verification", "waiting_for_profile", "waiting_for_eligibility",
     "ready_for_review", "needs_approval"
   ].includes(normalizeTaskStatus(task));
 }
