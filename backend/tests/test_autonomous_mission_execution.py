@@ -395,3 +395,47 @@ def test_343shop_product_write_is_not_treated_as_read_only(monkeypatch):
 
     assert _is_read_only_shop_request("Kagua 343Shop catalog and orders")
     assert not _is_read_only_shop_request("Badilisha bei ya product kwenye 343Shop")
+
+
+def test_manager_creates_durable_daily_schedule_in_dar_es_salaam_time():
+    db = make_db()
+    user = SimpleNamespace(id=74)
+    result = asyncio.run(execute_mission(
+        "Remind me every day at 8am to check remote jobs",
+        user,
+        db,
+    ))
+    task = db.query(Task).one()
+    schedule = db.query(__import__("app.models", fromlist=["ScheduledJob"]).ScheduledJob).one()
+    step = db.query(TaskStep).filter_by(task_id=task.id).one()
+    evidence = json.loads(step.evidence)
+    assert result["status"] == "COMPLETED"
+    assert schedule.status == "ACTIVE"
+    assert schedule.interval_minutes == 1440
+    assert "check remote jobs" in schedule.command.casefold()
+    assert evidence["step_result"]["evidence"]["timezone"] == "Africa/Dar_es_Salaam"
+    db.close()
+
+
+def test_manager_can_read_owner_schedules():
+    from app.models import ScheduledJob
+    db = make_db()
+    user = SimpleNamespace(id=75)
+    db.add(ScheduledJob(
+        user_id=user.id,
+        title="Daily briefing",
+        command="Review inbox",
+        status="ACTIVE",
+        run_at=datetime.utcnow(),
+        interval_minutes=1440,
+        next_run_at=datetime.utcnow(),
+    ))
+    db.commit()
+    result = asyncio.run(execute_mission("Show my schedules", user, db))
+    task = db.query(Task).one()
+    step = db.query(TaskStep).filter_by(task_id=task.id).one()
+    evidence = json.loads(step.evidence)["step_result"]["evidence"]
+    assert result["status"] == "COMPLETED"
+    assert evidence["count"] == 1
+    assert evidence["schedules"][0]["title"] == "Daily briefing"
+    db.close()
