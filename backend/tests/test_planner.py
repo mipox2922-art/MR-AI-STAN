@@ -174,7 +174,7 @@ def test_343shop_goals_are_routed_to_the_shop_specialist():
     commands = infer_goal_commands(request)
     shop_step = next(item for item in commands if item["agent"] == "shop")
     assert "343Shop" in shop_step["request"]
-    assert "do not change prices" in shop_step["request"]
+    assert "read-only audit" in shop_step["request"]
 
 
 def test_owner_wide_goal_delegates_known_owner_workstreams_without_agent_names():
