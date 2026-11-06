@@ -74,7 +74,7 @@ def _parse_owner_schedule_request(request: str) -> dict[str, Any] | None:
     """Parse only a clear schedule command; store it in the owner's local timezone."""
     value = str(request or "").strip()
     normalized = value.casefold()
-    if re.search(r"\b(?:show|list|view|check|onyesha|orodhesha|kagua|angalia)\b.*\b(?:schedule|schedules|ratiba)\b", normalized):
+    if re.search(r"\b(?:show|list|view|check|onyesha|orodhesha|kagua|angalia)\b.*\b(?:schedule|schedules|reminder|reminders|ratiba|kumbusho|vikumbusho)\b", normalized):
         return {"action": "list"}
 
     recurrence = None
@@ -139,7 +139,7 @@ def _parse_owner_schedule_request(request: str) -> dict[str, Any] | None:
     command = re.sub(r"\b(?:at|saa)\s+\d{1,2}(?::[0-5]\d)?\s*(?:am|pm)?\b|\b\d{1,2}:[0-5]\d\b|\b\d{1,2}(?:am|pm)\b", "", command, flags=re.IGNORECASE)
     command = re.sub(r"\b(?:tomorrow|kesho)\b", "", command, flags=re.IGNORECASE)
     command = command.strip(" \t:,-;")
-    command = re.sub(r"^(?:to|ya|ili)\\s+", "", command, flags=re.IGNORECASE)
+    command = re.sub(r"^(?:to|ya|ili)\s+", "", command, flags=re.IGNORECASE)
     if len(command) < 4:
         return None
 
