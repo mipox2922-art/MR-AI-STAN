@@ -37,6 +37,11 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:5173,https://mr-ai-stan-web.onrender.com"
     searxng_url: str = ""
 
+    # Optional owner-authenticated 343SHOP Worker connection. Use the same
+    # OWNER_PASSWORD configured on the 343SHOP Cloudflare Worker.
+    shop_worker_url: str = "https://343shop.chugastan343.workers.dev"
+    shop_owner_password: str = ""
+
     # Optional Coding Agent GitHub workspace. Never expose the token through status endpoints.
     coding_github_token: str = ""
     coding_github_repository: str = ""
