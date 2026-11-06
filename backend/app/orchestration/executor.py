@@ -67,6 +67,25 @@ def _is_read_only_gmail_request(request: str) -> bool:
     )
     return any(term in value for term in read_intents)
 
+def _is_read_only_shop_request(request: str) -> bool:
+    """Allow verified 343SHOP reads only; catalog edits and customer/order actions are not reads."""
+    value = str(request or "").strip().casefold()
+    if not value:
+        return False
+    write_action = re.search(
+        r"\b(?:update|change|edit|delete|remove|hide|deactivate|activate|publish|add|create|set|"
+        r"badilisha|ongeza|futa|ondoa|hariri|chapisha|weka)\b.*\b"
+        r"(?:product|item|price|bei|stock|inventory|order|oda|customer|mteja|bidhaa)\b",
+        value,
+    )
+    if write_action:
+        return False
+    return bool(re.search(
+        r"\b(?:343\s*shop|shop|store|duka|dukani|catalog|products?|bidhaa|orders?|oda|sales|mauzo)\b",
+        value,
+    ))
+
+
 def _is_read_only_web_research_request(request: str) -> bool:
     """Permit explicit public-search commands only; never infer research from arbitrary chat."""
     value = str(request or "").strip().casefold()
@@ -150,8 +169,105 @@ def _is_safe_for_autonomous_execution(
             continue
         # These registered agents have no verified backend execution adapter yet.
         # Let other supported mission steps proceed while this step reports its missing hand.
+        if agent_id == "shop" and "shop_api" in step.get("tools", []):
+            from ..connectors.shop import ShopConnectorError, shop_snapshot
+
+            if not _is_read_only_shop_request(step_request):
+                steps.append({
+                    "step": index,
+                    "agent": agent_id,
+                    "name": step_name,
+                    "tool": "343shop_private_api",
+                    "status": "WAITING_FOR_APPROVAL",
+                    "verified": False,
+                    "evidence": {
+                        "message": "343Shop read operations are separate from product edits, customer contact, order fulfilment, payment and refunds. This side-effecting request was not executed.",
+                        "write_executed": False,
+                    },
+                })
+                _persist_step_progress(db, mission, steps)
+                continue
+
+            try:
+                result = await shop_snapshot(product_limit=40, order_limit=20)
+                overview = result.get("overview") or {}
+                products = result.get("products") or []
+                orders = result.get("orders") or []
+                store_products = overview.get("products") or {}
+                store_orders = overview.get("orders") or {}
+                pending = [
+                    order for order in orders
+                    if str(order.get("status") or "").casefold() in {"pending_payment", "pending", "awaiting_payment"}
+                ]
+                evidence = {
+                    "message": "343SHOP private API health, catalog, overview and recent order endpoints returned verified data. Pending orders are not counted as paid revenue.",
+                    "store": result.get("store"),
+                    "generated_at": result.get("generated_at"),
+                    "products": {
+                        "total": store_products.get("total", len(products)),
+                        "active": store_products.get("active"),
+                        "inactive": store_products.get("inactive"),
+                        "own": store_products.get("own"),
+                        "partner": store_products.get("partner"),
+                        "items": products[:20],
+                    },
+                    "orders": {
+                        "total": store_orders.get("total", len(orders)),
+                        "by_status": store_orders.get("byStatus") or {},
+                        "pending_payment": store_orders.get("pendingPayment", len(pending)),
+                        "recent": orders[:20],
+                        "pending_value_is_revenue": False,
+                    },
+                    "limitations": result.get("limitations") or [],
+                    "private_api_verified": True,
+                    "writes_performed": False,
+                }
+                steps.append({
+                    "step": index,
+                    "agent": agent_id,
+                    "name": step_name,
+                    "tool": "343shop_private_api",
+                    "status": "COMPLETED",
+                    "verified": True,
+                    "evidence": evidence,
+                })
+            except ShopConnectorError as exc:
+                steps.append({
+                    "step": index,
+                    "agent": agent_id,
+                    "name": step_name,
+                    "tool": "343shop_private_api",
+                    "status": "NOT_CONNECTED" if exc.status_code in {401, 503, 504} else "FAILED",
+                    "verified": False,
+                    "evidence": {
+                        "message": str(exc)[:400],
+                        "private_api_verified": False,
+                        "writes_performed": False,
+                    },
+                })
+            except Exception as exc:
+                steps.append({
+                    "step": index,
+                    "agent": agent_id,
+                    "name": step_name,
+                    "tool": "343shop_private_api",
+                    "status": "FAILED",
+                    "verified": False,
+                    "evidence": {
+                        "message": f"343SHOP read failed: {type(exc).__name__}.",
+                        "private_api_verified": False,
+                    },
+                })
+            _persist_step_progress(db, mission, steps)
+            continue
+
         if agent_id in {"creative", "device", "security", "scheduler"}:
             continue
+        if agent_id == "shop" and "shop_api" in tools:
+            # Store missions are unattended only for verified read-only operations.
+            if _is_read_only_shop_request(step_request):
+                continue
+            return False
         # Business brokerage is read-only discovery plus owner-scoped record/draft/task creation.
         # The broker returns NOT_CONNECTED when the selected source is not configured; it never fabricates leads.
         if agent_id == "research" and "searxng" in tools:
