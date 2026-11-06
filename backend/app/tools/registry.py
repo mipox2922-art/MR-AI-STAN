@@ -5,6 +5,7 @@ from typing import Any
 
 from ..config import settings
 from ..connectors.coding_workspace import coding_workspace_status
+from ..connectors.shop_343 import shop_connector_status
 
 def _binary_status(binary: str, label: str) -> dict[str, Any]:
     path = shutil.which(binary)
@@ -16,6 +17,7 @@ def _binary_status(binary: str, label: str) -> dict[str, Any]:
     }
 
 def get_tool_registry() -> list[dict[str, Any]]:
+    shop = shop_connector_status()
     return [
         {
             "id": "system_telemetry",
@@ -155,6 +157,16 @@ def get_tool_registry() -> list[dict[str, Any]]:
             "mode": "CLOUD",
             "free": False,
             "description": "Secondary AI provider. Availability depends on the configured API account.",
+        },
+        {
+            "id": "343shop",
+            "name": "343Shop Owner Operations",
+            "category": "COMMERCE",
+            "status": "CONNECTED" if shop.get("configured") else "NOT_CONNECTED",
+            "mode": "CLOUDFLARE_WORKER_API",
+            "free": True,
+            "owner_dashboard": "CONFIGURED" if shop.get("owner_dashboard_configured") else "OWNER_SECRET_REQUIRED",
+            "description": "Read-only store health, public catalogues and marketplace integration status; owner dashboard access requires SHOP_OWNER_PASSWORD. Product publishing, orders and payments remain gated by their actual APIs and permissions.",
         },
         {
             "id": "business_broker",
