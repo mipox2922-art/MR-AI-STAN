@@ -39,6 +39,10 @@ _last_cycle_summary: dict[str, int] = {
     "application_drafts_ready": 0,
     "job_source_errors": 0,
     "approved_missions_processed": 0,
+    "chief_of_staff_users_checked": 0,
+    "chief_of_staff_missions_started": 0,
+    "chief_of_staff_missions_completed": 0,
+    "chief_of_staff_missions_waiting": 0,
     "gmail_users_checked": 0,
     "gmail_messages_processed": 0,
     "gmail_drafts_created": 0,
@@ -575,12 +579,13 @@ async def _run_scheduler_cycle_once() -> tuple[int, int]:
 
         _last_cycle_summary = dict(summary)
         _last_cycle_status = "COMPLETED"
-        if fired or processed or summary["autopilot_users_due"] or summary["approved_missions_processed"] or summary["gmail_messages_processed"] or summary["gmail_replies_sent"]:
+        if fired or processed or summary["autopilot_users_due"] or summary["approved_missions_processed"] or summary["chief_of_staff_missions_started"] or summary["gmail_messages_processed"] or summary["gmail_replies_sent"]:
             logger.info(
-                "Scheduler cycle complete: triggered=%s processed=%s job_users=%s "
+                "Scheduler cycle complete: triggered=%s processed=%s chief_missions=%s job_users=%s "
                 "job_candidates=%s application_drafts=%s job_source_errors=%s",
                 fired,
                 processed,
+                summary["chief_of_staff_missions_started"],
                 summary["autopilot_users_due"],
                 summary["new_jobs_found"],
                 summary["application_drafts_ready"],
