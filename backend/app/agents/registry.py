@@ -90,9 +90,16 @@ AGENTS: tuple[AgentDefinition, ...] = (
     ),
     AgentDefinition(
         "scheduler", "Scheduler Agent",
-        "Manages durable tasks and scheduled execution requests.",
+        "Creates and inspects owner-scoped reminders and durable schedules in the backend database.",
         ("schedule", "queue", "cancel", "status"),
-        ("scheduler",),
+        ("scheduler_database",),
+        "LOW",
+    ),
+    AgentDefinition(
+        "shop", "343Shop Manager",
+        "Inspects the 343SHOP Worker, owner catalogue, partner applications, payment ledger and configured marketplace feeds.",
+        ("store_health", "catalogue_read", "marketplace_status", "owner_dashboard_read", "product_search"),
+        ("shop_worker_api", "343shop_owner_dashboard"),
         "MEDIUM",
     ),
 )
