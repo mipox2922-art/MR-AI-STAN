@@ -4,6 +4,7 @@ on:
   schedule:
     - cron: "*/5 * * * *"
   workflow_dispatch:
+  # Exercise the trusted OIDC heartbeat on workflow changes as well as its five-minute schedule.
   push:
     branches:
       - main
