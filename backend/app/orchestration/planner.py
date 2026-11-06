@@ -267,12 +267,20 @@ def infer_goal_commands(text: str) -> list[dict[str, str]]:
             add("scheduler", request[:900])
 
     if owner_wide_target:
-        add("jobs", "Search remote jobs matching the owner's saved skills; do not submit applications: " + request[:650])
-        add("gmail", "Review the owner's inbox for recruitment, business, customer and shop messages; do not send or modify messages: " + request[:650])
-        add("research", "Research MOOG Digital Printing & Branding and find source-backed prospective clients: " + request[:650])
-        add("shop", "Audit 343Shop products, recent orders and store performance using the private store API: " + request[:650])
-        add("coding", "Inspect the MR AI STAN project health and report only changes essential to keeping the owner's command center operational: " + request[:650])
-        add("scheduler", "Show owner schedules and outstanding reminders; report next due and overdue follow-ups: " + request[:650])
+        owner_workstreams = [
+            ("jobs", "Search remote jobs matching the owner's saved skills; do not submit applications: " + request[:650]),
+            ("gmail", "Review the owner's inbox for recruitment, business, customer and shop messages; do not send or modify messages: " + request[:650]),
+            ("research", "Research MOOG Digital Printing & Branding and find source-backed prospective clients: " + request[:650]),
+            ("shop", "Audit 343Shop products, recent orders and store performance using the private store API: " + request[:650]),
+            ("coding", "Inspect the MR AI STAN project health and report only changes essential to keeping the owner's command center operational: " + request[:650]),
+            ("scheduler", "Show owner schedules and outstanding reminders; report next due and overdue follow-ups: " + request[:650]),
+        ]
+        for agent_id, instruction in owner_workstreams:
+            existing = next((item for item in commands if item["agent"] == agent_id), None)
+            if existing:
+                existing["request"] = instruction
+            else:
+                add(agent_id, instruction)
 
     return commands[:7]
 
