@@ -210,7 +210,7 @@ def infer_goal_commands(text: str) -> list[dict[str, str]]:
         value,
     )
     schedule_target = re.search(
-        r"\b(?:schedule|reminder|ratiba|kumbusho|calendar|appointment)\b",
+        r"\b(?:schedules?|reminders?|ratiba|kumbusho|calendar|appointment)\b",
         value,
     )
 
