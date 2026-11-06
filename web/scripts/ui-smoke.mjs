@@ -365,6 +365,23 @@ async function apiMock(route) {
     });
   }
   if (method === "POST" && path === "/tools/dispatch") return sendJson(route, { status: "COMPLETED", route: { agent: "orchestrator", tool: "system_telemetry" }, result: systemStatus });
+  if (method === "GET" && path === "/shop/status") return sendJson(route, {
+    configured: false,
+    connected: false,
+    status: "NOT_CONFIGURED",
+    message: "Mock fixture only; 343Shop private API credentials are not configured in this test.",
+  });
+  if (method === "GET" && path === "/shop/overview") return sendJson(route, {
+    status: "COMPLETED", store: "343SHOP", generated_at: null,
+    overview: {
+      currency: "USD",
+      products: { total: 0, active: 0, inactive: 0, own: 0, partner: 0 },
+      orders: { total: 0, pendingPayment: 0, byStatus: {} },
+    },
+    limitations: ["UI smoke fixture only."],
+  });
+  if (method === "GET" && path === "/shop/products") return sendJson(route, { status: "COMPLETED", products: [], returned: 0 });
+  if (method === "GET" && path === "/shop/orders") return sendJson(route, { status: "COMPLETED", orders: [], returned: 0 });
   if (method === "GET" && path === "/broker/status") return sendJson(route, {
     status: "AVAILABLE",
     owner_scoped_pipeline: true,
