@@ -110,6 +110,42 @@ def _is_read_only_job_request(request: str) -> bool:
     return any(term in value for term in read_intents)
 
 
+def _is_read_only_shop_request(request: str) -> bool:
+    """Only allow catalogue/status research through unattended 343SHOP missions."""
+    value = str(request or "").casefold()
+    has_shop = bool(re.search(r"\b(?:343\s*shop|343shop|duka(?:\s+langu)?|my\s+store|storefront)\b", value))
+    if not has_shop:
+        return False
+    mutation = re.search(
+        r"\b(?:publish|update|change|add|remove|delete|archive|restore|post|sell|buy|purchase|"
+        r"pay|refund|send|submit|order|confirm|approve|chapisha|badilisha|ongeza|futa|"
+        r"lipa|nunua|tuma|thibitisha|idhinisha)\b",
+        value,
+    )
+    read_action = re.search(
+        r"\b(?:inspect|monitor|review|audit|check|show|list|search|find|compare|status|"
+        r"simamia|fuatilia|kagua|angalia|onyesha|orodhesha|tafuta|linganisha)\b",
+        value,
+    )
+    return bool(read_action) and mutation is None
+
+
+def _is_supported_scheduler_request(request: str) -> bool:
+    value = str(request or "").casefold()
+    return bool(re.search(
+        r"\b(?:schedule|remind(?:er)?|ratiba|kumbush[ao]|list schedules|ratiba zangu)\b",
+        value,
+    ))
+
+
+def _is_config_security_audit_request(request: str) -> bool:
+    value = str(request or "").casefold()
+    return bool(
+        re.search(r"\b(?:security|usalama)\b", value)
+        and re.search(r"\b(?:audit|check|review|kagua|angalia|configuration|config)\b", value)
+    )
+
+
 def _is_safe_for_autonomous_execution(
     plan: dict[str, Any],
     request: str,
@@ -148,9 +184,23 @@ def _is_safe_for_autonomous_execution(
         # The production branch is never modified by the mission executor.
         if agent_id == "coding":
             continue
-        # These registered agents have no verified backend execution adapter yet.
-        # Let other supported mission steps proceed while this step reports its missing hand.
-        if agent_id in {"creative", "device", "security", "scheduler"}:
+        # Store inspection is read-only and uses the real 343SHOP Worker API.
+        if agent_id == "shop":
+            if _is_read_only_shop_request(step_request):
+                continue
+            return False
+        # Reminder creation is an owner-scoped internal database action only.
+        if agent_id == "scheduler":
+            if _is_supported_scheduler_request(step_request):
+                continue
+            return False
+        # This adapter performs a defensive configuration audit only, not a penetration test.
+        if agent_id == "security":
+            if _is_config_security_audit_request(step_request):
+                continue
+            return False
+        # Canvas creation and local device actions still need their real execution hands.
+        if agent_id in {"creative", "device"}:
             continue
         # Business brokerage is read-only discovery plus owner-scoped record/draft/task creation.
         # The broker returns NOT_CONNECTED when the selected source is not configured; it never fabricates leads.
@@ -651,8 +701,117 @@ async def execute_mission(
             _persist_step_progress(db, mission, steps)
             continue
 
-        if agent_id in {"creative", "device", "security", "scheduler"}:
+        if agent_id == "shop":
+            if not _is_read_only_shop_request(step_request):
+                steps.append({
+                    "step": index, "agent": agent_id, "name": step_name,
+                    "tool": "343shop_worker_api", "status": "WAITING_FOR_HAND",
+                    "verified": False,
+                    "evidence": {
+                        "message": "343Shop mission blocked because this request changes store data or triggers an external action. Read-only inspection can run automatically; publishing, pricing, stock, orders, messages and payments require their dedicated owner workflow.",
+                        "requested_action": step_request[:500],
+                    },
+                })
+            else:
+                try:
+                    from ..connectors.shop_343 import inspect_343shop
+                    result = await inspect_343shop(step_request)
+                    source_status = str(result.get("status") or "FAILED").upper()
+                    surfaced_status = "COMPLETED" if source_status == "COMPLETED" else (
+                        "WAITING_FOR_HAND" if source_status == "PARTIAL" else "FAILED"
+                    )
+                    steps.append({
+                        "step": index, "agent": agent_id, "name": step_name,
+                        "tool": "343shop_worker_api", "status": surfaced_status,
+                        "verified": surfaced_status == "COMPLETED",
+                        "evidence": {
+                            **result,
+                            "message": (
+                                "343Shop Worker, catalogue na owner dashboard zimekaguliwa kwa API halisi."
+                                if surfaced_status == "COMPLETED"
+                                else "Sehemu za umma zimekaguliwa; owner dashboard inahitaji SHOP_OWNER_PASSWORD au endpoint fulani haipatikani."
+                                if surfaced_status == "WAITING_FOR_HAND"
+                                else "343Shop API haikurudisha matokeo yanayoweza kuthibitishwa."
+                            ),
+                            "source_status": source_status,
+                        },
+                    })
+                except Exception as exc:
+                    steps.append({
+                        "step": index, "agent": agent_id, "name": step_name,
+                        "tool": "343shop_worker_api", "status": "FAILED", "verified": False,
+                        "evidence": {"message": "343Shop inspection failed: " + type(exc).__name__ + "."},
+                    })
+            _persist_step_progress(db, mission, steps)
+            continue
+
+        if agent_id == "scheduler":
+            try:
+                from .adapters import execute_scheduler_request
+                result = execute_scheduler_request(db, user.id, step_request)
+                steps.append({
+                    "step": index, "agent": agent_id, "name": step_name,
+                    "tool": "scheduler_database",
+                    "status": str(result.get("status") or "FAILED").upper(),
+                    "verified": result.get("verified") is True,
+                    "evidence": result,
+                })
+            except Exception as exc:
+                steps.append({
+                    "step": index, "agent": agent_id, "name": step_name,
+                    "tool": "scheduler_database", "status": "FAILED", "verified": False,
+                    "evidence": {"message": "Scheduler operation failed: " + type(exc).__name__ + "."},
+                })
+            _persist_step_progress(db, mission, steps)
+            continue
+
+        if agent_id == "security":
+            if not _is_config_security_audit_request(step_request):
+                steps.append({
+                    "step": index, "agent": agent_id, "name": step_name,
+                    "tool": "defensive_configuration_audit", "status": "NOT_CONNECTED", "verified": False,
+                    "evidence": {"message": "This Security Agent adapter supports configuration audits only; no penetration or malware scan was run."},
+                })
+            else:
+                try:
+                    from .adapters import execute_security_audit
+                    result = execute_security_audit()
+                    steps.append({
+                        "step": index, "agent": agent_id, "name": step_name,
+                        "tool": "defensive_configuration_audit",
+                        "status": "COMPLETED", "verified": result.get("verified") is True,
+                        "evidence": result,
+                    })
+                except Exception as exc:
+                    steps.append({
+                        "step": index, "agent": agent_id, "name": step_name,
+                        "tool": "defensive_configuration_audit", "status": "FAILED", "verified": False,
+                        "evidence": {"message": "Security configuration audit failed: " + type(exc).__name__ + "."},
+                    })
+            _persist_step_progress(db, mission, steps)
+            continue
+
+        if agent_id in {"creative", "device"}:
             steps.append({
+                "step": index,
+                "agent": agent_id,
+                "name": step_name,
+                "tool": "execution_adapter",
+                "status": "NOT_CONNECTED",
+                "verified": False,
+                "evidence": {
+                    "message": (
+                        f"{step_name} amesajiliwa kwenye Agent Registry, lakini Mission Engine haina "
+                        "verified execution adapter ya kutekeleza ombi hili. Hakuna hatua iliyofanyika."
+                    ),
+                    "registered_agent": True,
+                    "execution_available": False,
+                },
+            })
+            _persist_step_progress(db, mission, steps)
+            continue
+
+
                 "step": index,
                 "agent": agent_id,
                 "name": step_name,
@@ -1094,7 +1253,7 @@ async def execute_mission(
     all_verified = bool(persisted_steps) and verified_total == len(persisted_steps)
     failed = any(str(row.get("status", "")).upper() == "FAILED" for row in steps)
     waiting = any(str(row.get("status", "")).upper() in {
-        "WAITING", "WAITING_FOR_HAND", "WAITING_FOR_VERIFICATION", "WAITING_APPROVAL", "NOT_CONNECTED"
+        "WAITING", "WAITING_FOR_HAND", "WAITING_FOR_VERIFICATION", "WAITING_FOR_DETAILS", "WAITING_APPROVAL", "NOT_CONNECTED"
     } for row in steps)
     if all_verified:
         mission.status = "COMPLETED"
@@ -1113,6 +1272,7 @@ async def execute_mission(
         "total_steps": len(persisted_steps),
         "owner_approved": _mission_explicitly_approved(db, mission),
         "memory_context": memory_context,
+        "plan": plan,
     }, ensure_ascii=False, default=str)
     mission.error = next((str(row.get("evidence", {}).get("message", "")) for row in steps
         if str(row.get("status", "")).upper() == "FAILED" and isinstance(row.get("evidence"), dict)), None)
