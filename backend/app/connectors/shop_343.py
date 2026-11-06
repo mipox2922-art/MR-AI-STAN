@@ -32,12 +32,17 @@ def _base_url() -> str:
 
 
 def shop_connector_status() -> dict[str, Any]:
-    """Expose connection readiness without revealing credentials."""
+    """Expose configured connection readiness without claiming a live health check."""
+    try:
+        base = _base_url() if settings.shop_worker_url else None
+    except ShopConnectorError:
+        base = None
     return {
-        "configured": bool(settings.shop_worker_url),
-        "worker_url": _base_url() if settings.shop_worker_url else None,
+        "configured": bool(base),
+        "worker_url": base,
         "owner_dashboard_configured": bool(settings.shop_owner_password),
         "mode": "CLOUDFLARE_WORKER_API",
+        "status_note": "This reports URL/secret configuration only. A mission performs the live Worker health and API checks.",
         "note": (
             "Public catalogue and marketplace status can be read without owner login. "
             "Owner products, wallet ledger and partner applications require SHOP_OWNER_PASSWORD. "
