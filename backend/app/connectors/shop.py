@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 from urllib.parse import urlparse
 
@@ -148,7 +149,7 @@ async def shop_snapshot(product_limit: int = 40, order_limit: int = 20) -> dict[
     if health.get("status") != "connected" or health.get("store") != "343SHOP":
         raise ShopConnectorError("343SHOP health identity check failed.", 502)
 
-    overview, products_payload, orders_payload = await __import__("asyncio").gather(
+    overview, products_payload, orders_payload = await asyncio.gather(
         _get("overview"),
         _get("products"),
         _get("orders", {"limit": max(1, min(int(order_limit), 100))}),
