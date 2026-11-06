@@ -811,25 +811,6 @@ async def execute_mission(
             _persist_step_progress(db, mission, steps)
             continue
 
-
-                "step": index,
-                "agent": agent_id,
-                "name": step_name,
-                "tool": "execution_adapter",
-                "status": "NOT_CONNECTED",
-                "verified": False,
-                "evidence": {
-                    "message": (
-                        f"{step_name} amesajiliwa kwenye Agent Registry, lakini Mission Engine haina "
-                        "verified execution adapter ya kutekeleza ombi hili. Hakuna hatua iliyofanyika."
-                    ),
-                    "registered_agent": True,
-                    "execution_available": False,
-                },
-            })
-            _persist_step_progress(db, mission, steps)
-            continue
-
         route = route_command(step_request)
         tool_id = route.get("tool")
         if agent_id == "coding":
