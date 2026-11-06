@@ -34,11 +34,9 @@ def _base_url() -> str:
 def shop_connector_status() -> dict[str, Any]:
     """Expose connection readiness without revealing credentials."""
     return {
-        "configured": True,
+        "configured": bool(settings.shop_worker_url),
         "worker_url": _base_url() if settings.shop_worker_url else None,
         "owner_dashboard_configured": bool(settings.shop_owner_password),
-        "marketplace_mcp_configured": bool(settings.shop_mcp_access_token or settings.shop_mcp_write_token),
-        "catalogue_write_configured": bool(settings.shop_mcp_write_token),
         "mode": "CLOUDFLARE_WORKER_API",
         "note": (
             "Public catalogue and marketplace status can be read without owner login. "
@@ -89,7 +87,8 @@ async def _owner_dashboard_snapshot(
         "wallet": "/api/admin/wallet",
         "partner_applications": "/api/admin/partner-applications",
     }
-    snapshot: dict[str, Any] = {"status": "CONNECTED"}
+    snapshot: dict[str, Any] = {"connection_status": "CONNECTED"}
+    endpoints["dashboard_status"] = endpoints.pop("status")
     for key, path in endpoints.items():
         try:
             response = await client.get(base + path, headers=headers)
@@ -103,7 +102,7 @@ async def _owner_dashboard_snapshot(
                 "status": "UNAVAILABLE",
                 "error_type": type(exc).__name__,
             }
-            snapshot["status"] = "PARTIAL"
+            snapshot["connection_status"] = "PARTIAL"
     return snapshot
 
 
@@ -159,7 +158,7 @@ async def inspect_343shop(goal: str) -> dict[str, Any]:
         and isinstance(owner_products.get("products"), list)
         and isinstance(sourced_products.get("products"), list)
     )
-    owner_ok = owner.get("status") == "CONNECTED"
+    owner_ok = owner.get("connection_status") == "CONNECTED"
     overall = "COMPLETED" if public_ok and owner_ok else "PARTIAL" if public_ok else "FAILED"
 
     products = owner.get("products", {}).get("products", []) if isinstance(owner.get("products"), dict) else []
@@ -185,13 +184,12 @@ async def inspect_343shop(goal: str) -> dict[str, Any]:
         "published_owned_product_count": len(owner_products.get("products") or []),
         "published_sourced_product_count": len(sourced_products.get("products") or []),
         "owner_dashboard": {
-            "status": owner.get("status"),
+            "status": owner.get("connection_status"),
             "product_count": len(products),
             "partner_application_count": len(applications),
             "wallet_balance_tzs": wallet.get("ledger_balance"),
             "wallet_confirmed_transactions": wallet.get("confirmed_count"),
-            "payments_live": (owner.get("status") == "CONNECTED" and
-                              (owner.get("status", {}).get("payments", {}) if isinstance(owner.get("status"), dict) else {}).get("live_checkout", False)),
+            "payments_live": bool((owner.get("dashboard_status") or {}).get("payments", {}).get("live_checkout", False)),
             "message": owner.get("message"),
         },
         "marketplaces": [
