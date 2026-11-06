@@ -177,7 +177,7 @@ def infer_goal_commands(text: str) -> list[dict[str, str]]:
 
     owner_wide_target = re.search(
         r"\b(?:kila\s+kitu|shughuli\s+zangu(?:\s+zote)?|kazi\s+zangu(?:\s+zote)?|"
-        r"majukumu(?:\s+(?:yangu|yake))?(?:\s+(?:yote|unayajua|unayoyajua))?|
+        r"majukumu(?:\s+(?:yangu|yake))?(?:\s+(?:yote|unayajua|unayoyajua))?|"
         r"biashara\s+zangu(?:\s+zote)?|manage\s+everything|take\s+care\s+of\s+everything|"
         r"all\s+my\s+(?:work|responsibilities|operations)|run\s+my\s+operations)\b",
         value,
