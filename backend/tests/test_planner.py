@@ -206,3 +206,11 @@ def test_known_owner_responsibilities_trigger_a_broad_work_plan():
     assert any(item["agent"] == "scheduler" and "outstanding reminders" in item["request"] for item in commands)
     assert any(item["agent"] == "jobs" and "Search remote jobs" in item["request"] for item in commands)
     assert any(item["agent"] == "research" and item["request"].startswith("Research MOOG") for item in commands)
+
+
+
+def test_show_reminders_routes_to_persistent_scheduler():
+    from app.orchestration.planner import build_plan, select_agents
+
+    assert select_agents("Show my reminders") == ["scheduler"]
+    assert build_plan("Show my reminders")["steps"][0]["request"] == "Show my reminders"
