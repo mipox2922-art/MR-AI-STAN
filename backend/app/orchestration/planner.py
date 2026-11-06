@@ -176,7 +176,8 @@ def infer_goal_commands(text: str) -> list[dict[str, str]]:
             commands.append({"agent": agent, "request": instruction})
 
     owner_wide_target = re.search(
-        r"\b(?:kila\s+kitu|shughuli\s+zangu(?:\s+zote)?|majukumu\s+yangu(?:\s+yote)?|"
+        r"\b(?:kila\s+kitu|shughuli\s+zangu(?:\s+zote)?|kazi\s+zangu(?:\s+zote)?|"
+        r"majukumu(?:\s+(?:yangu|yake))?(?:\s+(?:yote|unayajua|unayoyajua))?|
         r"biashara\s+zangu(?:\s+zote)?|manage\s+everything|take\s+care\s+of\s+everything|"
         r"all\s+my\s+(?:work|responsibilities|operations)|run\s+my\s+operations)\b",
         value,
@@ -268,6 +269,7 @@ def infer_goal_commands(text: str) -> list[dict[str, str]]:
         add("research", "Review MOOG Digital Printing & Branding opportunities and source-backed prospective clients: " + request[:650])
         add("shop", "Audit 343Shop products, recent orders and store performance using the private store API: " + request[:650])
         add("coding", "Inspect the MR AI STAN project health and report only changes essential to keeping the owner's command center operational: " + request[:650])
+        add("scheduler", "Show owner schedules and outstanding reminders; report next due and overdue follow-ups: " + request[:650])
 
     return commands[:7]
 
