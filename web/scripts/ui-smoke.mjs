@@ -638,13 +638,13 @@ async function main() {
   completedChecks.push("executive briefing expands to a task-backed Agent Crew roster");
   assert.equal(radarScanRequests, 0, "After initial telemetry refresh completes, dashboard polling must not scan local sensor hardware.");
   const nav = page.locator(".sidebar nav button");
-  assert.equal(await nav.count(), 16, "All 16 main navigation entries should render.");
-  completedChecks.push("authenticated app startup + 16 grouped main navigation controls");
+  assert.equal(await nav.count(), 17, "All 17 main navigation entries should render.");
+  completedChecks.push("authenticated app startup + 17 grouped main navigation controls");
 
   const destinations = [
     "Dashboard", "AI Core", "Agents", "Browser Hands", "Device Lab",
     "Creative Studio", "Tracking Map", "Security", "Toolbox",
-    "Job Research", "Business Broker", "Gmail", "Schedules", "Tasks", "Memory", "Settings",
+    "Job Research", "Business Broker", "343Shop", "Gmail", "Schedules", "Tasks", "Memory", "Settings",
   ];
   async function waitForDestination(label) {
     if (label === "Dashboard") {
@@ -796,7 +796,7 @@ async function main() {
     ["Open Browser Hands", "Browser Hands"], ["Open Device Lab", "Device Lab"],
     ["Open Creative Studio", "Creative Studio"], ["Open Tracking Map", "Tracking Map"],
     ["Open Security", "Security"], ["Open Toolbox", "Toolbox"],
-    ["Open Job Research", "Job Research"], ["Open Business Broker", "Business Broker"], ["Open Gmail", "Gmail"], ["Open Schedules", "Schedules"], ["Open Tasks", "Tasks"],
+    ["Open Job Research", "Job Research"], ["Open Business Broker", "Business Broker"], ["Open 343Shop", "343Shop"], ["Open Gmail", "Gmail"], ["Open Schedules", "Schedules"], ["Open Tasks", "Tasks"],
     ["Open Memory", "Memory"], ["Open Settings", "Settings"],
   ];
   for (const [action, destination] of paletteTargets) {
