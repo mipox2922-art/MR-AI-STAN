@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 from .config import settings
 from .database import SessionLocal, get_db
 from .dependencies import get_current_user
-from .models import ActivityLog, Notification, ScheduledJob, Task, TaskStep, User
+from .models import ActivityLog, Notification, ScheduledJob, Setting, Task, TaskStep, User
 from .schemas import ScheduleCreate, ScheduleUpdate
 from .task_runner import run_pending_tasks
 from .self_audit import maybe_run_self_audit
@@ -399,6 +399,79 @@ async def run_pending_coding_verifications(db: Session, limit: int = 5) -> int:
     return processed
 
 
+CHIEF_OF_STAFF_CYCLE_KEY = "chief_of_staff.autonomous_cycle_at"
+CHIEF_OF_STAFF_INTERVAL = timedelta(hours=24)
+CHIEF_OF_STAFF_REQUESTED_BY = "MR AI Chief of Staff"
+
+
+async def run_chief_of_staff_cycle(db: Session) -> dict[str, int]:
+    """Start one safe, evidence-backed MOOG lead-research mission per day without a chat command."""
+    summary = {"users_checked": 0, "missions_started": 0, "missions_completed": 0, "missions_waiting": 0}
+    users = db.query(User).order_by(User.id.asc()).all()
+    now = datetime.utcnow()
+    goal = (
+        "Tafuta wateja wapya na fursa za biashara kwa MOOG Digital Printing & Branding "
+        "Dar es Salaam. Lenga biashara, shule, taasisi, timu na waandaaji wanaoweza kuhitaji "
+        "printing, branding, T-shirt, jersey, signage au graphic design. Tumia vyanzo vya "
+        "umma, hifadhi ushahidi na viungo vya chanzo, ondoa nakala zinazojirudia, panga "
+        "fursa kwa uhalisia wa huduma na toa mapendekezo ya hatua inayofuata. Usitume "
+        "ujumbe, usipige simu, usichapishe wala kufanya malipo."
+    )
+    for user in users:
+        summary["users_checked"] += 1
+        setting = db.query(Setting).filter(
+            Setting.user_id == user.id, Setting.key == CHIEF_OF_STAFF_CYCLE_KEY
+        ).order_by(Setting.id.desc()).first()
+        last_run = None
+        if setting and setting.value:
+            try:
+                last_run = datetime.fromisoformat(setting.value)
+            except (TypeError, ValueError):
+                last_run = None
+        if last_run and (now - last_run) < CHIEF_OF_STAFF_INTERVAL:
+            continue
+        active = db.query(Task).filter(
+            Task.user_id == user.id,
+            Task.agent == "orchestrator",
+            Task.requested_by == CHIEF_OF_STAFF_REQUESTED_BY,
+            Task.status.in_(["PENDING", "RUNNING", "IN_PROGRESS", "WAITING_APPROVAL",
+                             "WAITING_FOR_HAND", "WAITING_FOR_VERIFICATION"]),
+        ).order_by(Task.created_at.desc()).first()
+        if active:
+            continue
+        try:
+            from .orchestration.executor import execute_mission
+            result = await execute_mission(goal, user, db)
+            mission_data = result.get("mission") if isinstance(result, dict) else None
+            mission_id = mission_data.get("id") if isinstance(mission_data, dict) else None
+            if not mission_id:
+                logger.warning("Chief of Staff did not create a mission: user_id=%s", user.id)
+                continue
+            mission = db.query(Task).filter(Task.id == mission_id, Task.user_id == user.id).first()
+            if mission is not None:
+                mission.requested_by = CHIEF_OF_STAFF_REQUESTED_BY
+                db.add(ActivityLog(
+                    user_id=user.id,
+                    action="CHIEF_OF_STAFF_MISSION_STARTED",
+                    details=f"task_id={mission.id}; scope=read_only_moog_lead_research; cadence_hours=24",
+                ))
+                status = str(mission.status or "").upper()
+                summary["missions_completed"] += int(status == "COMPLETED")
+                summary["missions_waiting"] += int(status in {
+                    "WAITING_APPROVAL", "WAITING_FOR_HAND", "WAITING_FOR_VERIFICATION", "FAILED"
+                })
+                summary["missions_started"] += 1
+            if setting is None:
+                db.add(Setting(user_id=user.id, key=CHIEF_OF_STAFF_CYCLE_KEY, value=now.isoformat()))
+            else:
+                setting.value = now.isoformat()
+            db.commit()
+        except Exception as exc:
+            db.rollback()
+            logger.error("Chief of Staff cycle failed: user_id=%s error_type=%s", user.id, type(exc).__name__)
+    return summary
+
+
 async def run_scheduler_cycle() -> tuple[int, int]:
     """Run one scheduler cycle at a time across poller and external wake-ups.
 
@@ -428,6 +501,10 @@ async def _run_scheduler_cycle_once() -> tuple[int, int]:
         "application_drafts_ready": 0,
         "job_source_errors": 0,
         "approved_missions_processed": 0,
+        "chief_of_staff_users_checked": 0,
+        "chief_of_staff_missions_started": 0,
+        "chief_of_staff_missions_completed": 0,
+        "chief_of_staff_missions_waiting": 0,
         "coding_prs_verified": 0,
         "gmail_users_checked": 0,
         "gmail_messages_processed": 0,
@@ -438,6 +515,16 @@ async def _run_scheduler_cycle_once() -> tuple[int, int]:
     }
     try:
         maybe_run_self_audit(db)
+        try:
+            chief_summary = await run_chief_of_staff_cycle(db)
+            summary["chief_of_staff_users_checked"] = int(chief_summary.get("users_checked") or 0)
+            summary["chief_of_staff_missions_started"] = int(chief_summary.get("missions_started") or 0)
+            summary["chief_of_staff_missions_completed"] = int(chief_summary.get("missions_completed") or 0)
+            summary["chief_of_staff_missions_waiting"] = int(chief_summary.get("missions_waiting") or 0)
+        except Exception as exc:
+            db.rollback()
+            logger.error("Chief of Staff mission cycle failed: error_type=%s", type(exc).__name__)
+
         fired = run_due_jobs(db)
         summary["scheduled_jobs_triggered"] = fired
 
