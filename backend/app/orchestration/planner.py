@@ -152,7 +152,7 @@ _ACTION_PREFIX = re.compile(
     r"can\s+you|could\s+you|please|handle|manage|find|search|research|look\s+for|"
     r"build|create|fix|review|improve|check|read|organize|take\s+care\s+of|"
     r"nataka|nahitaji|naitaji|nisaidie|naomba|fanya|tafuta|nitafutie|tafutia|panga|"
-    r"boresha|rekebisha|kagua|soma|angalia|simamia|fuatilia)\b",
+    r"boresha|rekebisha|kagua|soma|angalia|onyesha|orodhesha|fungua|simamia|fuatilia)\b",
     re.IGNORECASE,
 )
 _EXPLANATION_PREFIX = re.compile(
