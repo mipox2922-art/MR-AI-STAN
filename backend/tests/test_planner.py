@@ -114,6 +114,14 @@ def test_explanatory_question_does_not_start_agent_work():
     assert not has_autonomous_goal("Nielezee kuhusu email automation")
 
 
+def test_schedule_listing_routes_directly_to_persistent_scheduler():
+    from app.orchestration.planner import build_plan, select_agents
+
+    assert select_agents("Show my schedules") == ["scheduler"]
+    step = build_plan("Show my schedules")["steps"][0]
+    assert step["request"] == "Show my schedules"
+
+
 def test_manager_plan_uses_free_ai_and_validates_agent_assignments(monkeypatch):
     import asyncio
     import json
