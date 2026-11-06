@@ -12,6 +12,7 @@ on:
 
 permissions:
   contents: read
+  id-token: write
 
 concurrency:
   group: mr-ai-background-worker-heartbeat
@@ -70,3 +71,24 @@ jobs:
           print("FAIL: " + last_problem)
           sys.exit(1)
           PY
+
+      - name: Run an authenticated autonomous scheduler cycle
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" || -z "${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-}" ]]; then
+            echo "::error::GitHub OIDC token access is unavailable."
+            exit 1
+          fi
+          token_response="$(curl --fail --silent --show-error --max-time 15 \
+            -H "Authorization: Bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
+            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=mr-ai-stan-scheduler")"
+          oidc_token="$(python -c 'import json,sys; print(json.load(sys.stdin)["value"])' <<< "${token_response}")"
+          if [[ -z "${oidc_token}" ]]; then
+            echo "::error::GitHub did not issue a scheduler identity token."
+            exit 1
+          fi
+          curl --fail-with-body --silent --show-error --max-time 120 \
+            -X POST \
+            -H "Authorization: Bearer ${oidc_token}" \
+            "https://mr-ai-stan.onrender.com/internal/cloudflare/scheduler-cycle"
