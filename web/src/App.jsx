@@ -51,6 +51,7 @@ import TaskCenter from "./components/TaskCenter";
 import MemoryCenter from "./components/MemoryCenter";
 import VoiceControl from "./components/VoiceControl";
 import BusinessBroker from "./components/BusinessBroker";
+import ShopManager from "./components/ShopManager";
 
 const BUILD_ID = import.meta.env.VITE_BUILD_ID || "MR-AI-STAN";
 
@@ -71,6 +72,7 @@ const NAV_GROUPS = [
     items: [
       ["jobs", "⌕", "Job Research"],
       ["broker", "⇄", "Business Broker"],
+      ["shop", "▣", "343Shop"],
       ["creative", "✦", "Creative Studio"],
     ],
   },
@@ -1141,6 +1143,7 @@ function App() {
           {active === "agents" && <AgentsPanel agents={agents} tasks={tasks} onPlan={createPlan} />}
           {active === "jobs" && <JobResearch />}
           {active === "broker" && <BusinessBroker />}
+          {active === "shop" && <ShopManager />}
           {active === "browser" && <BrowserHands />}
           {active === "device" && <DeviceLab />}
           {active === "creative" && <CreativeStudio />}
