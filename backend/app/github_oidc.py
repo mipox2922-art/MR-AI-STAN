@@ -16,6 +16,13 @@ TRUSTED_REF = "refs/heads/main"
 TRUSTED_WORKFLOW = (
     "mipox2922-art/MR-AI-STAN/.github/workflows/mr-ai-scheduler.yml@refs/heads/main"
 )
+TRUSTED_HEARTBEAT_WORKFLOW = (
+    "mipox2922-art/MR-AI-STAN/.github/workflows/mr-ai-worker-heartbeat.yml@refs/heads/main"
+)
+TRUSTED_WORKFLOW_EVENTS = {
+    TRUSTED_WORKFLOW: frozenset({"schedule", "workflow_dispatch"}),
+    TRUSTED_HEARTBEAT_WORKFLOW: frozenset({"schedule", "workflow_dispatch", "push"}),
+}
 
 
 def _forbidden() -> HTTPException:
@@ -85,12 +92,14 @@ async def verify_github_actions_token(token: str) -> dict[str, Any]:
         raise _forbidden() from exc
 
     # A valid GitHub token from any other repo, branch, or workflow is not enough.
+    workflow_ref = claims.get("workflow_ref")
+    allowed_events = TRUSTED_WORKFLOW_EVENTS.get(workflow_ref)
     if (
         claims.get("repository") != TRUSTED_REPOSITORY
         or claims.get("repository_owner") != "mipox2922-art"
         or claims.get("ref") != TRUSTED_REF
-        or claims.get("workflow_ref") != TRUSTED_WORKFLOW
-        or claims.get("event_name") not in {"schedule", "workflow_dispatch"}
+        or allowed_events is None
+        or claims.get("event_name") not in allowed_events
     ):
         raise _forbidden()
 
