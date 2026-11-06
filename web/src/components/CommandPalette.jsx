@@ -21,6 +21,7 @@ export default function CommandPalette({ open, onClose, onNavigate, onToggleMode
     ["agents", "Open Agents"],
     ["jobs", "Open Job Research"],
     ["broker", "Open Business Broker"],
+    ["shop", "Open 343Shop"],
     ["browser", "Open Browser Hands"],
     ["device", "Open Device Lab"],
     ["creative", "Open Creative Studio"],
