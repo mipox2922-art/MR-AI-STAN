@@ -164,3 +164,25 @@ def test_owner_can_describe_autonomous_agent_goal_naturally_in_swahili():
         "ana timu ya agent na mimi napitia alichofanya"
     )
     assert select_agents(request) == ["coding"]
+
+
+def test_343shop_goals_are_routed_to_the_shop_specialist():
+    from app.orchestration.planner import infer_goal_commands, select_agents
+
+    request = "Kagua 343Shop bidhaa na oda mpya"
+    assert "shop" in select_agents(request)
+    commands = infer_goal_commands(request)
+    shop_step = next(item for item in commands if item["agent"] == "shop")
+    assert "343Shop" in shop_step["request"]
+    assert "do not change prices" in shop_step["request"]
+
+
+def test_owner_wide_goal_delegates_known_owner_workstreams_without_agent_names():
+    from app.orchestration.planner import infer_goal_commands, select_agents
+
+    request = "Simamia shughuli zangu zote"
+    selected = select_agents(request)
+    assert selected == ["jobs", "gmail", "research", "shop", "coding"]
+    plan = infer_goal_commands(request)
+    assert len(plan) == 5
+    assert all(item["request"] for item in plan)
