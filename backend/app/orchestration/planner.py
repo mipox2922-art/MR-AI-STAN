@@ -262,7 +262,7 @@ def infer_goal_commands(text: str) -> list[dict[str, str]]:
 
     if schedule_target:
         if re.search(r"^(?:show|list|view|check|onyesha|orodhesha|kagua|angalia)\b", value):
-            add("scheduler", "Show my reminders" if re.search(r"\\b(?:reminders?|kumbusho|vikumbusho)\\b", value) else "Show my schedules")
+            add("scheduler", "Show my reminders" if re.search(r"\b(?:reminders?|kumbusho|vikumbusho)\b", value) else "Show my schedules")
         else:
             add("scheduler", request[:900])
 
