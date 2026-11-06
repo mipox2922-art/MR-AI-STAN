@@ -351,6 +351,22 @@ export function deleteMemory(memoryId) {
   });
 }
 
+export function getShopStatus() {
+  return request("/shop/status", {}, TOOL_API_TIMEOUT_MS);
+}
+
+export function getShopOverview() {
+  return request("/shop/overview", {}, TOOL_API_TIMEOUT_MS);
+}
+
+export function getShopProducts(limit = 40) {
+  return request("/shop/products?limit=" + encodeURIComponent(limit), {}, TOOL_API_TIMEOUT_MS);
+}
+
+export function getShopOrders(limit = 20) {
+  return request("/shop/orders?limit=" + encodeURIComponent(limit), {}, TOOL_API_TIMEOUT_MS);
+}
+
 const DEVICE_BRIDGE_URL =
   import.meta.env.VITE_DEVICE_BRIDGE_URL || "http://127.0.0.1:8765";
 
