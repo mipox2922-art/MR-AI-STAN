@@ -197,8 +197,8 @@ def test_business_broker_uses_free_search_fallback_when_searxng_is_not_configure
     lead = payload["opportunities"][0]
     assert lead["source_name"] == "DuckDuckGo"
     assert lead["source_url"] == "https://example.test/school-printing"
-    assert lead["evidence"]["search_mode"] == "duckduckgo_html"
-    assert lead["evidence"]["fallback_used"] is True
+    assert lead["evidence"]["source_item"]["search_mode"] == "duckduckgo_html"
+    assert lead["evidence"]["source_item"]["fallback_used"] is True
     assert lead["evidence"]["source_warnings"] == ["SearXNG: not configured"]
     assert payload["workflow"][0]["message_sent"] is False
     with factory() as db:
