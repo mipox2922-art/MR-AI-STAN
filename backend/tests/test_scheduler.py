@@ -194,6 +194,9 @@ def test_chief_of_staff_starts_one_daily_self_initiated_moog_research_mission(mo
     mission = db.query(Task).one()
     assert mission.requested_by == scheduler_module.CHIEF_OF_STAFF_REQUESTED_BY
     assert "MOOG Digital Printing & Branding" in mission.description
+    assert "Simamia shughuli zangu zote" in mission.description
+    assert "soma inbox ya Gmail" in mission.description
+    assert "usibadilishe code" in mission.description
     assert db.query(Setting).filter(
         Setting.user_id == user.id,
         Setting.key == scheduler_module.CHIEF_OF_STAFF_CYCLE_KEY,

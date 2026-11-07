@@ -94,3 +94,10 @@ jobs:
             -X POST \
             -H "Authorization: Bearer ${oidc_token}" \
             "https://mr-ai-stan.onrender.com/internal/cloudflare/scheduler-cycle"
+
+      - name: Report verified agent-team cycle results
+        env:
+          API_URL: https://mr-ai-stan.onrender.com
+        run: |
+          curl --fail --silent --show-error --max-time 20 "${API_URL}/health" |
+            python -c 'import json,sys; d=json.load(sys.stdin); s=d.get("background_scheduler") or {}; print(json.dumps({"health":d.get("status"),"database":d.get("database"),"last_cycle_at":s.get("last_cycle_at"),"last_cycle_status":s.get("last_cycle_status"),"last_cycle_summary":s.get("last_cycle_summary") or {}},ensure_ascii=False)); sys.exit(0 if d.get("status") == "healthy" and s.get("last_cycle_status") == "COMPLETED" else 1)'

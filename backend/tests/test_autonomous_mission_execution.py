@@ -440,3 +440,68 @@ def test_manager_can_read_owner_schedules():
     assert evidence["count"] == 1
     assert evidence["schedules"][0]["title"] == "Daily briefing"
     db.close()
+
+
+
+def test_verified_team_handoffs_connect_agents_without_leaking_private_gmail_content():
+    from app.orchestration.executor import (
+        _build_verified_team_handoffs,
+        _gmail_query_with_team_handoffs,
+    )
+
+    steps = [
+        {
+            "agent": "research",
+            "name": "Research Agent",
+            "tool": "business_broker",
+            "status": "COMPLETED",
+            "verified": True,
+            "evidence": {
+                "message": "Found a source-backed school prospect.",
+                "opportunities": [{
+                    "organization": "Kijani Academy",
+                    "title": "School uniforms and event shirts",
+                    "source_name": "Public website",
+                    "source_url": "https://example.test/kijani",
+                }],
+            },
+        },
+        {
+            "agent": "gmail",
+            "name": "Gmail Agent",
+            "tool": "gmail",
+            "status": "COMPLETED",
+            "verified": True,
+            "evidence": {
+                "message": "Inbox read completed.",
+                "query": "in:inbox",
+                "count": 1,
+                "messages": [{
+                    "subject": "Private customer thread",
+                    "snippet": "Sensitive message content must stay private.",
+                    "from": "private@example.test",
+                }],
+            },
+        },
+        {
+            "agent": "jobs",
+            "name": "Job Research Agent",
+            "tool": "public_job_feeds",
+            "status": "FAILED",
+            "verified": False,
+            "evidence": {"results": [{"company": "Unverified Employer"}]},
+        },
+    ]
+
+    handoffs = _build_verified_team_handoffs(steps)
+    serialized = json.dumps(handoffs, ensure_ascii=False)
+    query = _gmail_query_with_team_handoffs("in:inbox", handoffs)
+
+    assert len(handoffs) == 2
+    assert handoffs[0]["findings"][0]["organization"] == "Kijani Academy"
+    assert handoffs[1]["message_count"] == 1
+    assert "Sensitive message content" not in serialized
+    assert "private@example.test" not in serialized
+    assert "Unverified Employer" not in serialized
+    assert '"Kijani Academy"' in query
+    assert query.startswith("in:inbox")
