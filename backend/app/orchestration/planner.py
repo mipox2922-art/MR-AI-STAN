@@ -268,11 +268,11 @@ def infer_goal_commands(text: str) -> list[dict[str, str]]:
 
     if owner_wide_target:
         owner_workstreams = [
+            ("research", "Research MOOG Digital Printing & Branding and find source-backed prospective clients: " + request[:650]),
             ("jobs", "Search remote jobs matching the owner's saved skills; do not submit applications: " + request[:650]),
             ("gmail", "Review the owner's inbox for recruitment, business, customer and shop messages; do not send or modify messages: " + request[:650]),
-            ("research", "Research MOOG Digital Printing & Branding and find source-backed prospective clients: " + request[:650]),
             ("shop", "Audit 343Shop products, recent orders and store performance using the private store API: " + request[:650]),
-            ("coding", "Inspect the MR AI STAN project health and report only changes essential to keeping the owner's command center operational: " + request[:650]),
+            ("coding", "Inspect the MR AI STAN project health using static review only; report issues but do not modify source: " + request[:650]),
             ("scheduler", "Show owner schedules and outstanding reminders; report next due and overdue follow-ups: " + request[:650]),
         ]
         for agent_id, instruction in owner_workstreams:
@@ -411,8 +411,12 @@ async def build_autonomous_plan(
         "Shop reads are safe; product writes and customer/order side effects remain gated. Creative, device, security and scheduler are registered but "
         "do not currently have verified mission execution adapters. Do not pretend they are connected. "
         "Include an unavailable specialist only when it is essential to the explicit owner goal.\n"
+        "The persistent scheduler adapter supports listing and creating owner schedules; it is not a generic external action tool.\n"
+        "When public research or job results can help another step, put Research/Jobs before Gmail so "
+        "verified organization names can be cross-checked in the inbox. Never pass Gmail message bodies, "
+        "subjects, snippets, email addresses or attachments to other agents.\n"
         "SAFETY: planning is not authorization. Never instruct an agent to bypass its tool guards. "
-        "Read-only research, inbox reading, job discovery and isolated coding PR preparation may run "
+        "Read-only research, inbox reading, job discovery, persistent-schedule listing and isolated coding PR preparation may run "
         "when their adapters permit. Sending email, submitting applications, purchases, payments, "
         "publishing, deleting, merging, deploying, credential use or destructive device changes require "
         "their existing owner-approval gates. Separate safe discovery from blocked side effects so safe "
