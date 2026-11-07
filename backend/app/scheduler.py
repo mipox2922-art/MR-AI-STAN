@@ -420,6 +420,10 @@ CHIEF_OF_STAFF_WAITING_STATES = {
     "PENDING", "RUNNING", "IN_PROGRESS", "WAITING", "VERIFYING",
     "WAITING_APPROVAL", "WAITING_FOR_HAND", "WAITING_FOR_VERIFICATION", "FAILED",
 }
+CHIEF_OF_STAFF_BLOCKED_STATES = {
+    "PENDING", "WAITING", "VERIFYING", "WAITING_APPROVAL",
+    "WAITING_FOR_HAND", "WAITING_FOR_VERIFICATION", "FAILED",
+}
 
 
 def _chief_of_staff_retry_allowed(mission: Task, now: datetime) -> bool:
@@ -490,7 +494,7 @@ async def run_chief_of_staff_cycle(db: Session) -> dict[str, int]:
                     status = str(active.status or (result or {}).get("status") or "").upper()
                     summary["missions_resumed"] += 1
                     summary["missions_completed"] += int(status == "COMPLETED")
-                    summary["missions_waiting"] += int(status in CHIEF_OF_STAFF_WAITING_STATES)
+                    summary["missions_waiting"] += int(status in CHIEF_OF_STAFF_BLOCKED_STATES)
                     db.add(ActivityLog(
                         user_id=user.id,
                         action="CHIEF_OF_STAFF_MISSION_RESUMED",
@@ -499,6 +503,16 @@ async def run_chief_of_staff_cycle(db: Session) -> dict[str, int]:
                     db.commit()
                 except Exception as exc:
                     db.rollback()
+                    # Persist a cooldown even if the resume failed before the executor
+                    # could update the task row; otherwise every scheduler tick retries it.
+                    active.updated_at = now
+                    active.error = "Chief of Staff resume failed; retry will occur after the cooldown."
+                    db.add(ActivityLog(
+                        user_id=user.id,
+                        action="CHIEF_OF_STAFF_MISSION_RESUME_FAILED",
+                        details=f"task_id={active.id}; error_type={type(exc).__name__}",
+                    ))
+                    db.commit()
                     summary["missions_waiting"] += 1
                     logger.error(
                         "Chief of Staff resume failed: task_id=%s error_type=%s",
@@ -506,10 +520,7 @@ async def run_chief_of_staff_cycle(db: Session) -> dict[str, int]:
                         type(exc).__name__,
                     )
             else:
-                summary["missions_waiting"] += int(str(active.status or "").upper() in {
-                    "PENDING", "WAITING", "VERIFYING", "WAITING_APPROVAL",
-                    "WAITING_FOR_HAND", "WAITING_FOR_VERIFICATION", "FAILED",
-                })
+                summary["missions_waiting"] += int(str(active.status or "").upper() in CHIEF_OF_STAFF_BLOCKED_STATES)
             continue
 
         if last_run and (now - last_run) < CHIEF_OF_STAFF_INTERVAL:
@@ -532,7 +543,7 @@ async def run_chief_of_staff_cycle(db: Session) -> dict[str, int]:
                 ))
                 status = str(mission.status or "").upper()
                 summary["missions_completed"] += int(status == "COMPLETED")
-                summary["missions_waiting"] += int(status in CHIEF_OF_STAFF_WAITING_STATES)
+                summary["missions_waiting"] += int(status in CHIEF_OF_STAFF_BLOCKED_STATES)
                 summary["missions_started"] += 1
             if setting is None:
                 db.add(Setting(user_id=user.id, key=CHIEF_OF_STAFF_CYCLE_KEY, value=now.isoformat()))
