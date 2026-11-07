@@ -153,22 +153,68 @@ def test_remote_work_broker_uses_existing_public_job_feed(monkeypatch):
     assert payload["workflow"][0]["message_sent"] is False
 
 
-def test_missing_search_connector_returns_not_connected_without_fake_records(monkeypatch):
+def test_business_broker_uses_free_search_fallback_when_searxng_is_not_configured(monkeypatch):
     client, factory, _actor = build_client()
     monkeypatch.setattr(settings, "searxng_url", "")
+    import app.routers.tools as tools_module
 
+    calls = []
+
+    async def fake_search(query):
+        calls.append(query)
+        return {
+            "status": "COMPLETED",
+            "query": query,
+            "count": 1,
+            "results": [{
+                "title": "Public school event printing enquiry",
+                "url": "https://example.test/school-printing",
+                "content": "A public page describing a school's upcoming sports event and printed team shirts.",
+                "engine": "DuckDuckGo",
+                "source": "DuckDuckGo",
+            }],
+            "sources": ["DuckDuckGo"],
+            "source": "duckduckgo_html",
+            "fallback_used": True,
+            "primary_source": None,
+            "source_warnings": ["SearXNG: not configured"],
+        }
+
+    monkeypatch.setattr(tools_module, "_search_searxng", fake_search)
     response = client.post("/broker/research", json={
         "goal": "Find suppliers of printing materials",
         "opportunity_type": "SUPPLIER",
+        "max_results": 5,
+        "prepare_workflow": True,
     })
 
     assert response.status_code == 200, response.text
     payload = response.json()
-    assert payload["status"] == "NOT_CONNECTED"
-    assert payload["saved_count"] == 0
-    assert payload["opportunities"] == []
+    assert len(calls) == 1
+    assert "suppliers and manufacturers" in calls[0]
+    assert payload["status"] == "COMPLETED"
+    assert payload["saved_count"] == 1
+    lead = payload["opportunities"][0]
+    assert lead["source_name"] == "DuckDuckGo"
+    assert lead["source_url"] == "https://example.test/school-printing"
+    assert lead["evidence"]["source_item"]["search_mode"] == "duckduckgo_html"
+    assert lead["evidence"]["source_item"]["fallback_used"] is True
+    assert lead["evidence"]["source_warnings"] == ["SearXNG: not configured"]
+    assert payload["workflow"][0]["message_sent"] is False
     with factory() as db:
-        assert db.query(BusinessOpportunity).count() == 0
+        assert db.query(BusinessOpportunity).count() == 1
+
+
+def test_business_broker_reports_fallback_search_capability_when_primary_is_unconfigured(monkeypatch):
+    client, _factory, _actor = build_client()
+    monkeypatch.setattr(settings, "searxng_url", "")
+    response = client.get("/broker/status")
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["business_supplier_search"] == "FALLBACK_AVAILABLE"
+    assert payload["business_supplier_search_primary"] == "DUCKDUCKGO_AND_LIMITED_PUBLIC_APIS"
+    assert payload["automatic_outreach"] is False
 
 
 def test_missing_cost_inputs_are_unknown_not_zero_and_manual_record_is_unverified():
