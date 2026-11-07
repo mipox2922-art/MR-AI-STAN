@@ -302,6 +302,7 @@ def test_research_mission_runs_public_sources_without_searxng_or_manual_approval
     assert evidence["source"] == "public_api_fallback"
     assert evidence["sources"] == ["Wikipedia"]
     assert evidence["results"][0]["url"] == "https://en.wikipedia.org/wiki/Artificial_intelligence"
+    assert packet["plan"]["steps"][0]["agent"] == "research"
     assert db.query(ApprovalRequest).count() == 0
     db.close()
 
@@ -440,3 +441,45 @@ def test_manager_can_read_owner_schedules():
     assert evidence["count"] == 1
     assert evidence["schedules"][0]["title"] == "Daily briefing"
     db.close()
+
+
+
+def test_agent_handoff_shares_only_verified_bounded_research_facts():
+    from app.orchestration.executor import _verified_agent_handoffs, _coding_request_with_handoffs
+
+    steps = [
+        {
+            "agent": "research",
+            "tool": "business_broker",
+            "status": "COMPLETED",
+            "verified": True,
+            "evidence": {
+                "message": "Two source-backed leads were saved.",
+                "count": 2,
+                "opportunities": [{"id": 9, "title": "School sports day shirts", "source_url": "https://example.test/leads/9"}],
+            },
+        },
+        {
+            "agent": "gmail",
+            "tool": "gmail",
+            "status": "COMPLETED",
+            "verified": True,
+            "evidence": {"messages": [{"subject": "Private", "snippet": "Do not share this email content."}]},
+        },
+        {
+            "agent": "research",
+            "tool": "business_broker",
+            "status": "FAILED",
+            "verified": False,
+            "evidence": {"message": "Unverified lead."},
+        },
+    ]
+
+    handoffs = _verified_agent_handoffs(steps)
+    assert len(handoffs) == 2
+    assert handoffs[0]["opportunities"][0]["title"] == "School sports day shirts"
+    assert "messages" not in handoffs[1]
+    assert "Private" not in str(handoffs)
+    coding_request = _coding_request_with_handoffs("Review the source-backed findings", handoffs)
+    assert "School sports day shirts" in coding_request
+    assert "Do not share this email content" not in coding_request
