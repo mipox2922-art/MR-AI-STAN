@@ -63,6 +63,7 @@ def scheduler_status() -> dict:
     """Expose non-sensitive worker health so hosted background execution is observable."""
     task = _scheduler_task
     return {
+        "diagnostics_version": 1,
         "enabled_by_config": bool(settings.scheduler_enabled and not settings.serverless_mode),
         "loop_running": bool(task and not task.done()),
         "last_cycle_at": _last_cycle_at,
