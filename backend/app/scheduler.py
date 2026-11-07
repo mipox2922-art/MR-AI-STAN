@@ -44,6 +44,12 @@ _last_cycle_summary: dict[str, int] = {
     "chief_of_staff_missions_resumed": 0,
     "chief_of_staff_missions_completed": 0,
     "chief_of_staff_missions_waiting": 0,
+    "chief_of_staff_missions_pending": 0,
+    "chief_of_staff_missions_waiting_for_hand": 0,
+    "chief_of_staff_missions_waiting_for_approval": 0,
+    "chief_of_staff_missions_waiting_for_verification": 0,
+    "chief_of_staff_missions_failed": 0,
+    "chief_of_staff_missions_other_waiting": 0,
     "gmail_users_checked": 0,
     "gmail_messages_processed": 0,
     "gmail_drafts_created": 0,
@@ -426,6 +432,23 @@ CHIEF_OF_STAFF_BLOCKED_STATES = {
 }
 
 
+def _record_chief_of_staff_waiting_status(summary: dict[str, int], status: str) -> None:
+    """Expose safe status counts so a blocked autonomous mission is diagnosable."""
+    normalized = str(status or "").upper()
+    if normalized == "PENDING":
+        summary["missions_pending"] += 1
+    elif normalized == "WAITING_FOR_HAND":
+        summary["missions_waiting_for_hand"] += 1
+    elif normalized == "WAITING_APPROVAL":
+        summary["missions_waiting_for_approval"] += 1
+    elif normalized == "WAITING_FOR_VERIFICATION":
+        summary["missions_waiting_for_verification"] += 1
+    elif normalized == "FAILED":
+        summary["missions_failed"] += 1
+    elif normalized in {"WAITING", "VERIFYING"}:
+        summary["missions_other_waiting"] += 1
+
+
 def _chief_of_staff_retry_allowed(mission: Task, now: datetime) -> bool:
     """Retry only an old, owner-scoped MOOG research mission; never replay external writes."""
     if str(mission.status or "").upper() not in {"WAITING_FOR_HAND", "FAILED"}:
@@ -464,6 +487,12 @@ async def run_chief_of_staff_cycle(db: Session) -> dict[str, int]:
         "missions_resumed": 0,
         "missions_completed": 0,
         "missions_waiting": 0,
+        "missions_pending": 0,
+        "missions_waiting_for_hand": 0,
+        "missions_waiting_for_approval": 0,
+        "missions_waiting_for_verification": 0,
+        "missions_failed": 0,
+        "missions_other_waiting": 0,
     }
     users = db.query(User).order_by(User.id.asc()).all()
     now = datetime.utcnow()
@@ -495,6 +524,12 @@ async def run_chief_of_staff_cycle(db: Session) -> dict[str, int]:
                     summary["missions_resumed"] += 1
                     summary["missions_completed"] += int(status == "COMPLETED")
                     summary["missions_waiting"] += int(status in CHIEF_OF_STAFF_BLOCKED_STATES)
+                    _record_chief_of_staff_waiting_status(summary, status)
+                    logger.info(
+                        "Chief of Staff mission resumed: task_id=%s status=%s",
+                        active.id,
+                        status,
+                    )
                     db.add(ActivityLog(
                         user_id=user.id,
                         action="CHIEF_OF_STAFF_MISSION_RESUMED",
@@ -520,7 +555,15 @@ async def run_chief_of_staff_cycle(db: Session) -> dict[str, int]:
                         type(exc).__name__,
                     )
             else:
-                summary["missions_waiting"] += int(str(active.status or "").upper() in CHIEF_OF_STAFF_BLOCKED_STATES)
+                status = str(active.status or "").upper()
+                summary["missions_waiting"] += int(status in CHIEF_OF_STAFF_BLOCKED_STATES)
+                _record_chief_of_staff_waiting_status(summary, status)
+                logger.warning(
+                    "Chief of Staff mission held: task_id=%s status=%s retry_eligible=%s",
+                    active.id,
+                    status,
+                    _chief_of_staff_retry_allowed(active, now),
+                )
             continue
 
         if last_run and (now - last_run) < CHIEF_OF_STAFF_INTERVAL:
@@ -544,6 +587,7 @@ async def run_chief_of_staff_cycle(db: Session) -> dict[str, int]:
                 status = str(mission.status or "").upper()
                 summary["missions_completed"] += int(status == "COMPLETED")
                 summary["missions_waiting"] += int(status in CHIEF_OF_STAFF_BLOCKED_STATES)
+                _record_chief_of_staff_waiting_status(summary, status)
                 summary["missions_started"] += 1
             if setting is None:
                 db.add(Setting(user_id=user.id, key=CHIEF_OF_STAFF_CYCLE_KEY, value=now.isoformat()))
@@ -590,6 +634,12 @@ async def _run_scheduler_cycle_once() -> tuple[int, int]:
         "chief_of_staff_missions_resumed": 0,
         "chief_of_staff_missions_completed": 0,
         "chief_of_staff_missions_waiting": 0,
+        "chief_of_staff_missions_pending": 0,
+        "chief_of_staff_missions_waiting_for_hand": 0,
+        "chief_of_staff_missions_waiting_for_approval": 0,
+        "chief_of_staff_missions_waiting_for_verification": 0,
+        "chief_of_staff_missions_failed": 0,
+        "chief_of_staff_missions_other_waiting": 0,
         "coding_prs_verified": 0,
         "gmail_users_checked": 0,
         "gmail_messages_processed": 0,
@@ -607,6 +657,12 @@ async def _run_scheduler_cycle_once() -> tuple[int, int]:
             summary["chief_of_staff_missions_resumed"] = int(chief_summary.get("missions_resumed") or 0)
             summary["chief_of_staff_missions_completed"] = int(chief_summary.get("missions_completed") or 0)
             summary["chief_of_staff_missions_waiting"] = int(chief_summary.get("missions_waiting") or 0)
+            summary["chief_of_staff_missions_pending"] = int(chief_summary.get("missions_pending") or 0)
+            summary["chief_of_staff_missions_waiting_for_hand"] = int(chief_summary.get("missions_waiting_for_hand") or 0)
+            summary["chief_of_staff_missions_waiting_for_approval"] = int(chief_summary.get("missions_waiting_for_approval") or 0)
+            summary["chief_of_staff_missions_waiting_for_verification"] = int(chief_summary.get("missions_waiting_for_verification") or 0)
+            summary["chief_of_staff_missions_failed"] = int(chief_summary.get("missions_failed") or 0)
+            summary["chief_of_staff_missions_other_waiting"] = int(chief_summary.get("missions_other_waiting") or 0)
         except Exception as exc:
             db.rollback()
             logger.error("Chief of Staff mission cycle failed: error_type=%s", type(exc).__name__)
