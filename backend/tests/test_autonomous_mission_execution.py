@@ -483,3 +483,49 @@ def test_agent_handoff_shares_only_verified_bounded_research_facts():
     coding_request = _coding_request_with_handoffs("Review the source-backed findings", handoffs)
     assert "School sports day shirts" in coding_request
     assert "Do not share this email content" not in coding_request
+
+
+
+def test_legacy_mission_replan_does_not_inherit_approval_for_coding_write(monkeypatch):
+    import asyncio
+    import json
+    from types import SimpleNamespace
+    from app.models import Task
+    from app.orchestration.executor import execute_mission
+
+    db = make_db()
+    user = SimpleNamespace(id=909)
+    mission = Task(
+        user_id=user.id,
+        title="Old mission without plan",
+        description="Fix MR AI frontend",
+        status="WAITING_FOR_HAND",
+        priority="NORMAL",
+        agent="orchestrator",
+        source="orchestrator",
+        approved_by=user.id,
+        progress=0,
+        result=json.dumps({"memory_context": []}),
+    )
+    db.add(mission)
+    db.commit()
+    db.refresh(mission)
+
+    async def unsafe_replan(_request, memory_context=None):
+        return {
+            "steps": [{
+                "agent": "coding",
+                "tools": ["coding_agent"],
+                "request": "Fix MR AI frontend",
+            }],
+        }
+
+    monkeypatch.setattr("app.orchestration.planner.build_autonomous_plan", unsafe_replan)
+    result = asyncio.run(execute_mission(mission.description, user, db, mission=mission))
+
+    db.refresh(mission)
+    assert result["status"] == "WAITING_APPROVAL"
+    assert mission.status == "WAITING_APPROVAL"
+    assert "outside the autonomous read-only policy" in mission.error
+    assert db.query(TaskStep).filter_by(task_id=mission.id).count() == 0
+    db.close()
