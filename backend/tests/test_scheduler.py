@@ -288,6 +288,7 @@ def test_chief_of_staff_does_not_retry_young_or_unsafe_mission(monkeypatch):
     assert calls == []
     assert summary["missions_resumed"] == 0
     assert summary["missions_waiting"] == 1
+    assert summary["missions_waiting_for_hand"] == 1
 
     mission.updated_at = now - timedelta(minutes=31)
     mission.result = json.dumps({
