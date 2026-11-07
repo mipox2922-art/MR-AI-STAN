@@ -414,12 +414,15 @@ async def run_chief_of_staff_cycle(db: Session) -> dict[str, int]:
     users = db.query(User).order_by(User.id.asc()).all()
     now = datetime.utcnow()
     goal = (
-        "Tafuta wateja wapya na fursa za biashara kwa MOOG Digital Printing & Branding "
-        "Dar es Salaam. Lenga biashara, shule, taasisi, timu na waandaaji wanaoweza kuhitaji "
-        "printing, branding, T-shirt, jersey, signage au graphic design. Tumia vyanzo vya "
-        "umma, hifadhi ushahidi na viungo vya chanzo, ondoa nakala zinazojirudia, panga "
-        "fursa kwa uhalisia wa huduma na toa mapendekezo ya hatua inayofuata. Usitume "
-        "ujumbe, usipige simu, usichapishe wala kufanya malipo."
+        "Simamia shughuli zangu zote. Fanya kazi kama MR AI Chief of Staff kwa timu ya agents: "
+        "tafuta na panga wateja wenye ushahidi kwa MOOG Digital Printing & Branding Dar es Salaam; "
+        "tafuta ajira za remote zinazolingana na profile ya mmiliki; soma inbox ya Gmail kwa "
+        "fursa za kazi, biashara na wateja; kagua 343Shop kwa kusoma bidhaa na oda; kagua MR AI "
+        "STAN kwa static review tu; na soma ratiba pamoja na vikumbusho. "
+        "Agents wapeane matokeo yaliyothibitishwa ili hatua zinazofuata zitumie ushahidi huo. "
+        "Tumia public sources na hifadhi viungo. Hii ni kazi ya kusoma, kuchambua na kuandaa "
+        "ripoti tu: usitume email/ujumbe, usiombe kazi, usibadilishe code, usifanye merge/deploy, "
+        "usichapishe, usifute, usipige simu wala kufanya malipo."
     )
     for user in users:
         summary["users_checked"] += 1
