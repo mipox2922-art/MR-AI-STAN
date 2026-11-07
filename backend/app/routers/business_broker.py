@@ -224,17 +224,9 @@ async def _fetch_broker_sources(goal: str, opportunity_type: OpportunityType, li
             "note": result.get("note"),
         }
 
-    from ..config import settings
-    if not settings.searxng_url.strip():
-        return {
-            "status": "NOT_CONNECTED",
-            "query": goal,
-            "source_names": [],
-            "source_warnings": [],
-            "items": [],
-            "message": "SearXNG haijaunganishwa. Hakuna supplier/client wa kubuniwa; weka SEARXNG_URL au chagua remote-work research inayotumia public job feeds.",
-        }
-
+    # _search_searxng owns the provider fallback chain: configured SearXNG,
+    # then DuckDuckGo HTML, then clearly-limited public APIs. Do not block the
+    # broker just because its optional primary SearXNG endpoint is not configured.
     from .tools import _search_searxng
     query = _build_search_query(goal, opportunity_type)
     result = await _search_searxng(query)
@@ -247,15 +239,23 @@ async def _fetch_broker_sources(goal: str, opportunity_type: OpportunityType, li
             "title": str(found.get("title") or "Untitled search result")[:255],
             "organization": None,
             "summary": str(found.get("content") or "")[:5000],
-            "source_name": str(found.get("engine") or "SearXNG")[:120],
+            "source_name": str(found.get("engine") or found.get("source") or next(iter(result.get("sources") or []), "Public search"))[:120],
             "source_url": url,
-            "evidence": {"search_query": query, "engine": found.get("engine"), "result_excerpt": str(found.get("content") or "")[:1500]},
+            "evidence": {
+                "search_query": query,
+                "engine": found.get("engine") or found.get("source"),
+                "search_mode": result.get("source") or result.get("source_mode"),
+                "fallback_used": bool(result.get("fallback_used")),
+                "primary_source": result.get("primary_source"),
+                "source_warnings": result.get("source_warnings") or [],
+                "result_excerpt": str(found.get("content") or "")[:1500],
+            },
         })
     return {
         "status": result.get("status", "FAILED"),
         "query": query,
-        "source_names": sorted({str(item["source_name"]) for item in items}),
-        "source_warnings": [],
+        "source_names": sorted({str(item["source_name"]) for item in items}) or [str(name) for name in (result.get("sources") or [])],
+        "source_warnings": result.get("source_warnings") or [],
         "items": items,
         "message": result.get("message"),
     }
@@ -548,10 +548,11 @@ def broker_status(current_user=Depends(get_current_user)) -> dict[str, Any]:
         "status": "AVAILABLE",
         "owner_scoped_pipeline": True,
         "public_job_feeds": ["RemoteOK", "Remotive"],
-        "business_supplier_search": "CONNECTED" if settings.searxng_url.strip() else "NOT_CONNECTED",
+        "business_supplier_search": "CONNECTED" if settings.searxng_url.strip() else "FALLBACK_AVAILABLE",
+        "business_supplier_search_primary": "SEARXNG" if settings.searxng_url.strip() else "DUCKDUCKGO_AND_LIMITED_PUBLIC_APIS",
         "automatic_outreach": False,
         "payments_and_orders": False,
-        "message": "Research can store source evidence, prepare drafts and create follow-up tasks. It does not send outreach, place orders or guarantee profit.",
+        "message": "Business research uses configured SearXNG when available, then DuckDuckGo HTML and limited public APIs as fallbacks. Source coverage may be limited; verify every lead. No outreach or orders are sent automatically.",
     }
 
 
