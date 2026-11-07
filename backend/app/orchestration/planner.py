@@ -356,7 +356,7 @@ def _validated_manager_plan(
         "agents": list(dict.fromkeys(step["name"] for step in steps)),
         "steps": steps,
         "verification": [
-            "Every agent receives only its assigned subtask, not unrelated conversation context.",
+            "Each agent receives its assigned subtask and only bounded, verified handoff facts from earlier specialists; unrelated chat and private message contents are excluded.",
             "Only execution adapters actually connected in this runtime may claim work.",
             "An action requiring owner approval remains blocked until the owner approves it.",
             "A mission is complete only when every required step has verified evidence.",
