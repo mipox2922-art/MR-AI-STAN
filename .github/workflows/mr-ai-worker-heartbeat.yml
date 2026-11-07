@@ -2,14 +2,18 @@ name: MR AI background worker heartbeat
 
 on:
   schedule:
-    - cron: "*/5 * * * *"
+    # Avoid minute 0, where GitHub Actions scheduled runs are most likely to be delayed.
+    - cron: "2-57/5 * * * *"
   workflow_dispatch:
-  # Exercise the trusted OIDC heartbeat on workflow changes as well as its five-minute schedule.
+  # Wake and verify the worker after backend deploys as well as on the periodic schedule.
   push:
     branches:
       - main
     paths:
+      - "backend/**"
+      - "render.yaml"
       - ".github/workflows/mr-ai-worker-heartbeat.yml"
+      - ".github/workflows/mr-ai-scheduler.yml"
 
 permissions:
   contents: read
