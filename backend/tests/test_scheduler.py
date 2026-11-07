@@ -265,7 +265,7 @@ def test_chief_of_staff_resumes_old_safe_research_mission_without_duplicate(monk
 def test_chief_of_staff_does_not_retry_young_or_unsafe_mission(monkeypatch):
     import asyncio
     import json
-    from app.scheduler import run_chief_of_staff_cycle
+    from app.scheduler import run_chief_of_staff_cycle, _chief_of_staff_retry_block_reason, _chief_of_staff_wait_diagnostics
 
     db = make_db()
     user = User(username="safe-retry-owner", password_hash="test-hash")
@@ -289,6 +289,7 @@ def test_chief_of_staff_does_not_retry_young_or_unsafe_mission(monkeypatch):
     assert summary["missions_resumed"] == 0
     assert summary["missions_waiting"] == 1
     assert summary["missions_waiting_for_hand"] == 1
+    assert _chief_of_staff_retry_block_reason(mission, now) == "cooldown_active"
 
     mission.updated_at = now - timedelta(minutes=31)
     mission.result = json.dumps({
@@ -300,4 +301,46 @@ def test_chief_of_staff_does_not_retry_young_or_unsafe_mission(monkeypatch):
     assert calls == []
     assert summary["missions_resumed"] == 0
     assert summary["missions_waiting"] == 1
+    assert _chief_of_staff_retry_block_reason(mission, now) == "plan_contains_non_research_agent_or_missing_search_tool"
+    planned_agents, executed_states = _chief_of_staff_wait_diagnostics(mission)
+    assert planned_agents == "gmail:gmail"
+    assert executed_states == "no_execution_steps"
+    db.close()
+
+
+
+def test_chief_of_staff_held_log_is_deduplicated(monkeypatch):
+    import logging
+    from app.scheduler import (
+        _CHIEF_OF_STAFF_LAST_HELD_LOG,
+        _log_chief_of_staff_held_mission,
+        CHIEF_OF_STAFF_GOAL,
+        CHIEF_OF_STAFF_REQUESTED_BY,
+    )
+
+    db = make_db()
+    user = User(username="held-log-owner", password_hash="test-hash")
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    mission = _create_waiting_chief_mission(
+        db, user, datetime.utcnow() - timedelta(minutes=5),
+        {"steps": [{"agent": "gmail", "tools": ["gmail"]}]},
+    )
+    records = []
+
+    class Capture:
+        def warning(self, message, *args):
+            records.append(message % args)
+
+    _CHIEF_OF_STAFF_LAST_HELD_LOG.pop(mission.id, None)
+    monkeypatch.setattr("app.scheduler.logger", Capture())
+    now = datetime.utcnow()
+    _log_chief_of_staff_held_mission(mission, "WAITING_FOR_HAND", now)
+    _log_chief_of_staff_held_mission(mission, "WAITING_FOR_HAND", now)
+    assert len(records) == 1
+    assert "plan_contains_non_research_agent_or_missing_search_tool" in records[0]
+    assert "gmail:gmail" in records[0]
+    assert CHIEF_OF_STAFF_GOAL in mission.description
+    assert CHIEF_OF_STAFF_REQUESTED_BY == mission.requested_by
     db.close()

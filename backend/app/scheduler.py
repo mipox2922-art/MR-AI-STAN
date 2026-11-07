@@ -449,33 +449,94 @@ def _record_chief_of_staff_waiting_status(summary: dict[str, int], status: str) 
         summary["missions_other_waiting"] += 1
 
 
-def _chief_of_staff_retry_allowed(mission: Task, now: datetime) -> bool:
-    """Retry only an old, owner-scoped MOOG research mission; never replay external writes."""
-    if str(mission.status or "").upper() not in {"WAITING_FOR_HAND", "FAILED"}:
-        return False
-    if mission.approved_by != mission.user_id or mission.description != CHIEF_OF_STAFF_GOAL:
-        return False
-    if mission.updated_at is None or now - _as_utc_naive(mission.updated_at) < CHIEF_OF_STAFF_RETRY_INTERVAL:
-        return False
+_CHIEF_OF_STAFF_LAST_HELD_LOG: dict[int, str] = {}
+
+
+def _chief_of_staff_retry_block_reason(mission: Task, now: datetime) -> str:
+    """Return a safe reason code explaining why an autonomous mission is not resumed."""
+    status = str(mission.status or "").upper()
+    if status not in {"WAITING_FOR_HAND", "FAILED"}:
+        return "status_not_retryable"
+    if mission.approved_by != mission.user_id:
+        return "owner_approval_not_recorded"
+    if mission.description != CHIEF_OF_STAFF_GOAL:
+        return "goal_does_not_match"
+    if mission.updated_at is None:
+        return "updated_at_missing"
     try:
         packet = json.loads(mission.result or "{}")
     except (TypeError, ValueError):
         packet = {}
-    plan = packet.get("plan") if isinstance(packet, dict) else None
-    if not isinstance(plan, dict):
-        # Older missions may not have saved their plan. execute_mission re-plans them
-        # and applies the autonomous read-only policy before it can execute anything.
-        return True
-    steps = plan.get("steps")
-    return bool(
-        isinstance(steps, list)
-        and steps
-        and all(
+    if not isinstance(packet, dict):
+        packet = {}
+    plan = packet.get("plan")
+    if isinstance(plan, dict):
+        steps = plan.get("steps")
+        if not isinstance(steps, list) or not steps:
+            return "plan_steps_missing"
+        if not all(
             isinstance(step, dict)
             and step.get("agent") == "research"
             and "searxng" in (step.get("tools") or [])
             for step in steps
-        )
+        ):
+            return "plan_contains_non_research_agent_or_missing_search_tool"
+    if now - _as_utc_naive(mission.updated_at) < CHIEF_OF_STAFF_RETRY_INTERVAL:
+        return "cooldown_active"
+    if not isinstance(plan, dict):
+        # Legacy packets are re-planned by execute_mission and must pass its strict
+        # read-only recovery gate before any action can run.
+        return "legacy_plan_requires_read_only_recheck"
+    return "retry_eligible"
+
+
+def _chief_of_staff_retry_allowed(mission: Task, now: datetime) -> bool:
+    return _chief_of_staff_retry_block_reason(mission, now) in {
+        "legacy_plan_requires_read_only_recheck",
+        "retry_eligible",
+    }
+
+
+def _chief_of_staff_wait_diagnostics(mission: Task) -> tuple[str, str]:
+    """Expose roles and statuses only; never log task prompts, email content or raw output."""
+    try:
+        packet = json.loads(mission.result or "{}")
+    except (TypeError, ValueError):
+        packet = {}
+    if not isinstance(packet, dict):
+        packet = {}
+    plan = packet.get("plan") if isinstance(packet.get("plan"), dict) else {}
+    planned_steps = plan.get("steps") if isinstance(plan.get("steps"), list) else []
+    executed_steps = packet.get("steps") if isinstance(packet.get("steps"), list) else []
+    planned_agents = ",".join(
+        f"{str(step.get('agent') or 'unknown')}:{','.join(str(tool) for tool in (step.get('tools') or [])[:4])}"
+        for step in planned_steps[:7]
+        if isinstance(step, dict)
+    ) or "unknown"
+    executed_states = ",".join(
+        f"{str(step.get('agent') or 'unknown')}={str(step.get('status') or 'unknown').upper()}"
+        for step in executed_steps[:7]
+        if isinstance(step, dict)
+    ) or "no_execution_steps"
+    return planned_agents[:500], executed_states[:500]
+
+
+def _log_chief_of_staff_held_mission(mission: Task, status: str, now: datetime) -> None:
+    reason = _chief_of_staff_retry_block_reason(mission, now)
+    planned_agents, executed_states = _chief_of_staff_wait_diagnostics(mission)
+    marker = f"{status}|{reason}|{planned_agents}|{executed_states}"
+    if _CHIEF_OF_STAFF_LAST_HELD_LOG.get(mission.id) == marker:
+        return
+    if len(_CHIEF_OF_STAFF_LAST_HELD_LOG) >= 256:
+        _CHIEF_OF_STAFF_LAST_HELD_LOG.pop(next(iter(_CHIEF_OF_STAFF_LAST_HELD_LOG)))
+    _CHIEF_OF_STAFF_LAST_HELD_LOG[mission.id] = marker
+    logger.warning(
+        "Chief of Staff mission held: task_id=%s status=%s reason=%s planned_agents=%s executed_steps=%s",
+        mission.id,
+        status,
+        reason,
+        planned_agents,
+        executed_states,
     )
 
 
@@ -558,12 +619,7 @@ async def run_chief_of_staff_cycle(db: Session) -> dict[str, int]:
                 status = str(active.status or "").upper()
                 summary["missions_waiting"] += int(status in CHIEF_OF_STAFF_BLOCKED_STATES)
                 _record_chief_of_staff_waiting_status(summary, status)
-                logger.warning(
-                    "Chief of Staff mission held: task_id=%s status=%s retry_eligible=%s",
-                    active.id,
-                    status,
-                    _chief_of_staff_retry_allowed(active, now),
-                )
+                _log_chief_of_staff_held_mission(active, status, now)
             continue
 
         if last_run and (now - last_run) < CHIEF_OF_STAFF_INTERVAL:
