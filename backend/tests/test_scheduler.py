@@ -199,3 +199,104 @@ def test_chief_of_staff_starts_one_daily_self_initiated_moog_research_mission(mo
         Setting.key == scheduler_module.CHIEF_OF_STAFF_CYCLE_KEY,
     ).count() == 1
     db.close()
+
+
+
+def _create_waiting_chief_mission(db, user, updated_at, plan=None):
+    import json
+    from app.scheduler import CHIEF_OF_STAFF_GOAL, CHIEF_OF_STAFF_REQUESTED_BY
+
+    packet = {} if plan is None else {"plan": plan, "steps": []}
+    mission = Task(
+        user_id=user.id,
+        title="MOOG lead research",
+        description=CHIEF_OF_STAFF_GOAL,
+        status="WAITING_FOR_HAND",
+        priority="NORMAL",
+        agent="orchestrator",
+        source="orchestrator",
+        requested_by=CHIEF_OF_STAFF_REQUESTED_BY,
+        approved_by=user.id,
+        updated_at=updated_at,
+        result=json.dumps(packet),
+    )
+    db.add(mission)
+    db.commit()
+    db.refresh(mission)
+    return mission
+
+
+def test_chief_of_staff_resumes_old_safe_research_mission_without_duplicate(monkeypatch):
+    import asyncio
+    import json
+    from app.scheduler import CHIEF_OF_STAFF_GOAL, run_chief_of_staff_cycle
+
+    db = make_db()
+    user = User(username="retry-owner", password_hash="test-hash")
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    now = datetime.utcnow()
+    plan = {"steps": [{"agent": "research", "tools": ["searxng"], "request": CHIEF_OF_STAFF_GOAL}]}
+    mission = _create_waiting_chief_mission(db, user, now - timedelta(minutes=31), plan)
+    calls = []
+
+    async def fake_execute(goal, owner, session, mission=None):
+        calls.append((goal, owner.id, mission.id))
+        mission.status = "COMPLETED"
+        mission.progress = 100
+        mission.result = json.dumps({"plan": plan, "steps": [], "verified_steps": 1})
+        session.commit()
+        return {"status": "COMPLETED", "mission": {"id": mission.id}}
+
+    monkeypatch.setattr("app.orchestration.executor.execute_mission", fake_execute)
+    summary = asyncio.run(run_chief_of_staff_cycle(db))
+
+    db.refresh(mission)
+    assert calls == [(CHIEF_OF_STAFF_GOAL, user.id, mission.id)]
+    assert summary["missions_resumed"] == 1
+    assert summary["missions_completed"] == 1
+    assert summary["missions_started"] == 0
+    assert db.query(Task).filter_by(user_id=user.id, requested_by="MR AI Chief of Staff").count() == 1
+    assert mission.status == "COMPLETED"
+    db.close()
+
+
+def test_chief_of_staff_does_not_retry_young_or_unsafe_mission(monkeypatch):
+    import asyncio
+    import json
+    from app.scheduler import run_chief_of_staff_cycle
+
+    db = make_db()
+    user = User(username="safe-retry-owner", password_hash="test-hash")
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    now = datetime.utcnow()
+    mission = _create_waiting_chief_mission(
+        db, user, now - timedelta(minutes=5),
+        {"steps": [{"agent": "research", "tools": ["searxng"]}]},
+    )
+    calls = []
+
+    async def fake_execute(*args, **kwargs):
+        calls.append((args, kwargs))
+        raise AssertionError("A young mission must not be retried")
+
+    monkeypatch.setattr("app.orchestration.executor.execute_mission", fake_execute)
+    summary = asyncio.run(run_chief_of_staff_cycle(db))
+    assert calls == []
+    assert summary["missions_resumed"] == 0
+    assert summary["missions_waiting"] == 1
+
+    mission.updated_at = now - timedelta(minutes=31)
+    mission.result = json.dumps({
+        "plan": {"steps": [{"agent": "gmail", "tools": ["gmail"]}]},
+        "steps": [],
+    })
+    db.commit()
+    summary = asyncio.run(run_chief_of_staff_cycle(db))
+    assert calls == []
+    assert summary["missions_resumed"] == 0
+    assert summary["missions_waiting"] == 1
+    db.close()
